@@ -5,6 +5,12 @@ import math
 import torch
 import torch.nn.functional as F
 
+
+from torch.amp import custom_fwd, custom_bwd
+
+from ..utils import contiguous
+
+
 """
 PyTorch
 
@@ -167,6 +173,8 @@ def mlstm_fwbw(
 class _mlstm_fwbw(torch.autograd.Function):
 
     @staticmethod
+    @custom_fwd(device_type="cuda")
+    @contiguous
     def forward(
         ctx,
         matQ: torch.Tensor,
@@ -188,6 +196,8 @@ class _mlstm_fwbw(torch.autograd.Function):
         return matH, vecM, vecN
 
     @staticmethod
+    @custom_bwd(device_type="cuda")
+    @contiguous
     def backward(
         ctx,
         matDeltaHtilde: torch.Tensor,

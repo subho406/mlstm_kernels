@@ -3,6 +3,9 @@ import torch
 from ._triton_bw import mlstm_bw
 from ._triton_fw import mlstm_fw
 
+from torch.amp import custom_fwd, custom_bwd
+
+from ..utils import contiguous
 
 def mlstm_fwbw(
     matQ: torch.Tensor,
@@ -19,6 +22,8 @@ def mlstm_fwbw(
 class _mlstm_fwbw(torch.autograd.Function):
 
     @staticmethod
+    @custom_fwd(device_type="cuda")
+    @contiguous
     def forward(
         ctx,
         matQ: torch.Tensor,
@@ -40,6 +45,8 @@ class _mlstm_fwbw(torch.autograd.Function):
         return matH, vecM, vecN
 
     @staticmethod
+    @custom_bwd(device_type="cuda")
+    @contiguous
     def backward(
         ctx,
         matDeltaHtilde: torch.Tensor,
