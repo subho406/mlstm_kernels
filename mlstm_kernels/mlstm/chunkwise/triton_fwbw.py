@@ -9,7 +9,7 @@ import triton
 import triton.language as tl
 from torch.amp import custom_bwd, custom_fwd
 
-from .utils import contiguous
+from ..utils import contiguous
 
 
 @triton.jit
