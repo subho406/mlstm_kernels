@@ -1,14 +1,15 @@
 import torch
 import triton
-from mlstm_parallel import mlstm_torch_autograd as mlstm_parallel_torch_autograd
-from mlstm_parallel import mlstm_torch_ownbw as mlstm_parallel_torch_ownbw
-from mlstm_parallel import mlstm_triton as mlstm_parallel_triton
+from mlstm_kernels.mlstm.parallel import mlstm_torch_autograd as mlstm_parallel_torch_autograd
+from mlstm_kernels.mlstm.parallel import mlstm_torch_ownbw as mlstm_parallel_torch_ownbw
+from mlstm_kernels.mlstm.parallel import mlstm_triton as mlstm_parallel_triton
 
 BATCH, N_HEADS = 1, 8
 
 HEAD_DIMS = [64, 128, 256]
 
 
+# mlstm only
 configs = []
 for HEAD_DIM in HEAD_DIMS:
     configs.append(
@@ -38,6 +39,38 @@ for HEAD_DIM in HEAD_DIMS:
             },
         )
     )
+
+# mlstm + attention
+configs = []
+for HEAD_DIM in HEAD_DIMS:
+    configs.append(
+        triton.testing.Benchmark(
+            x_names=["N_CTX"],
+            x_vals=[256, 512, 1024, 2048, 4096],  # [2**i for i in range(10, 15)],
+            line_arg="provider",
+            line_vals=[
+                "mlstm_parallel_pt_ag_compile_fwbw",
+                "mlstm_parallel_triton_fwbw",
+                "mlstm_parallel_pt_ag_compile_fw",
+                "mlstm_parallel_triton_fw",
+            ],
+            line_names=[
+                "mLSTM parallel PT Autograd Compile FWBW",
+                "mLSTM parallel Triton FWBW",
+                "mLSTM parallel PT Autograd Compile FW",
+                "mLSTM parallel Triton FW",
+            ],
+            styles=[("red", "-"), ("blue", "-"), ("red", "--"), ("blue", "--")],
+            ylabel="ms",
+            plot_name=f"mlstm_fwbw_fw-batch{BATCH}-head{N_HEADS}-d{HEAD_DIM}",
+            args={
+                "H": N_HEADS,
+                "BATCH": BATCH,
+                "HEAD_DIM": HEAD_DIM,
+            },
+        )
+    )
+
 
 
 @triton.testing.perf_report(configs)
@@ -94,4 +127,4 @@ def bench_flash_mlstm_fwbw(BATCH, H, N_CTX, HEAD_DIM, provider, device="cuda"):
 
 
 if __name__ == "__main__":
-    bench_flash_mlstm_fwbw.run(save_path=".", print_data=True)
+    bench_flash_mlstm_fwbw.run(save_path="./outputs/speed_test_parallel", print_data=True)
