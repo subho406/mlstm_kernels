@@ -84,7 +84,8 @@ def _fwd_kernel(
         # -- compute qk ----
         k = tl.load(k_ptrs + start_n * stride_kn)
         qk = tl.zeros([BLOCK_M, BLOCK_N], dtype=tl.float32)
-        qk += tl.dot(q, k, trans_b=True)
+        k_trans = tl.trans(k)
+        qk += tl.dot(q, k_trans)
         qk *= sm_scale
         qk += tl.where(offs_m[:, None] >= (start_n + offs_n[None, :]), 0, float("-inf"))
         # -- compute m_ij, p, l_ij
@@ -227,21 +228,31 @@ def _bwd_kernel(
             q = tl.load(q_ptrs)
             # recompute p = softmax(qk, dim=-1).T
             # NOTE: `do` is pre-divided by `l`; no normalization here
-            qk = tl.dot(q, k, trans_b=True)
+
+            k_trans = tl.trans(k)
+            qk = tl.dot(q, k_trans)
+            
             qk = tl.where(offs_m_curr[:, None] >= (offs_n[None, :]), qk, float("-inf"))
             m = tl.load(m_ptrs + offs_m_curr)
             p = tl.exp(qk * sm_scale - m[:, None])
             # compute dv
             do = tl.load(do_ptrs)
-            dv += tl.dot(p.to(do.dtype), do, trans_a=True)
+
+            p_trans = tl.trans(p.to(do.dtype))
+            dv += tl.dot(p_trans, do)
             # compute dp = dot(v, do)
             Di = tl.load(D_ptrs + offs_m_curr)
             dp = tl.zeros([BLOCK_M, BLOCK_N], dtype=tl.float32) - Di[:, None]
-            dp += tl.dot(do, v, trans_b=True)
+
+            v_trans = tl.trans(v)
+            dp += tl.dot(do, v_trans)
+
             # compute ds = p * (dp - delta[:, None])
             ds = p * dp * sm_scale
             # compute dk = dot(ds.T, q)
-            dk += tl.dot(ds.to(q.dtype), q, trans_a=True)
+            ds_trans = tl.trans(ds.to(q.dtype))
+            dk += tl.dot(ds_trans, q)
+
             # # compute dq
             dq = tl.load(dq_ptrs, eviction_policy="evict_last")
             dq += tl.dot(ds.to(k.dtype), k)
@@ -259,7 +270,7 @@ def _bwd_kernel(
 
 class _attention(torch.autograd.Function):
     @staticmethod
-    def forward(ctx, q, k, v, scale=None):
+    def forward(ctx, q, k, v, scale):
         BLOCK = 128
         # shape constraints
         Lq, Lk, Lv = q.shape[-1], k.shape[-1], v.shape[-1]

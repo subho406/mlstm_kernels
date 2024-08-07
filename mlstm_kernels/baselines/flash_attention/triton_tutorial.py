@@ -583,7 +583,7 @@ def _attn_bwd(
 class _attention(torch.autograd.Function):
 
     @staticmethod
-    def forward(ctx, q, k, v, causal, scale=None):
+    def forward(ctx, q, k, v, causal, scale):
         # shape constraints
         HEAD_DIM_Q, HEAD_DIM_K = q.shape[-1], k.shape[-1]
         # when v is in float8_e5m2 it is transposed.
@@ -649,6 +649,7 @@ class _attention(torch.autograd.Function):
     @staticmethod
     def backward(ctx, do):
         q, k, v, o, M = ctx.saved_tensors
+        do = do.contiguous()
         assert do.is_contiguous()
         assert q.stride() == k.stride() == v.stride() == o.stride() == do.stride()
         dq = torch.empty_like(q)
@@ -709,4 +710,5 @@ class _attention(torch.autograd.Function):
 
 attention = _attention.apply
 
-attention_causal = functools.partial(attention, causal=True)
+def attention_causal(q, k, v, scale=None):
+    return attention(q, k, v, True, scale)
