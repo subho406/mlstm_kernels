@@ -567,6 +567,7 @@ def mLSTMFunc(chunk_size, save_states: bool = False):
 
         @staticmethod
         @custom_fwd(device_type="cuda")
+        @contiguous
         def forward(
             ctx, q, k, v, i, f, initial_C, initial_n, initial_m, output_final_state
         ):
@@ -712,6 +713,7 @@ def mLSTMFunc(chunk_size, save_states: bool = False):
 
         @staticmethod
         @custom_bwd(device_type="cuda")
+        @contiguous
         def backward(ctx, dh, final_dC=None, final_dn=None, final_dm=None):
             if save_states:
                 (
