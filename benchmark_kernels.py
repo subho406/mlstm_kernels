@@ -79,8 +79,8 @@ for HEAD_DIM in HEAD_DIMS:
         "flash_linear_attention--triton_simple_gla++fw",
         "flash_linear_attention--triton_fused_gla++fwbw",
         "flash_linear_attention--triton_fused_gla++fw",
-        "flash_linear_attention--triton_fused_recurrent_gla++fwbw",
-        "flash_linear_attention--triton_fused_recurrent_gla++fw",
+        # "flash_linear_attention--triton_fused_recurrent_gla++fwbw",
+        # "flash_linear_attention--triton_fused_recurrent_gla++fw",
     ]
 
     configs.append(
@@ -120,6 +120,9 @@ def bench_flash_mlstm_fwbw(BATCH, H, N_CTX, HEAD_DIM, provider, device="cuda"):
     )
     ig = torch.randn((BATCH, H, N_CTX), dtype=dtype, device=device, requires_grad=True)
     fg = torch.randn((BATCH, H, N_CTX), dtype=dtype, device=device, requires_grad=True)
+    
+    # only for flash linear attention
+    gs = torch.randn((BATCH, H, N_CTX, HEAD_DIM), dtype=dtype, device=device, requires_grad=True)
 
     # select kernel
     provider_split = provider.split("++")
@@ -137,10 +140,10 @@ def bench_flash_mlstm_fwbw(BATCH, H, N_CTX, HEAD_DIM, provider, device="cuda"):
     elif "flash_attention" in kernel_name:
         inputs = (q, k, v, None)
     elif "flash_linear_attention" in kernel_name:
-        if "fused_recurrent" in kernel_name:
-            inputs = (q, k, v, fg, ig)
-        else:
+        if "simple_gla" in kernel_name:
             inputs = (q, k, v, fg)
+        else:
+            inputs = (q, k, v, gs)
 
     # prepare kernel
     kernel_fn = get_kernel(kernel_name)
@@ -152,7 +155,10 @@ def bench_flash_mlstm_fwbw(BATCH, H, N_CTX, HEAD_DIM, provider, device="cuda"):
 
     # fwbw
     if "fwbw" in fwbw_type:
-        fn = lambda: fw_fn().sum().backward()
+        if "flash_linear_attention" in kernel_name:
+            fn = lambda: fw_fn()[0].sum().backward()
+        else:
+            fn = lambda: fw_fn().sum().backward()
     else:
         fn = fw_fn
     print(f"Running benchmark for {provider}, with batch size {BATCH}, head size {H}, context size {N_CTX}, head dim {HEAD_DIM}, dtype {DTYPE}")
