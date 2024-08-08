@@ -17,11 +17,13 @@ def get_kernel(name: str) -> Callable:
     from mlstm_kernels.baselines.flash_attention import registry as flash_attention_registry
     from mlstm_kernels.mlstm.chunkwise import registry as mlstm_chunkwise_registry
     from mlstm_kernels.mlstm.parallel import registry as mlstm_parallel_registry
+    from mlstm_kernels.baselines.flash_linear_attention import registry as flash_linear_attention_gla_registry
 
     module_backend_registry = {
         "mlstm_chunkwise": mlstm_chunkwise_registry,
         "mlstm_parallel": mlstm_parallel_registry,
         "flash_attention": flash_attention_registry,
+        "flash_linear_attention": flash_linear_attention_gla_registry,
     }
     
     module_name, backend_name = name.split("--")

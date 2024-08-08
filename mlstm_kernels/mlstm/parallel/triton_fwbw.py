@@ -5,7 +5,7 @@ from ._triton_fw import mlstm_fw
 
 from torch.amp import custom_fwd, custom_bwd
 
-from ..utils import contiguous
+from ...kernel_utils import contiguous
 
 def mlstm_fwbw(
     matQ: torch.Tensor,

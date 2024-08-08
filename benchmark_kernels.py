@@ -15,7 +15,7 @@ compile: apply torch.compile
 """
 
 #! Parameters
-BENCHMARK_NAME = "kernelbench1"
+BENCHMARK_NAME = "kernelbench2"
 BATCH, N_HEADS = 1, 8
 HEAD_DIMS = [64, 128, 256]
 DTYPE = "float16"
@@ -56,15 +56,31 @@ def create_kernel2style_mapping(kernel_names: list[str]) -> list[tuple[str, str]
 # mlstm only
 configs = []
 for HEAD_DIM in HEAD_DIMS:
+    # kernels_to_benchmark = [
+    #     "mlstm_parallel--triton++fwbw",
+    #     "mlstm_parallel--triton++fw",
+    #     "mlstm_parallel--torch_autograd++fwbw",
+    #     "mlstm_parallel--torch_autograd++fw",
+    #     "flash_attention--triton_flash++fwbw",
+    #     "flash_attention--triton_flash++fw",
+    #     "flash_attention--triton_tutorial++fwbw",
+    #     "flash_attention--triton_tutorial++fw",
+    # ]
     kernels_to_benchmark = [
         "mlstm_parallel--triton++fwbw",
         "mlstm_parallel--triton++fw",
-        "mlstm_parallel--torch_autograd++fwbw",
-        "mlstm_parallel--torch_autograd++fw",
+        # "mlstm_parallel--torch_autograd++fwbw",
+        # "mlstm_parallel--torch_autograd++fw",
         "flash_attention--triton_flash++fwbw",
         "flash_attention--triton_flash++fw",
         "flash_attention--triton_tutorial++fwbw",
         "flash_attention--triton_tutorial++fw",
+        "flash_linear_attention--triton_simple_gla++fwbw",
+        "flash_linear_attention--triton_simple_gla++fw",
+        "flash_linear_attention--triton_fused_gla++fwbw",
+        "flash_linear_attention--triton_fused_gla++fw",
+        "flash_linear_attention--triton_fused_recurrent_gla++fwbw",
+        "flash_linear_attention--triton_fused_recurrent_gla++fw",
     ]
 
     configs.append(

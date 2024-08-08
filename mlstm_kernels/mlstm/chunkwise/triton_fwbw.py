@@ -8,6 +8,8 @@ import triton
 import triton.language as tl
 from torch.amp import custom_bwd, custom_fwd
 
+from ...kernel_utils import contiguous
+
 
 @triton.jit
 def chunk_mlstm_fwd_kernel_C(

@@ -8,7 +8,7 @@ import torch.nn.functional as F
 
 from torch.amp import custom_fwd, custom_bwd
 
-from ..utils import contiguous
+from ...kernel_utils import contiguous
 
 
 """
