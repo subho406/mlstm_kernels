@@ -68,17 +68,18 @@ for HEAD_DIM in HEAD_DIMS:
     # ]
     kernels_to_benchmark = [
         "mlstm_parallel--triton++fwbw",
-        "mlstm_parallel--triton++fw",
+        "mlstm_chunkwise--triton++fwbw",
+        # "mlstm_parallel--triton++fw",
         # "mlstm_parallel--torch_autograd++fwbw",
         # "mlstm_parallel--torch_autograd++fw",
         "flash_attention--triton_flash++fwbw",
-        "flash_attention--triton_flash++fw",
+        # "flash_attention--triton_flash++fw",
         "flash_attention--triton_tutorial++fwbw",
-        "flash_attention--triton_tutorial++fw",
+        # "flash_attention--triton_tutorial++fw",
         "flash_linear_attention--triton_simple_gla++fwbw",
-        "flash_linear_attention--triton_simple_gla++fw",
+        # "flash_linear_attention--triton_simple_gla++fw",
         "flash_linear_attention--triton_fused_gla++fwbw",
-        "flash_linear_attention--triton_fused_gla++fw",
+        # "flash_linear_attention--triton_fused_gla++fw",
         # "flash_linear_attention--triton_fused_recurrent_gla++fwbw",
         # "flash_linear_attention--triton_fused_recurrent_gla++fw",
     ]
