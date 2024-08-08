@@ -67,10 +67,10 @@ for HEAD_DIM in HEAD_DIMS:
     #     "flash_attention--triton_tutorial++fw",
     # ]
     kernels_to_benchmark = [
+        "mlstm_parallel--torch_autograd++fwbw++compile",
         "mlstm_parallel--triton++fwbw",
         "mlstm_chunkwise--triton++fwbw",
         # "mlstm_parallel--triton++fw",
-        # "mlstm_parallel--torch_autograd++fwbw",
         # "mlstm_parallel--torch_autograd++fw",
         "flash_attention--triton_flash++fwbw",
         # "flash_attention--triton_flash++fw",

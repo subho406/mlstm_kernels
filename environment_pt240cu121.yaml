@@ -28,3 +28,5 @@ dependencies:
       - pytest #==8.0.0
       - pytest-xdist #==3.5.0
       - numpy<2.0 #==1.26.4
+      - matplotlib 
+      - pandas
