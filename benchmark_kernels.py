@@ -136,6 +136,11 @@ def bench_flash_mlstm_fwbw(BATCH, H, N_CTX, HEAD_DIM, provider, device="cuda"):
         inputs = (q, k, v, ig, fg)
     elif "flash_attention" in kernel_name:
         inputs = (q, k, v, None)
+    elif "flash_linear_attention" in kernel_name:
+        if "fused_recurrent" in kernel_name:
+            inputs = (q, k, v, fg, ig)
+        else:
+            inputs = (q, k, v, fg)
 
     # prepare kernel
     kernel_fn = get_kernel(kernel_name)
