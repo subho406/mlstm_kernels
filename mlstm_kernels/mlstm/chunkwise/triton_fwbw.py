@@ -1,15 +1,12 @@
-# Copy from Korbinian Poeppel
-
-# Adapted from flash-linear-attention
-import math
+# Copyright JKU Linz 2024
+# Author Korbinian Pöppel
 from typing import Tuple
+import math
 
 import torch
 import triton
 import triton.language as tl
 from torch.amp import custom_bwd, custom_fwd
-
-from ..utils import contiguous
 
 
 @triton.jit
@@ -68,12 +65,12 @@ def chunk_mlstm_fwd_kernel_C(
         )
         p_m0 = initial_m
 
-        b_C = tl.load(p_C0, boundary_check=(0, 1)).to(tl.float32)
-        b_n = tl.load(p_n0, boundary_check=(0,)).to(tl.float32)
-        b_m = tl.load(p_m0).to(tl.float32)
+        b_C = tl.load(p_C0, boundary_check=(0, 1)).to(tl.bfloat16)
+        b_n = tl.load(p_n0, boundary_check=(0,)).to(tl.bfloat16)
+        b_m = tl.load(p_m0).to(tl.bfloat16)
     else:
-        b_C = tl.zeros([BK, BV], dtype=tl.float32)
-        b_n = tl.zeros([BK], dtype=tl.float32)
+        b_C = tl.zeros([BK, BV], dtype=tl.bfloat16)
+        b_n = tl.zeros([BK], dtype=tl.bfloat16)
         b_m = 0.0
 
     b_m_next = 0.0
@@ -120,14 +117,14 @@ def chunk_mlstm_fwd_kernel_C(
         b_m_next, _ = tl.max(b_g)
         b_m_next = tl.maximum(b_f_last + b_m, b_m_next)
 
-        b_C *= tl.math.exp2(b_f_last - b_m_next + b_m)
-        b_n *= tl.math.exp2(b_f_last - b_m_next + b_m)
+        b_C *= tl.math.exp2(b_f_last - b_m_next + b_m).to(b_C.dtype)
+        b_n *= tl.math.exp2(b_f_last - b_m_next + b_m).to(b_n.dtype)
         b_C += tl.dot(
             b_k,
             (b_v * tl.math.exp2(b_g - b_m_next)[:, None]).to(b_k.dtype),
             allow_tf32=False,
-        )
-        b_n += tl.sum(b_k * tl.math.exp2(b_g - b_m_next), axis=1)
+        ).to(b_C.dtype)
+        b_n += tl.sum(b_k * tl.math.exp2(b_g - b_m_next), axis=1).to(b_n.dtype)
         b_m = b_m_next
 
     if STORE_FINAL_STATE:
@@ -185,9 +182,9 @@ def chunk_mlstm_fwd_kernel_h(
     h_i = tl.arange(0, BT)
     m_s = h_i[:, None] >= h_i[None, :]
 
-    b_h = tl.zeros([BT, BV], dtype=tl.float32)
-    b_s = tl.zeros([BT, BT], dtype=tl.float32)
-    b_norm = tl.zeros([BT, BV], dtype=tl.float32)
+    b_h = tl.zeros([BT, BV], dtype=tl.bfloat16)
+    b_s = tl.zeros([BT, BT], dtype=tl.bfloat16)
+    b_norm = tl.zeros([BT, BV], dtype=tl.bfloat16)
     for i_k in range(tl.cdiv(K, BK)):
         p_q = tl.make_block_ptr(
             q + i_bC * s_qk_h,
@@ -231,9 +228,9 @@ def chunk_mlstm_fwd_kernel_h(
         # [BK, BV]
         b_C = tl.load(p_C, boundary_check=(0, 1))
         b_n = tl.load(p_n, boundary_check=(0,))
-        b_h += tl.dot(b_q, b_C, allow_tf32=False)
-        b_s += tl.dot(b_q, b_k, allow_tf32=False)
-        b_n2 = tl.dot(b_q, b_n, allow_tf32=False)
+        b_h += tl.dot(b_q, b_C, allow_tf32=False).to(b_h.dtype)
+        b_s += tl.dot(b_q, b_k, allow_tf32=False).to(b_s.dtype)
+        b_n2 = tl.dot(b_q, b_n, allow_tf32=False).to(b_norm.dtype)
         b_norm += b_n2
 
     p_f = f + i_bC * T + i_t * BT + tl.arange(0, BT)
@@ -467,9 +464,9 @@ def chunk_mlstm_bwd_kernel_dqkvif(
 
     b_m_next = tl.load(m + i_bC * (NT + 1) + i_t + 1)
 
-    b_dq = tl.zeros([BT, BK], dtype=tl.float32)
-    b_dk = tl.zeros([BT, BK], dtype=tl.float32)
-    b_ds = tl.zeros([BT, BT], dtype=tl.float32)
+    b_dq = tl.zeros([BT, BK], dtype=tl.bfloat16)
+    b_dk = tl.zeros([BT, BK], dtype=tl.bfloat16)
+    b_ds = tl.zeros([BT, BT], dtype=tl.bfloat16)
     for i_v in range(tl.cdiv(V, BV)):
         p_v = tl.make_block_ptr(
             v + i_bC * s_vh_h,
@@ -519,14 +516,16 @@ def chunk_mlstm_bwd_kernel_dqkvif(
         # [BK, BV]
         b_dC = tl.load(p_dC, boundary_check=(0, 1))
         # [BT, BT]
-        b_ds += tl.dot(b_dh, tl.trans(b_v), allow_tf32=False)
+        b_ds += tl.dot(b_dh, tl.trans(b_v), allow_tf32=False).to(b_ds.dtype)
         # [BT, BK]
-        b_dq += tl.dot(b_dh, b_C, allow_tf32=False) * scale
-        b_dk += tl.dot(b_v, tl.trans(b_dC), allow_tf32=False)
+        b_dq += (tl.dot(b_dh, b_C, allow_tf32=False) * scale).to(b_dq.dtype)
+        b_dk += (tl.dot(b_v, tl.trans(b_dC), allow_tf32=False)).to(b_dk.dtype)
         # [BT, BV]
-        b_dv = tl.dot(b_k, b_dC, allow_tf32=False) * tl.math.exp2(
-            b_i - b_f + b_f_last - b_m_next
-        )[:, None] + tl.dot(b_s.to(b_q.dtype) / b_norm[None, :], b_dh, allow_tf32=False)
+        b_dv = (
+            tl.dot(b_k, b_dC, allow_tf32=False)
+            * tl.math.exp2(b_i - b_f + b_f_last - b_m_next)[:, None]
+            + tl.dot((b_s / b_norm[None, :]).to(b_q.dtype), b_dh, allow_tf32=False)
+        ).to(b_v.dtype)
 
         tl.store(p_dv, b_dv.to(p_dv.dtype.element_ty), boundary_check=(0, 1))
 
@@ -536,8 +535,10 @@ def chunk_mlstm_bwd_kernel_dqkvif(
     b_ds = b_ds * tl.trans(mask)
     b_ds = b_ds.to(b_k.dtype)
     # [BT, BK]
-    b_dq += tl.dot(b_ds, b_k, allow_tf32=False) / b_norm[:, None]
-    b_dk += tl.trans(tl.dot(b_q / b_norm[None, :], b_ds, allow_tf32=False))
+    b_dq += (tl.dot(b_ds, b_k, allow_tf32=False) / b_norm[:, None]).to(b_dq.dtype)
+    b_dk += tl.trans(
+        tl.dot((b_q / b_norm[None, :]).to(b_ds.dtype), b_ds, allow_tf32=False)
+    ).to(b_dk.dtype)
 
     p_dq = tl.make_block_ptr(
         dq + i_bC * s_qk_h,
@@ -559,12 +560,11 @@ def chunk_mlstm_bwd_kernel_dqkvif(
     tl.store(p_dk, b_dk.to(p_dk.dtype.element_ty), boundary_check=(0, 1))
 
 
-def mLSTMFunc(chunk_size, save_states: bool = True):
+def mLSTMFunc(chunk_size, save_states: bool = False):
     class mLSTMFunction(torch.autograd.Function):
 
         @staticmethod
         @custom_fwd(device_type="cuda")
-        @contiguous
         def forward(
             ctx, q, k, v, i, f, initial_C, initial_n, initial_m, output_final_state
         ):
@@ -589,10 +589,12 @@ def mLSTMFunc(chunk_size, save_states: bool = True):
             final_C, final_n, final_m = None, None, None
             if output_final_state:
                 final_C = q.new_empty(
-                    B, H, K, V, dtype=torch.float32, requires_grad=False
+                    B, H, K, V, dtype=torch.bfloat16, requires_grad=False
                 )
-                final_n = q.new_empty(B, H, K, dtype=torch.float32, requires_grad=False)
-                final_m = q.new_empty(B, H, dtype=torch.float32, requires_grad=False)
+                final_n = q.new_empty(
+                    B, H, K, dtype=torch.bfloat16, requires_grad=False
+                )
+                final_m = q.new_empty(B, H, dtype=torch.bfloat16, requires_grad=False)
 
             C = q.new_empty(B, H, NT * K, V)
             n = q.new_empty(B, H, NT, K)
@@ -708,7 +710,6 @@ def mLSTMFunc(chunk_size, save_states: bool = True):
 
         @staticmethod
         @custom_bwd(device_type="cuda")
-        @contiguous
         def backward(ctx, dh, final_dC=None, final_dn=None, final_dm=None):
             if save_states:
                 (
@@ -754,10 +755,8 @@ def mLSTMFunc(chunk_size, save_states: bool = True):
             scale = K**-0.5
             dC = q.new_empty(B, H, NT * K, V)
 
-            initial_dC = q.new_empty(
-                B, H, K, V, dtype=torch.float32, requires_grad=False
-            )
-            initial_m = q.new_empty(B, H, dtype=torch.float32, requires_grad=False)
+            initial_dC = q.new_empty(B, H, K, V, dtype=q.dtype, requires_grad=False)
+            initial_m = q.new_empty(B, H, dtype=q.dtype, requires_grad=False)
 
             if final_dC is None:
                 final_dC = q.new_full(initial_dC.shape, 0.0)
@@ -910,7 +909,7 @@ def mLSTMFunc(chunk_size, save_states: bool = True):
 mLSTMFunction = mLSTMFunc(chunk_size=64)
 
 
-def mlstm_fwbw(
+def mlstm_triton(
     q: torch.Tensor,
     k: torch.Tensor,
     v: torch.Tensor,
