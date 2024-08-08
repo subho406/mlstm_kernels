@@ -18,7 +18,7 @@ from .chunk_util import (bwd_decay_global_cumsum, fwd_decay_cumsum,
                                     prepare_qg_kg)
 from ....kernel_utils import contiguous
 
-inv_ln2 = 1.44269504
+inv_ln2 : tl.constexpr = 1.44269504
 
 @triton.jit
 def fused_chunk_gla_fwd_kernel(
