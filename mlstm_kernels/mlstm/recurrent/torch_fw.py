@@ -5,7 +5,11 @@ import math
 import torch
 import torch.nn.functional as F
 
-"""This module contains only the final recurrent implementation of the mLSTM."""
+"""
+PyTorch.
+
+This module contains the recurrent implementation of the mLSTM.
+"""
 
 
 def recurrent_sequence_fw(
@@ -108,7 +112,7 @@ def recurrent_step_fw(
     Args:
         matC_state (torch.Tensor): (B, NH, DHQK, DHV)
         vecN_state (torch.Tensor): (B, NH, DHQK)
-        scaM_state (torch.Tensor): (B, NH)
+        scaM_state (torch.Tensor): (B, NH, 1)
         vecQ (torch.Tensor): (B, NH, DHQK)
         vecK (torch.Tensor): (B, NH, DHQK)
         vecV (torch.Tensor): (B, NH, DHV)
