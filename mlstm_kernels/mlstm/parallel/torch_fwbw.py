@@ -27,9 +27,8 @@ def _mlstm_fw(
     eps: float = 1e-6,
 ) -> torch.Tensor:
 
-    B, NH, S, DH = matQ.shape
-    assert matK.shape == (B, NH, S, DH)
-    assert matV.shape == (B, NH, S, DH)
+    B, NH, S, DHQK = matQ.shape
+    assert matK.shape == (B, NH, S, DHQK)
     assert vecI.shape == (B, NH, S)
     assert vecF.shape == (B, NH, S)
 
@@ -57,7 +56,7 @@ def _mlstm_fw(
 
     matD = torch.exp(matLogD_stabilized)  # (B, NH, S, S)
 
-    matS = (matQ @ matK.transpose(-2, -1)) / math.sqrt(DH)  # (B, NH, S, S)
+    matS = (matQ @ matK.transpose(-2, -1)) / math.sqrt(DHQK)  # (B, NH, S, S)
 
     matCtilde = matS * matD  # (B, NH, S, S)
     vecN = torch.maximum(
@@ -82,9 +81,8 @@ def _mlstm_bw(
     vecN: torch.Tensor,
     eps: float = 1e-6,
 ) -> tuple[torch.Tensor, ...]:
-    B, NH, S, DH = matQ.shape
-    assert matK.shape == (B, NH, S, DH)
-    assert matV.shape == (B, NH, S, DH)
+    B, NH, S, DHQK = matQ.shape
+    assert matK.shape == (B, NH, S, DHQK)
     assert vecI.shape == (B, NH, S)
     assert vecF.shape == (B, NH, S)
 
@@ -114,7 +112,7 @@ def _mlstm_bw(
     # intermediate delta-errors
     matDeltaC = matDeltaHtilde @ matV.transpose(-2, -1) / (vecN[:, :, :, None] + eps)
 
-    matS = (matQ @ matK.transpose(-2, -1)) / math.sqrt(DH)
+    matS = (matQ @ matK.transpose(-2, -1)) / math.sqrt(DHQK)
 
     matDeltaDtilde = matDeltaC * matD * matS
 
@@ -123,8 +121,8 @@ def _mlstm_bw(
     # output delta-errors / gradients
     matP = matDeltaC * matD
 
-    matDeltaQ = (matP @ matK) / math.sqrt(DH)
-    matDeltaK = (matP.transpose(-2, -1) @ matQ) / math.sqrt(DH)
+    matDeltaQ = (matP @ matK) / math.sqrt(DHQK)
+    matDeltaK = (matP.transpose(-2, -1) @ matQ) / math.sqrt(DHQK)
 
     matCtilde = matS * matD
     matDeltaV = matCtilde.transpose(-2, -1) @ (
