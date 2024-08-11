@@ -24,6 +24,9 @@ We want to compare this to the torch implementation in mlstm_kernels/mlstm/recur
 
 ENABLE_AUTOTUNING = True
 
+# TODO find better heuristic
+# the num_warps do no tneed to be tuned: set to BQ or BV / 32 (max 8 (or 4))
+
 if ENABLE_AUTOTUNING:
     configs = [
         triton.Config({"BLOCK_DQK": BQ, "BLOCK_DV": BV}, num_stages=s, num_warps=w)
@@ -276,7 +279,7 @@ def _recurrent_step_fw_kernel_h(
 
         # outputs
         h_num_temp = vecQ_val[:, None] * matC_new_val
-        tl.static_print("h_num_temp", h_num_temp)
+        # tl.static_print("h_num_temp", h_num_temp)
         h_num += tl.sum(h_num_temp, axis=0)
 
         qn_dotproduct += tl.sum(vecQ_val * vecN_new_val)
@@ -307,9 +310,7 @@ def recurrent_step_fw(
     vecN_new: torch.Tensor = None,  # (B, NH, DHQK)
     scaM_new: torch.Tensor = None,  # (B, NH, 1)
     qk_scale: float = None,
-    DTYPE_GATE: torch.dtype = torch.float32,
-    DTYPE_STATE: torch.dtype = torch.float32,
-    DTYPE_QKV: torch.dtype = torch.float32,
+    DTYPE: torch.dtype = torch.float32,
     EPS: float = 1e-6,
     # BLOCK_DQK: int = 16,
     # BLOCK_DV: int = 16,
@@ -319,16 +320,16 @@ def recurrent_step_fw(
     B, NH, DHQK, DHV = matC_old.shape
 
     # cast inputs
-    matC_old = matC_old.to(DTYPE_STATE)
-    vecN_old = vecN_old.to(DTYPE_STATE)
-    scaM_old = scaM_old.to(DTYPE_STATE)
+    matC_old = matC_old.to(DTYPE)
+    vecN_old = vecN_old.to(DTYPE)
+    scaM_old = scaM_old.to(DTYPE)
 
-    vecQ = vecQ.to(DTYPE_QKV)
-    vecK = vecK.to(DTYPE_QKV)
-    vecV = vecV.to(DTYPE_QKV)
+    vecQ = vecQ.to(DTYPE)
+    vecK = vecK.to(DTYPE)
+    vecV = vecV.to(DTYPE)
 
-    scaI = scaI.to(DTYPE_GATE)
-    scaF = scaF.to(DTYPE_GATE)
+    # we do not cast the inputs as they are casted within the kernel to float32
+    # triton only supports float32 for exp and sigmoid
 
     if qk_scale is None:
         qk_scale = 1 / math.sqrt(DHQK)
@@ -338,10 +339,10 @@ def recurrent_step_fw(
             vecN_new is None and scaM_new is None
         ), "Initial states must be provided together."
         matC_new = torch.ones(
-            (B, NH, DHQK, DHV), dtype=DTYPE_STATE, device=matC_old.device
+            (B, NH, DHQK, DHV), dtype=DTYPE, device=matC_old.device
         )
-        vecN_new = torch.ones((B, NH, DHQK), dtype=DTYPE_STATE, device=matC_old.device)
-        scaM_new = torch.ones((B, NH, 1), dtype=DTYPE_STATE, device=matC_old.device)
+        vecN_new = torch.ones((B, NH, DHQK), dtype=DTYPE, device=matC_old.device)
+        scaM_new = torch.ones((B, NH, 1), dtype=DTYPE, device=matC_old.device)
 
     def grid_fn_C(args):
         NUM_BLOCKS_DQK = triton.cdiv(DHQK, args["BLOCK_DQK"])
