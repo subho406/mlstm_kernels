@@ -67,26 +67,20 @@ def _recurrent_step_fw_kernel(
 
     # ? Define pointers
     matC_old_bptr = tl.make_block_ptr(
-        base=matC_old_val
-        + i_bnh * s_matC_nh
-        + i_dhqk * BLOCK_DQK * s_matC_dhqk
-        + i_dhv * BLOCK_DV * s_matC_dhv,
-        shape=(BLOCK_DQK, BLOCK_DV),
+        base=matC_old_val + i_bnh * s_matC_nh,
+        shape=(DHQK, DHV),
         strides=(s_matC_dhqk, s_matC_dhv),
-        offsets=(0, 0),
+        offsets=(i_dhqk * BLOCK_DQK, i_dhv * BLOCK_DV),
         block_shape=(BLOCK_DQK, BLOCK_DV),
-        order=(1, 0),
+        order=(0, 1),
     )
     matC_new_bptr = tl.make_block_ptr(
-        base=matC_new
-        + i_bnh * s_matC_nh
-        + i_dhqk * BLOCK_DQK * s_matC_dhqk
-        + i_dhv * BLOCK_DV * s_matC_dhv,
-        shape=(BLOCK_DQK, BLOCK_DV),
+        base=matC_new + i_bnh * s_matC_nh,
+        shape=(DHQK, DHV),
         strides=(s_matC_dhqk, s_matC_dhv),
-        offsets=(0, 0),
+        offsets=(i_dhqk * BLOCK_DQK, i_dhv * BLOCK_DV),
         block_shape=(BLOCK_DQK, BLOCK_DV),
-        order=(1, 0),
+        order=(0, 1),
     )
 
     vecN_old_ptr = (
