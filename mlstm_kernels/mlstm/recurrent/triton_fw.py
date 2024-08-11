@@ -65,20 +65,26 @@ def _recurrent_step_fw_kernel(
 ):
     i_dhqk, i_dhv, i_bnh = tl.program_id(0), tl.program_id(1), tl.program_id(2)
 
-    #? Define pointers
+    # ? Define pointers
     matC_old_bptr = tl.make_block_ptr(
-        base=matC_old_val + i_bnh * s_matC_nh,
+        base=matC_old_val
+        + i_bnh * s_matC_nh
+        + i_dhqk * BLOCK_DQK * s_matC_dhqk
+        + i_dhv * BLOCK_DV * s_matC_dhv,
         shape=(BLOCK_DQK, BLOCK_DV),
         strides=(s_matC_dhqk, s_matC_dhv),
-        offsets=(i_dhqk * BLOCK_DQK, i_dhv * BLOCK_DV),
+        offsets=(0, 0),
         block_shape=(BLOCK_DQK, BLOCK_DV),
         order=(1, 0),
     )
     matC_new_bptr = tl.make_block_ptr(
-        base=matC_new + i_bnh * s_matC_nh,
+        base=matC_new
+        + i_bnh * s_matC_nh
+        + i_dhqk * BLOCK_DQK * s_matC_dhqk
+        + i_dhv * BLOCK_DV * s_matC_dhv,
         shape=(BLOCK_DQK, BLOCK_DV),
         strides=(s_matC_dhqk, s_matC_dhv),
-        offsets=(i_dhqk * BLOCK_DQK, i_dhv * BLOCK_DV),
+        offsets=(0, 0),
         block_shape=(BLOCK_DQK, BLOCK_DV),
         order=(1, 0),
     )
@@ -121,7 +127,6 @@ def _recurrent_step_fw_kernel(
     scaI_ptr = scaI + i_bnh * s_scaIF_nh
     scaF_ptr = scaF + i_bnh * s_scaIF_nh
 
-
     vecH_ptr = (
         vecH
         + i_bnh * s_vecVH_nh
@@ -129,7 +134,7 @@ def _recurrent_step_fw_kernel(
         + tl.arange(0, BLOCK_DV)
     )
 
-    #? Load data
+    # ? Load data
     # gates
     scaF_val = tl.load(scaF_ptr)
     scaI_val = tl.load(scaI_ptr)
@@ -146,16 +151,16 @@ def _recurrent_step_fw_kernel(
     vecK_val_scaled = tl.load(vecK_ptr) * qk_scale
     vecV_val = tl.load(vecV_ptr)
 
-    matC_old_val = tl.load(matC_old_bptr, boundary_check=(0,1), padding_option="zero")
+    matC_old_val = tl.load(matC_old_bptr, boundary_check=(0, 1), padding_option="zero")
 
-    matC_new_val = (
-        scaF_act * matC_old_val + scaI_act * (vecK_val_scaled[:, None] * vecV_val[None, :])
+    matC_new_val = scaF_act * matC_old_val + scaI_act * (
+        vecK_val_scaled[:, None] * vecV_val[None, :]
     )
-    
+
     vecN_new_val = scaF_act * tl.load(vecN_old_ptr) + scaI_act * vecK_val_scaled
 
     # outputs
-    vecQ_val = tl.load(vecQ_ptr) # TODO add masking to avoid out of bound access
+    vecQ_val = tl.load(vecQ_ptr)  # TODO add masking to avoid out of bound access
 
     h_num = vecQ_val[:, None] * matC_new_val
     h_num = tl.sum(h_num, axis=0)
@@ -173,10 +178,12 @@ def _recurrent_step_fw_kernel(
 
     tl.static_print("matC_new_val", matC_new_val)
     tl.static_print("vecN_new_val", vecN_new_val)
-    
-    #? Store data
-    tl.store(matC_new_bptr, matC_new_val, boundary_check=(0,1))
-    tl.store(vecN_new_ptr, vecN_new_val) # TODO add masking to avoid out of bound access
+
+    # ? Store data
+    tl.store(matC_new_bptr, matC_new_val, boundary_check=(0, 1))
+    tl.store(
+        vecN_new_ptr, vecN_new_val
+    )  # TODO add masking to avoid out of bound access
     tl.store(scaM_new_ptr, scaM_new_val)
     tl.store(vecH_ptr, h)
 
@@ -208,7 +215,6 @@ def recurrent_step_fw(
 ):
     B, NH, DHQK, DHV = matC_old.shape
 
-
     # cast inputs
     matC_old = matC_old.to(DTYPE_STATE)
     vecN_old = vecN_old.to(DTYPE_STATE)
@@ -228,17 +234,19 @@ def recurrent_step_fw(
         assert (
             vecN_new is None and scaM_new is None
         ), "Initial states must be provided together."
-        matC_new = torch.zeros(
+        matC_new = torch.ones(
             (B, NH, DHQK, DHV), dtype=DTYPE_STATE, device=matC_old.device
         )
-        vecN_new = torch.zeros((B, NH, DHQK), dtype=DTYPE_STATE, device=matC_old.device)
-        scaM_new = torch.zeros((B, NH, 1), dtype=DTYPE_STATE, device=matC_old.device)
+        vecN_new = torch.ones((B, NH, DHQK), dtype=DTYPE_STATE, device=matC_old.device)
+        scaM_new = torch.ones((B, NH, 1), dtype=DTYPE_STATE, device=matC_old.device)
 
     def grid_fn(*args):
         NUM_BLOCKS_DQK = triton.cdiv(DHQK, BLOCK_DQK)
         NUM_BLOCKS_DV = triton.cdiv(DHV, BLOCK_DV)
         NUM_BATCH_HEAD = B * NH
-        return (NUM_BLOCKS_DQK, NUM_BLOCKS_DV, NUM_BATCH_HEAD)
+        grid = (NUM_BLOCKS_DQK, NUM_BLOCKS_DV, NUM_BATCH_HEAD)
+        print(grid)
+        return grid
 
     grid = grid_fn
 
