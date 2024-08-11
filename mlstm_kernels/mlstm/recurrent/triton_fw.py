@@ -22,9 +22,57 @@ We want to compare this to the torch implementation in mlstm_kernels/mlstm/recur
 # either have two kernels or one kernel with a loop over the qk dimension
 """
 
+ENABLE_AUTOTUNING = True
+
+if ENABLE_AUTOTUNING:
+    configs = [
+        triton.Config({"BLOCK_DQK": BQ, "BLOCK_DV": BV}, num_stages=s, num_warps=w)
+        for BQ, BV in [
+            (512, 512),
+            (256, 256),
+            (128, 128),
+            # (128, 64),
+            # (128, 32),
+            # (128, 16),
+            (64, 64),
+            # (64, 32),
+            # (64, 16),
+            (32, 32),
+            (16, 16),
+        ]
+        for s in [1]
+        for w in [2,4,8] #[2, 4, 8]
+    ]
+else:
+    configs = [
+        triton.Config({"BLOCK_DQK": BQ, "BLOCK_DV": BV}, num_stages=s, num_warps=w)
+        for BQ, BV in [
+            # (128, 128),
+            # (128, 64),
+            # (128, 32),
+            # (128, 16),
+            # (64, 64),
+            # (64, 32),
+            # (64, 16),
+            # (32, 32),
+            # (32, 16),
+            (16, 16),
+        ]
+        for s in [1]
+        for w in [1]
+    ]
+
+def keep(conf):
+    BQ = conf.kwargs["BLOCK_DQK"]
+    BV = conf.kwargs["BLOCK_DV"]
+    if BQ * BV < 128 * 128 and conf.num_warps == 8:
+        return False
+    return True
+
+@triton.autotune(list(filter(keep,configs)), key=["DHQK", "DHV"])
 @triton.jit
 def _recurrent_step_fw_kernel_C(
-    matC_old_val,  # (B, NH, DHQK, DHV)
+    matC_old,  # (B, NH, DHQK, DHV)
     vecN_old,  # (B, NH, DHQK)
     scaM_old,  # (B, NH, 1)
     vecK,  # (B, NH, DHQK)
@@ -64,7 +112,7 @@ def _recurrent_step_fw_kernel_C(
 
     # ? Define pointers
     matC_old_bptr = tl.make_block_ptr(
-        base=matC_old_val + i_bnh * s_matC_nh,
+        base=matC_old + i_bnh * s_matC_nh,
         shape=(DHQK, DHV),
         strides=(s_matC_dhqk, s_matC_dhv),
         offsets=(i_dhqk * BLOCK_DQK, i_dhv * BLOCK_DV),
@@ -114,16 +162,18 @@ def _recurrent_step_fw_kernel_C(
 
     # ? Load data
     # gates
-    scaF_val = tl.load(scaF_ptr)
-    scaI_val = tl.load(scaI_ptr)
+    # tl.exp and tl.sigmoid only work with float32
+    scaF_val = tl.load(scaF_ptr).to(tl.float32)
+    scaI_val = tl.load(scaI_ptr).to(tl.float32)
 
-    scaFlog_val = tl.log(tl.sigmoid(scaF_val))
+    scaFlog_val = tl.log(tl.sigmoid(scaF_val)).to(scaM_old.type.element_ty)
 
     # update rule
-    scaM_new_val = tl.maximum(scaFlog_val + tl.load(scaM_old_ptr), scaI_val)
+    # cast back to state type
+    scaM_new_val = tl.maximum(scaFlog_val + tl.load(scaM_old_ptr), scaI_val)#.to(scaM_old.type.element_ty)
 
-    scaF_act = tl.exp(scaFlog_val + tl.load(scaM_old_ptr) - scaM_new_val)
-    scaI_act = tl.exp(scaI_val - scaM_new_val)
+    scaF_act = tl.exp(scaFlog_val + tl.load(scaM_old_ptr) - scaM_new_val).to(scaM_old.type.element_ty)
+    scaI_act = tl.exp(scaI_val - scaM_new_val).to(scaM_old.type.element_ty)
 
     # TODO add masking to avoid out of bound access
     vecK_val_scaled = tl.load(vecK_ptr) * qk_scale
@@ -138,12 +188,13 @@ def _recurrent_step_fw_kernel_C(
     vecN_new_val = scaF_act * tl.load(vecN_old_ptr) + scaI_act * vecK_val_scaled
 
     # ? Store data
-    tl.store(matC_new_bptr, matC_new_val, boundary_check=(0, 1))
+    tl.store(matC_new_bptr, matC_new_val.to(matC_new.type.element_ty), boundary_check=(0, 1))
     tl.store(
-        vecN_new_ptr, vecN_new_val
+        vecN_new_ptr, vecN_new_val.to(vecN_new.type.element_ty)
     )  # TODO add masking to avoid out of bound access
-    tl.store(scaM_new_ptr, scaM_new_val)
+    tl.store(scaM_new_ptr, scaM_new_val.to(scaM_new.type.element_ty))
 
+@triton.autotune(list(filter(keep,configs)), key=["DHQK", "DHV"])
 @triton.jit
 def _recurrent_step_fw_kernel_h(
     vecQ,  # (B, NH, DHQK)
@@ -225,19 +276,22 @@ def _recurrent_step_fw_kernel_h(
 
         # outputs
         h_num_temp = vecQ_val[:, None] * matC_new_val
+        tl.static_print("h_num_temp", h_num_temp)
         h_num += tl.sum(h_num_temp, axis=0)
 
         qn_dotproduct += tl.sum(vecQ_val * vecN_new_val)
         matC_new_bptr = tl.advance(matC_new_bptr, (BLOCK_DQK,0))
 
-    max_val = tl.exp(-scaM_new_val)
+    max_val = tl.exp(-scaM_new_val.to(tl.float32)).to(scaM_new.type.element_ty)
     h_denom = tl.maximum(tl.abs(qn_dotproduct), max_val) + EPS
-
+    # tl.static_print("h_denom", h_denom)
+    # tl.static_print("h_num", h_num)
     h = tl.fdiv(h_num, h_denom)
-
+    # tl.static_print("h", h)
+    # tl.static_print("vecH_ptr", vecH_ptr)
 
     # ? Store data
-    tl.store(vecH_ptr, h)
+    tl.store(vecH_ptr, h.to(vecH.type.element_ty))
 
 @contiguous
 def recurrent_step_fw(
@@ -255,12 +309,12 @@ def recurrent_step_fw(
     qk_scale: float = None,
     DTYPE_GATE: torch.dtype = torch.float32,
     DTYPE_STATE: torch.dtype = torch.float32,
-    DTPYE_QKV: torch.dtype = torch.float32,
+    DTYPE_QKV: torch.dtype = torch.float32,
     EPS: float = 1e-6,
-    BLOCK_DQK: int = 16,
-    BLOCK_DV: int = 16,
-    BLOCK_DQK_H: int = 16,
-    BLOCK_DV_H: int = 16,
+    # BLOCK_DQK: int = 16,
+    # BLOCK_DV: int = 16,
+    # BLOCK_DQK_H: int = 16,
+    # BLOCK_DV_H: int = 16,
 ):
     B, NH, DHQK, DHV = matC_old.shape
 
@@ -269,9 +323,9 @@ def recurrent_step_fw(
     vecN_old = vecN_old.to(DTYPE_STATE)
     scaM_old = scaM_old.to(DTYPE_STATE)
 
-    vecQ = vecQ.to(DTPYE_QKV)
-    vecK = vecK.to(DTPYE_QKV)
-    vecV = vecV.to(DTPYE_QKV)
+    vecQ = vecQ.to(DTYPE_QKV)
+    vecK = vecK.to(DTYPE_QKV)
+    vecV = vecV.to(DTYPE_QKV)
 
     scaI = scaI.to(DTYPE_GATE)
     scaF = scaF.to(DTYPE_GATE)
@@ -289,13 +343,21 @@ def recurrent_step_fw(
         vecN_new = torch.ones((B, NH, DHQK), dtype=DTYPE_STATE, device=matC_old.device)
         scaM_new = torch.ones((B, NH, 1), dtype=DTYPE_STATE, device=matC_old.device)
 
-    def grid_fn_C(*args):
-        NUM_BLOCKS_DQK = triton.cdiv(DHQK, BLOCK_DQK)
-        NUM_BLOCKS_DV = triton.cdiv(DHV, BLOCK_DV)
+    def grid_fn_C(args):
+        NUM_BLOCKS_DQK = triton.cdiv(DHQK, args["BLOCK_DQK"])
+        NUM_BLOCKS_DV = triton.cdiv(DHV, args["BLOCK_DV"])
         NUM_BATCH_HEAD = B * NH
         grid = (NUM_BLOCKS_DQK, NUM_BLOCKS_DV, NUM_BATCH_HEAD)
-        print(grid)
         return grid
+
+    # DEBUG ONLY
+    # def grid_fn_C(*args):
+    #     NUM_BLOCKS_DQK = triton.cdiv(DHQK, BLOCK_DQK)
+    #     NUM_BLOCKS_DV = triton.cdiv(DHV, BLOCK_DV)
+    #     NUM_BATCH_HEAD = B * NH
+    #     grid = (NUM_BLOCKS_DQK, NUM_BLOCKS_DV, NUM_BATCH_HEAD)
+    #     print(grid)
+    #     return grid
 
     grid_C = grid_fn_C
 
@@ -303,82 +365,89 @@ def recurrent_step_fw(
     vecH = torch.ones_like(vecV)
 
     _recurrent_step_fw_kernel_C[grid_C](
-        matC_old,
-        vecN_old,
-        scaM_old,
-        vecK,
-        vecV,
-        scaI,
-        scaF,
-        matC_new,
-        vecN_new,
-        scaM_new,
-        qk_scale,
-        matC_old.stride(0),
-        matC_old.stride(1),
-        matC_old.stride(2),
-        matC_old.stride(3),
-        vecN_old.stride(0),
-        vecN_old.stride(1),
-        vecN_old.stride(2),
-        scaM_old.stride(0),
-        scaM_old.stride(1),
-        vecQ.stride(0),
-        vecQ.stride(1),
-        vecQ.stride(2),
-        vecV.stride(0),
-        vecV.stride(1),
-        vecV.stride(2),
-        scaI.stride(0),
-        scaI.stride(1),
-        B,
-        NH,
-        DHQK,
-        DHV,
-        BLOCK_DQK,
-        BLOCK_DV,
-        EPS,
+        matC_old=matC_old,
+        vecN_old=vecN_old,
+        scaM_old=scaM_old,
+        vecK=vecK,
+        vecV=vecV,
+        scaI=scaI,
+        scaF=scaF,
+        matC_new=matC_new,
+        vecN_new=vecN_new,
+        scaM_new=scaM_new,
+        qk_scale=qk_scale,
+        s_matC_b=matC_old.stride(0),
+        s_matC_nh=matC_old.stride(1),
+        s_matC_dhqk=matC_old.stride(2),
+        s_matC_dhv=matC_old.stride(3),
+        s_vecN_b=vecN_old.stride(0),
+        s_vecN_nh=vecN_old.stride(1),
+        s_vecN_dhqk=vecN_old.stride(2),
+        s_scaM_b=scaM_old.stride(0),
+        s_scaM_nh=scaM_old.stride(1),
+        s_vecQK_b=vecQ.stride(0),
+        s_vecQK_nh=vecQ.stride(1),
+        s_vecQK_dhqk=vecQ.stride(2),
+        s_vecVH_b=vecV.stride(0),
+        s_vecVH_nh=vecV.stride(1),
+        s_vecVH_dhv=vecV.stride(2),
+        s_scaIF_b=scaI.stride(0),
+        s_scaIF_nh=scaI.stride(1),
+        B=B,
+        NH=NH,
+        DHQK=DHQK,
+        DHV=DHV,
+        # BLOCK_DQK,
+        # BLOCK_DV,
+        EPS=EPS,
     )
 
-    def grid_fn_h(*args):
-        NUM_BLOCKS_DV_H = triton.cdiv(DHV, BLOCK_DV_H)
+    def grid_fn_h(args):
+        NUM_BLOCKS_DV_H = triton.cdiv(DHV, args["BLOCK_DV"])
         NUM_BATCH_HEAD = B * NH
         grid = (1, NUM_BLOCKS_DV_H, NUM_BATCH_HEAD)
-        print(grid)
         return grid
+
+    # DEBUG ONLY
+    # def grid_fn_h(*args):
+    #     NUM_BLOCKS_DV_H = triton.cdiv(DHV, BLOCK_DV_H)
+    #     NUM_BATCH_HEAD = B * NH
+    #     grid = (1, NUM_BLOCKS_DV_H, NUM_BATCH_HEAD)
+    #     print(grid)
+    #     return grid
     
     grid_h = grid_fn_h
 
-    _recurrent_step_fw_kernel_h[grid_C](
-        vecQ,
-        vecH,
-        matC_new,
-        vecN_new,
-        scaM_new,
-        matC_old.stride(0),
-        matC_old.stride(1),
-        matC_old.stride(2),
-        matC_old.stride(3),
-        vecN_old.stride(0),
-        vecN_old.stride(1),
-        vecN_old.stride(2),
-        scaM_old.stride(0),
-        scaM_old.stride(1),
-        vecQ.stride(0),
-        vecQ.stride(1),
-        vecQ.stride(2),
-        vecV.stride(0),
-        vecV.stride(1),
-        vecV.stride(2),
-        scaI.stride(0),
-        scaI.stride(1),
-        B,
-        NH,
-        DHQK,
-        DHV,
-        BLOCK_DQK_H,
-        BLOCK_DV_H,
-        EPS,
+    _recurrent_step_fw_kernel_h[grid_h](
+        vecQ=vecQ,
+        vecH=vecH,
+        matC_new=matC_new,
+        vecN_new=vecN_new,
+        scaM_new=scaM_new,
+        s_matC_b=matC_old.stride(0),
+        s_matC_nh=matC_old.stride(1),
+        s_matC_dhqk=matC_old.stride(2),
+        s_matC_dhv=matC_old.stride(3),
+        s_vecN_b=vecN_old.stride(0),
+        s_vecN_nh=vecN_old.stride(1),
+        s_vecN_dhqk=vecN_old.stride(2),
+        s_scaM_b=scaM_old.stride(0),
+        s_scaM_nh=scaM_old.stride(1),
+        s_vecQK_b=vecQ.stride(0),
+        s_vecQK_nh=vecQ.stride(1),
+        s_vecQK_dhqk=vecQ.stride(2),
+        s_vecVH_b=vecV.stride(0),
+        s_vecVH_nh=vecV.stride(1),
+        s_vecVH_dhv=vecV.stride(2),
+        s_scaIF_b=scaI.stride(0),
+        s_scaIF_nh=scaI.stride(1),
+        B=B,
+        NH=NH,
+        DHQK=DHQK,
+        DHV=DHV,
+        # BLOCK_DQK_H,
+        # BLOCK_DV_H,
+        EPS=EPS,
     )
 
     return vecH, (matC_new, vecN_new, scaM_new)
