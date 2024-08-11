@@ -28,12 +28,10 @@ def _recurrent_step_fw_kernel_C(
     matC_old_val,  # (B, NH, DHQK, DHV)
     vecN_old,  # (B, NH, DHQK)
     scaM_old,  # (B, NH, 1)
-    vecQ,  # (B, NH, DHQK)
     vecK,  # (B, NH, DHQK)
     vecV,  # (B, NH, DHV)
     scaI,  # (B, NH, 1)
     scaF,  # (B, NH, 1)
-    vecH,  # (B, NH, DHV)
     matC_new,  # (B, NH, DHQK, DHV)
     vecN_new,  # (B, NH, DHQK)
     scaM_new,  # (B, NH, 1)
@@ -149,19 +147,11 @@ def _recurrent_step_fw_kernel_C(
 
 @triton.jit
 def _recurrent_step_fw_kernel_h(
-    matC_old_val,  # (B, NH, DHQK, DHV)
-    vecN_old,  # (B, NH, DHQK)
-    scaM_old,  # (B, NH, 1)
     vecQ,  # (B, NH, DHQK)
-    vecK,  # (B, NH, DHQK)
-    vecV,  # (B, NH, DHV)
-    scaI,  # (B, NH, 1)
-    scaF,  # (B, NH, 1)
     vecH,  # (B, NH, DHV)
     matC_new,  # (B, NH, DHQK, DHV)
     vecN_new,  # (B, NH, DHQK)
     scaM_new,  # (B, NH, 1)
-    qk_scale,
     s_matC_b,
     s_matC_nh,
     s_matC_dhqk,
@@ -476,12 +466,10 @@ def recurrent_step_fw(
         matC_old,
         vecN_old,
         scaM_old,
-        vecQ,
         vecK,
         vecV,
         scaI,
         scaF,
-        vecH,
         matC_new,
         vecN_new,
         scaM_new,
@@ -522,19 +510,11 @@ def recurrent_step_fw(
     grid_h = grid_fn_h
 
     _recurrent_step_fw_kernel_h[grid_C](
-        matC_old,
-        vecN_old,
-        scaM_old,
         vecQ,
-        vecK,
-        vecV,
-        scaI,
-        scaF,
         vecH,
         matC_new,
         vecN_new,
         scaM_new,
-        qk_scale,
         matC_old.stride(0),
         matC_old.stride(1),
         matC_old.stride(2),
