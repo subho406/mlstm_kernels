@@ -15,6 +15,11 @@ Triton.
 This module contains the recurrent step of the mLSTM in triton.
 
 We want to compare this to the torch implementation in mlstm_kernels/mlstm/recurrent/torch_fw.py.
+
+# TODO we cannot use this fully parallel work partitioning for the step
+# we have to sum over the qk dimension for the outputs..
+
+# either have two kernels or one kernel with a loop over the qk dimension
 """
 
 
