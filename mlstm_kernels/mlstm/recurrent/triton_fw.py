@@ -165,11 +165,13 @@ def _recurrent_step_fw_kernel_C(
 
     scaFlog_val = tl.log(tl.sigmoid(scaF_val)).to(scaM_old.type.element_ty)
 
+    scaM_old_val = tl.load(scaM_old_ptr)
+
     # update rule
     # cast back to state type
-    scaM_new_val = tl.maximum(scaFlog_val + tl.load(scaM_old_ptr), scaI_val)#.to(scaM_old.type.element_ty)
+    scaM_new_val = tl.maximum(scaFlog_val + scaM_old_val, scaI_val)#.to(scaM_old.type.element_ty)
 
-    scaF_act = tl.exp(scaFlog_val + tl.load(scaM_old_ptr) - scaM_new_val).to(scaM_old.type.element_ty)
+    scaF_act = tl.exp(scaFlog_val + scaM_old_val - scaM_new_val).to(scaM_old.type.element_ty)
     scaI_act = tl.exp(scaI_val - scaM_new_val).to(scaM_old.type.element_ty)
 
     # TODO add masking to avoid out of bound access
