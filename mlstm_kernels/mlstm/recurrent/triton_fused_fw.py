@@ -23,17 +23,23 @@ Ca. 30% faster than non-fused version.
 ENABLE_AUTOTUNING = True
 
 # TODO find better heuristic
-# the num_warps do no tneed to be tuned: set to BQ or BV / 32 (max 8 (or 4))
-# need to adapt the block size if DHQK != DHV, then we need rectangular blocks (instead of quadratic)
+# add more block sizes if the DHQK and DHV are not equal.
 
 if ENABLE_AUTOTUNING:
     configs = [
         triton.Config({"BLOCK_DQK": BQ, "BLOCK_DV": BV}, num_stages=s, num_warps=w)
         for BQ, BV, w in [
             (256, 256, 8),
+            (256, 256, 16),
             (128, 128, 4),
+            (128, 128, 8),
+            (128, 128, 16),
             (64, 64, 2),
+            (64, 64, 4),
+            (64, 64, 8),
             (32, 32, 1),
+            (32, 32, 2),
+            (32, 32, 4),
             (16, 16, 1),
         ]
         for s in [1]
@@ -106,6 +112,7 @@ def _recurrent_step_fw_kernel(
     BLOCK_DQK: tl.constexpr,  # DHQK = BLOCK_DQK * NUM_BLOCKS_DQK
     BLOCK_DV: tl.constexpr,  # DHV = BLOCK_DV * NUM_BLOCKS_DV
     EPS: tl.constexpr = 1e-6,
+    # num_warps: tl.constexpr = 4,
 ):
     i_dhv, i_bnh = tl.program_id(1), tl.program_id(2)
 
@@ -146,20 +153,18 @@ def _recurrent_step_fw_kernel(
     scaI_val = tl.load(scaI_ptr).to(tl.float32)
     scaFlog_val = tl.log(tl.sigmoid(scaF_val)).to(scaM_old.type.element_ty)
 
-
     scaM_old_val = tl.load(scaM_old_ptr).to(tl.float32)
     scaM_new_val = tl.maximum(scaFlog_val + scaM_old_val, scaI_val)
     tl.store(scaM_new_ptr, scaM_new_val.to(scaM_new.type.element_ty))
 
     max_val = tl.exp(-scaM_new_val.to(tl.float32)).to(scaM_new.type.element_ty)
 
-
     # gate computation for all dimensions
     scaF_act = tl.exp(scaFlog_val + scaM_old_val - scaM_new_val).to(
-            scaM_old.type.element_ty
-        )
+        scaM_old.type.element_ty
+    )
     scaI_act = tl.exp(scaI_val - scaM_new_val).to(scaM_old.type.element_ty)
-    
+
     # ? init accumulators
     h_num = tl.zeros((BLOCK_DV,), dtype=tl.float32)
     qn_dotproduct = tl.zeros((1,), dtype=tl.float32)
@@ -249,7 +254,6 @@ def _recurrent_step_fw_kernel(
     tl.store(vecH_ptr, h.to(vecH.type.element_ty))
 
 
-
 @contiguous
 def recurrent_step_fw(
     matC_old: torch.Tensor,  # (B, NH, DHQK, DHV)
@@ -266,10 +270,8 @@ def recurrent_step_fw(
     qk_scale: float = None,
     DTYPE: torch.dtype = torch.float32,
     EPS: float = 1e-6,
-    # BLOCK_DQK: int = 16,
-    # BLOCK_DV: int = 16,
-    # BLOCK_DQK_H: int = 16,
-    # BLOCK_DV_H: int = 16,
+    BLOCK_DQK: int = 16,
+    BLOCK_DV: int = 16,
 ):
     B, NH, DHQK, DHV = matC_old.shape
 
@@ -292,9 +294,9 @@ def recurrent_step_fw(
         assert (
             vecN_new is None and scaM_new is None
         ), "Initial states must be provided together."
-        matC_new = torch.ones((B, NH, DHQK, DHV), dtype=DTYPE, device=matC_old.device)
-        vecN_new = torch.ones((B, NH, DHQK), dtype=DTYPE, device=matC_old.device)
-        scaM_new = torch.ones((B, NH, 1), dtype=DTYPE, device=matC_old.device)
+        matC_new = torch.empty_like(matC_old)
+        vecN_new = torch.empty_like(vecN_old)
+        scaM_new = torch.empty_like(scaM_old)
 
     def grid_fn_C(args):
         # NUM_BLOCKS_DQK = triton.cdiv(DHQK, args["BLOCK_DQK"])
@@ -315,7 +317,7 @@ def recurrent_step_fw(
     grid_C = grid_fn_C
 
     # create output tensors
-    vecH = torch.ones_like(vecV)
+    vecH = torch.empty_like(vecV)
 
     _recurrent_step_fw_kernel[grid_C](
         matC_old=matC_old,
@@ -352,8 +354,8 @@ def recurrent_step_fw(
         NH=NH,
         DHQK=DHQK,
         DHV=DHV,
-        # BLOCK_DQK,
-        # BLOCK_DV,
+        # BLOCK_DQK=BLOCK_DQK,
+        # BLOCK_DV=BLOCK_DV,
         EPS=EPS,
     )
 

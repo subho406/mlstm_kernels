@@ -25,7 +25,6 @@ First kernel computes the next dC, dN, dM states. Second kernel computes the out
 ENABLE_AUTOTUNING = True
 
 # TODO find better heuristic
-# the num_warps do no tneed to be tuned: set to BQ or BV / 32 (max 8 (or 4))
 # need to adapt the block size if DHQK != DHV, then we need rectangular blocks (instead of quadratic)
 
 if ENABLE_AUTOTUNING:
@@ -33,9 +32,16 @@ if ENABLE_AUTOTUNING:
         triton.Config({"BLOCK_DQK": BQ, "BLOCK_DV": BV}, num_stages=s, num_warps=w)
         for BQ, BV, w in [
             (256, 256, 8),
+            (256, 256, 16),
             (128, 128, 4),
+            (128, 128, 8),
+            (128, 128, 16),
             (64, 64, 2),
+            (64, 64, 4),
+            (64, 64, 8),
             (32, 32, 1),
+            (32, 32, 2),
+            (32, 32, 4),
             (16, 16, 1),
         ]
         for s in [1]
@@ -334,11 +340,10 @@ def recurrent_step_fw(
         assert (
             vecN_new is None and scaM_new is None
         ), "Initial states must be provided together."
-        matC_new = torch.ones(
-            (B, NH, DHQK, DHV), dtype=DTYPE, device=matC_old.device
-        )
-        vecN_new = torch.ones((B, NH, DHQK), dtype=DTYPE, device=matC_old.device)
-        scaM_new = torch.ones((B, NH, 1), dtype=DTYPE, device=matC_old.device)
+        matC_new = torch.empty_like(matC_old)
+        vecN_new = torch.empty_like(vecN_old)
+        scaM_new = torch.empty_like(scaM_old)
+
 
     def grid_fn_C(args):
         NUM_BLOCKS_DQK = triton.cdiv(DHQK, args["BLOCK_DQK"])
@@ -359,7 +364,7 @@ def recurrent_step_fw(
     grid_C = grid_fn_C
 
     # create output tensors
-    vecH = torch.ones_like(vecV)
+    vecH = torch.empty_like(vecV)
 
     _recurrent_step_fw_kernel_C[grid_C](
         matC_old=matC_old,
