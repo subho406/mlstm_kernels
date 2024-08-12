@@ -87,7 +87,9 @@ if __name__ == "__main__":
 
     print(f"warmup")
     for i in tqdm(range(warmup_iters)):
+        torch.cuda.nvtx.range_push(f"iter-{i}")
         h_out_pt, (matC_new_pt, vecN_new_pt, scaM_new_pt) = kernel_fn(**inputs)
+        torch.cuda.nvtx.range_pop()
 
     # print(f"main")
     # for i in tqdm(range(main_iters)):
