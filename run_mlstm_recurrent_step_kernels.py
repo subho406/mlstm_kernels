@@ -72,16 +72,22 @@ if __name__ == "__main__":
     main_iters = 1000
 
     dt_state = torch.float16
-
-    if kernel == "torch" or kernel == "torch_compile":
-        inputs = (matC_old, vecN_old, scaM_old, vecQ, vecK, vecV, scaI, scaF)
-
-    else:
-        inputs = (matC_old, vecN_old, scaM_old, vecQ, vecK, vecV, scaI, scaF, dt_state)
+    inputs = dict(
+            matC_old=matC_old,
+            vecN_old=vecN_old,
+            scaM_old=scaM_old,
+            vecQ=vecQ,
+            vecK=vecK,
+            vecV=vecV,
+            scaI=scaI,
+            scaF=scaF,
+        )
+    if "triton" in kernel:
+        inputs["DTYPE"] = dt_state
 
     print(f"warmup")
     for i in tqdm(range(warmup_iters)):
-        h_out_pt, (matC_new_pt, vecN_new_pt, scaM_new_pt) = kernel_fn(*inputs)
+        h_out_pt, (matC_new_pt, vecN_new_pt, scaM_new_pt) = kernel_fn(**inputs)
 
     # print(f"main")
     # for i in tqdm(range(main_iters)):

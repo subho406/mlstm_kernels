@@ -7,7 +7,7 @@ import torch.nn.functional as F
 import triton
 import triton.language as tl
 
-from ...kernel_utils import contiguous
+from ...kernel_utils import contiguous_noctx
 
 """
 Triton.
@@ -244,7 +244,7 @@ def _recurrent_step_fw_kernel(
     tl.store(vecH_ptr, h.to(vecH.type.element_ty))
 
 
-@contiguous
+@contiguous_noctx
 def recurrent_step_fw(
     matC_old: torch.Tensor,  # (B, NH, DHQK, DHV)
     vecN_old: torch.Tensor,  # (B, NH, DHQK)
