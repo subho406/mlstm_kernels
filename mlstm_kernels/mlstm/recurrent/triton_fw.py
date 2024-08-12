@@ -26,25 +26,19 @@ ENABLE_AUTOTUNING = True
 
 # TODO find better heuristic
 # the num_warps do no tneed to be tuned: set to BQ or BV / 32 (max 8 (or 4))
+# need to adapt the block size if DHQK != DHV, then we need rectangular blocks (instead of quadratic)
 
 if ENABLE_AUTOTUNING:
     configs = [
         triton.Config({"BLOCK_DQK": BQ, "BLOCK_DV": BV}, num_stages=s, num_warps=w)
-        for BQ, BV in [
-            (512, 512),
-            (256, 256),
-            (128, 128),
-            # (128, 64),
-            # (128, 32),
-            # (128, 16),
-            (64, 64),
-            # (64, 32),
-            # (64, 16),
-            (32, 32),
-            (16, 16),
+        for BQ, BV, w in [
+            (256, 256, 8),
+            (128, 128, 4),
+            (64, 64, 2),
+            (32, 32, 1),
+            (16, 16, 1),
         ]
         for s in [1]
-        for w in [2,4,8] #[2, 4, 8]
     ]
 else:
     configs = [
