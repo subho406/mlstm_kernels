@@ -79,9 +79,9 @@ def recurrent_sequence_fw(
 
         # step
         h, (matC_state, vecN_state, vecM_state) = recurrent_step_fw(
-            matC_state=matC_state,
-            vecN_state=vecN_state,
-            scaM_state=vecM_state,
+            matC_old=matC_state,
+            vecN_old=vecN_state,
+            scaM_old=vecM_state,
             vecQ=vecQ_t,
             vecK=vecK_t,
             vecV=vecV_t,
@@ -96,9 +96,9 @@ def recurrent_sequence_fw(
 
 
 def recurrent_step_fw(
-    matC_state: torch.Tensor,
-    vecN_state: torch.Tensor,
-    scaM_state: torch.Tensor,
+    matC_old: torch.Tensor,
+    vecN_old: torch.Tensor,
+    scaM_old: torch.Tensor,
     vecQ: torch.Tensor,
     vecK: torch.Tensor,
     vecV: torch.Tensor,
@@ -110,9 +110,9 @@ def recurrent_step_fw(
     """This is a single step of the mLSTM operation in recurrent form.
 
     Args:
-        matC_state (torch.Tensor): (B, NH, DHQK, DHV)
-        vecN_state (torch.Tensor): (B, NH, DHQK)
-        scaM_state (torch.Tensor): (B, NH, 1)
+        matC_old (torch.Tensor): (B, NH, DHQK, DHV)
+        vecN_old (torch.Tensor): (B, NH, DHQK)
+        scaM_old (torch.Tensor): (B, NH, 1)
         vecQ (torch.Tensor): (B, NH, DHQK)
         vecK (torch.Tensor): (B, NH, DHQK)
         vecV (torch.Tensor): (B, NH, DHV)
@@ -130,17 +130,17 @@ def recurrent_step_fw(
     scaF_log = torch.nn.functional.logsigmoid(scaF)
 
     # update rule
-    scaM_state_new = torch.max(scaF_log + scaM_state, scaI)  # (B, NH, 1)
+    scaM_state_new = torch.max(scaF_log + scaM_old, scaI)  # (B, NH, 1)
 
-    scaF_act = torch.exp(scaF_log + scaM_state - scaM_state_new)  # (B, NH, 1)
+    scaF_act = torch.exp(scaF_log + scaM_old - scaM_state_new)  # (B, NH, 1)
     scaI_act = torch.exp(scaI - scaM_state_new)  # (B, NH, 1)
 
     vecK_scaled = vecK / math.sqrt(DHQK)  # (B, NH, DHQK)
 
-    matC_state_new = scaF_act[:, :, :, None] * matC_state + scaI_act[:, :, :, None] * (
+    matC_state_new = scaF_act[:, :, :, None] * matC_old + scaI_act[:, :, :, None] * (
         (vecK_scaled[:, :, :, None] @ vecV[:, :, None, :])
     )  # (B, NH, DHQK, DHV)
-    vecN_state_new = scaF_act * vecN_state + scaI_act * vecK_scaled  # (B, NH, DHQK)
+    vecN_state_new = scaF_act * vecN_old + scaI_act * vecK_scaled  # (B, NH, DHQK)
 
     h_num = vecQ[:, :, None, :] @ matC_state_new  # (B, NH, 1, DHV)
     h_num = h_num.squeeze(2)  # (B, NH, DHV)
