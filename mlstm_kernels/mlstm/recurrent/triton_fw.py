@@ -49,20 +49,10 @@ if ENABLE_AUTOTUNING:
 else:
     configs = [
         triton.Config({"BLOCK_DQK": BQ, "BLOCK_DV": BV}, num_stages=s, num_warps=w)
-        for BQ, BV in [
-            # (128, 128),
-            # (128, 64),
-            # (128, 32),
-            # (128, 16),
-            # (64, 64),
-            # (64, 32),
-            # (64, 16),
-            # (32, 32),
-            # (32, 16),
-            (16, 16),
+        for BQ, BV, w in [
+            (128, 128, 8),
         ]
         for s in [1]
-        for w in [1]
     ]
 
 def keep(conf):

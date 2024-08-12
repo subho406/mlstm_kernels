@@ -47,20 +47,10 @@ if ENABLE_AUTOTUNING:
 else:
     configs = [
         triton.Config({"BLOCK_DQK": BQ, "BLOCK_DV": BV}, num_stages=s, num_warps=w)
-        for BQ, BV in [
-            # (128, 128),
-            # (128, 64),
-            # (128, 32),
-            # (128, 16),
-            # (64, 64),
-            # (64, 32),
-            # (64, 16),
-            # (32, 32),
-            # (32, 16),
-            (16, 16),
+        for BQ, BV, w in [
+            (32, 32, 4),
         ]
         for s in [1]
-        for w in [1]
     ]
 
 
@@ -270,8 +260,8 @@ def recurrent_step_fw(
     qk_scale: float = None,
     DTYPE: torch.dtype = torch.float32,
     EPS: float = 1e-6,
-    BLOCK_DQK: int = 16,
-    BLOCK_DV: int = 16,
+    # BLOCK_DQK: int = 16,
+    # BLOCK_DV: int = 16,
 ):
     B, NH, DHQK, DHV = matC_old.shape
 
