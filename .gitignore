@@ -17,6 +17,9 @@ resources/*.p
 
 <**
 
+*.nsys-rep 
+*.ncu-rep
+
 ### DEFAULTS
 # Byte-compiled / optimized / DLL files
 __pycache__/
