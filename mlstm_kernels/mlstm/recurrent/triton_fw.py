@@ -302,7 +302,6 @@ def recurrent_step_fw(
     vecN_new: torch.Tensor = None,  # (B, NH, DHQK)
     scaM_new: torch.Tensor = None,  # (B, NH, 1)
     qk_scale: float = None,
-    DTYPE: torch.dtype = torch.float32,
     EPS: float = 1e-6,
     # BLOCK_DQK: int = 16,
     # BLOCK_DV: int = 16,
@@ -310,18 +309,6 @@ def recurrent_step_fw(
     # BLOCK_DV_H: int = 16,
 ):
     B, NH, DHQK, DHV = matC_old.shape
-
-    # cast inputs
-    matC_old = matC_old.to(DTYPE)
-    vecN_old = vecN_old.to(DTYPE)
-    scaM_old = scaM_old.to(DTYPE)
-
-    vecQ = vecQ.to(DTYPE)
-    vecK = vecK.to(DTYPE)
-    vecV = vecV.to(DTYPE)
-
-    # we do not cast the inputs as they are casted within the kernel to float32
-    # triton only supports float32 for exp and sigmoid
 
     if qk_scale is None:
         qk_scale = 1 / math.sqrt(DHQK)
