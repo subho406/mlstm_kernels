@@ -87,7 +87,7 @@ def recurrent_sequence_fw(
             vecV=vecV_t,
             scaI=vecI_t,
             scaF=vecF_t,
-            eps=eps,
+            EPS=eps,
         )
         hidden_states.append(h)
 
@@ -104,7 +104,7 @@ def recurrent_step_fw(
     vecV: torch.Tensor,
     scaI: torch.Tensor,
     scaF: torch.Tensor,
-    eps: float = 1e-6,
+    EPS: float = 1e-6,
     **kwargs,
 ) -> tuple[torch.Tensor, tuple[torch.Tensor, torch.Tensor]]:
     """This is a single step of the mLSTM operation in recurrent form.
@@ -148,7 +148,7 @@ def recurrent_step_fw(
     qn_dotproduct = vecQ[:, :, None, :] @ vecN_state_new[:, :, :, None]  # (B, NH, 1, 1)
     qn_dotproduct = qn_dotproduct.squeeze(2) # (B, NH, 1)
     max_val = torch.exp(-scaM_state_new)  # (B, NH, 1)
-    h_denom = torch.maximum(qn_dotproduct.abs(), max_val) + eps # (B, NH, 1)
+    h_denom = torch.maximum(qn_dotproduct.abs(), max_val) + EPS # (B, NH, 1)
     h = h_num / h_denom  # (B, NH, DHV) / (B, NH, 1) = (B, NH, DHV)
 
     return h, (matC_state_new, vecN_state_new, scaM_state_new)
