@@ -54,7 +54,7 @@ if __name__ == "__main__":
     DHQK = 1024  # dim per head
     DHV = 1024  # DHQK
 
-    DTYPE = torch.float16
+    DTYPE = torch.float32
     DEVICE = torch.device("cuda:0")
     EPS = 0.0
     torch.manual_seed(0)
@@ -71,7 +71,7 @@ if __name__ == "__main__":
     warmup_iters = 5
     main_iters = 1000
 
-    dt_state = torch.float16
+    dt_state = torch.float32
     inputs = dict(
             matC_old=matC_old,
             vecN_old=vecN_old,

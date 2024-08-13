@@ -3,7 +3,13 @@
 import functools
 
 import torch
+import triton.language as tl
 
+_torch_to_triton_dtype = {
+    torch.float32: tl.float32,
+    torch.float16: tl.float16,
+    torch.bfloat16: tl.bfloat16,
+}
 
 def contiguous(fn):
     @functools.wraps(fn)
@@ -31,3 +37,6 @@ def contiguous_noctx(fn):
         )
 
     return wrapper
+
+def torch2triton_dtype(dtype):
+    return _torch_to_triton_dtype[dtype]

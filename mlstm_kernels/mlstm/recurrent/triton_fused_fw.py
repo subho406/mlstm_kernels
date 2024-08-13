@@ -7,7 +7,7 @@ import torch.nn.functional as F
 import triton
 import triton.language as tl
 
-from ...kernel_utils import contiguous_noctx
+from ...kernel_utils import contiguous_noctx, torch2triton_dtype
 
 """
 Triton.
@@ -102,6 +102,7 @@ def _recurrent_step_fw_kernel(
     BLOCK_DQK: tl.constexpr,  # DHQK = BLOCK_DQK * NUM_BLOCKS_DQK
     BLOCK_DV: tl.constexpr,  # DHV = BLOCK_DV * NUM_BLOCKS_DV
     EPS: tl.constexpr = 1e-6,
+    DTYPE: tl.constexpr = tl.float16,
     # num_warps: tl.constexpr = 4,
 ):
     i_dhv, i_bnh = tl.program_id(1), tl.program_id(2)
@@ -138,23 +139,28 @@ def _recurrent_step_fw_kernel(
 
     # ? Load data
     # gates
+    # the numbers are the conversion factors from log -> log2 and exp -> exp2
+    # math.log2(math.e) = 1.4426950408889634
+    # (1/math.log2(math.e)) = 0.6931471805599453
     # tl.exp and tl.sigmoid only work with float32
     scaF_val = tl.load(scaF_ptr).to(tl.float32)
     scaI_val = tl.load(scaI_ptr).to(tl.float32)
-    scaFlog_val = tl.log(tl.sigmoid(scaF_val)).to(scaM_old.type.element_ty)
+    scaFlog_val = tl.log2(tl.sigmoid(scaF_val)) * 0.6931471805599453
 
-    scaM_old_val = tl.load(scaM_old_ptr).to(tl.float32)
-    scaM_new_val = tl.maximum(scaFlog_val + scaM_old_val, scaI_val)
-    tl.store(scaM_new_ptr, scaM_new_val.to(scaM_new.type.element_ty))
+    scaM_old_val = tl.load(scaM_old_ptr)
+    scaM_new_val = tl.maximum(
+        scaFlog_val + scaM_old_val, scaI_val
+    ) 
+    tl.store(scaM_new_ptr, scaM_new_val.to(DTYPE))
 
-    max_val = tl.exp(-scaM_new_val.to(tl.float32)).to(scaM_new.type.element_ty)
+    max_val = tl.exp2((-scaM_new_val.to(tl.float32)) * 1.4426950408889634).to(DTYPE)
 
     # gate computation for all dimensions
-    scaF_act = tl.exp(scaFlog_val + scaM_old_val - scaM_new_val).to(
-        scaM_old.type.element_ty
-    )
-    scaI_act = tl.exp(scaI_val - scaM_new_val).to(scaM_old.type.element_ty)
-
+    scaF_act = tl.exp2(
+        (scaFlog_val + scaM_old_val - scaM_new_val) * 1.4426950408889634
+    ).to(DTYPE)
+    scaI_act = tl.exp2((scaI_val - scaM_new_val) * 1.4426950408889634).to(DTYPE)
+    # tl.static_print("scaF_act", scaF_act)
     # ? init accumulators
     h_num = tl.zeros((BLOCK_DV,), dtype=tl.float32)
     qn_dotproduct = tl.zeros((1,), dtype=tl.float32)
@@ -197,9 +203,10 @@ def _recurrent_step_fw_kernel(
 
         # update rule
         # TODO add masking to avoid out of bound access
-        vecK_val_scaled = tl.load(vecK_ptr) * qk_scale
+        vecK_val_scaled = tl.load(vecK_ptr) * qk_scale.to(DTYPE)
         vecV_val = tl.load(vecV_ptr)
-
+        # tl.static_print("vecK_val_scaled", vecK_val_scaled)
+        # tl.static_print("vecV_val", vecV_val)
         matC_old_val = tl.load(
             matC_old_bptr, boundary_check=(0, 1), padding_option="zero"
         )
@@ -209,7 +216,9 @@ def _recurrent_step_fw_kernel(
         )
 
         vecN_new_val = scaF_act * tl.load(vecN_old_ptr) + scaI_act * vecK_val_scaled
-
+        # tl.static_print("vecN_new_val", vecN_new_val)
+        # tl.static_print("matC_new_val", matC_new_val)
+        # tl.static_print("matC_old_val", matC_old_val)
         # ? Store data
         tl.store(
             matC_new_bptr,
@@ -229,10 +238,14 @@ def _recurrent_step_fw_kernel(
         # outputs
         h_num_temp = vecQ_val[:, None] * matC_new_val
         # tl.static_print("h_num_temp", h_num_temp)
+        # we keep h_num and qn_dotproduct in float32 as they are accumulated
         h_num += tl.sum(h_num_temp, axis=0)
-
         qn_dotproduct += tl.sum(vecQ_val * vecN_new_val)
+        # tl.static_print(
+        #     "tl.sum(vecQ_val * vecN_new_val)", tl.sum(vecQ_val * vecN_new_val)
+        # )
 
+    # we compute h in float32 and then cast to DTYPE
     h_denom = tl.maximum(tl.abs(qn_dotproduct), max_val) + EPS
     # tl.static_print("h_denom", h_denom)
     # tl.static_print("h_num", h_num)
@@ -241,7 +254,7 @@ def _recurrent_step_fw_kernel(
     # tl.static_print("vecH_ptr", vecH_ptr)
 
     # ? Store data
-    tl.store(vecH_ptr, h.to(vecH.type.element_ty))
+    tl.store(vecH_ptr, h.to(DTYPE))
 
 
 @contiguous_noctx
@@ -258,24 +271,13 @@ def recurrent_step_fw(
     vecN_new: torch.Tensor = None,  # (B, NH, DHQK)
     scaM_new: torch.Tensor = None,  # (B, NH, 1)
     qk_scale: float = None,
-    DTYPE: torch.dtype = torch.float32,
     EPS: float = 1e-6,
     # BLOCK_DQK: int = 16,
     # BLOCK_DV: int = 16,
 ):
     B, NH, DHQK, DHV = matC_old.shape
 
-    # cast inputs
-    matC_old = matC_old.to(DTYPE)
-    vecN_old = vecN_old.to(DTYPE)
-    scaM_old = scaM_old.to(DTYPE)
-
-    vecQ = vecQ.to(DTYPE)
-    vecK = vecK.to(DTYPE)
-    vecV = vecV.to(DTYPE)
-
-    # we do not cast the inputs as they are casted within the kernel to float32
-    # triton only supports float32 for exp and sigmoid
+    DTYPE = matC_old.dtype
 
     if qk_scale is None:
         qk_scale = 1 / math.sqrt(DHQK)
@@ -347,6 +349,7 @@ def recurrent_step_fw(
         # BLOCK_DQK=BLOCK_DQK,
         # BLOCK_DV=BLOCK_DV,
         EPS=EPS,
+        DTYPE=torch2triton_dtype(DTYPE),
     )
 
     return vecH, (matC_new, vecN_new, scaM_new)
