@@ -67,12 +67,12 @@ def chunk_mlstm_fwd_kernel_C(
         )
         p_m0 = initial_m
 
-        b_C = tl.load(p_C0, boundary_check=(0, 1)).to(tl.bfloat16)
-        b_n = tl.load(p_n0, boundary_check=(0,)).to(tl.bfloat16)
-        b_m = tl.load(p_m0).to(tl.bfloat16)
+        b_C = tl.load(p_C0, boundary_check=(0, 1)).to(tl.float16)
+        b_n = tl.load(p_n0, boundary_check=(0,)).to(tl.float16)
+        b_m = tl.load(p_m0).to(tl.float16)
     else:
-        b_C = tl.zeros([BK, BV], dtype=tl.bfloat16)
-        b_n = tl.zeros([BK], dtype=tl.bfloat16)
+        b_C = tl.zeros([BK, BV], dtype=tl.float16)
+        b_n = tl.zeros([BK], dtype=tl.float16)
         b_m = 0.0
 
     b_m_next = 0.0
@@ -184,9 +184,9 @@ def chunk_mlstm_fwd_kernel_h(
     h_i = tl.arange(0, BT)
     m_s = h_i[:, None] >= h_i[None, :]
 
-    b_h = tl.zeros([BT, BV], dtype=tl.bfloat16)
-    b_s = tl.zeros([BT, BT], dtype=tl.bfloat16)
-    b_norm = tl.zeros([BT, BV], dtype=tl.bfloat16)
+    b_h = tl.zeros([BT, BV], dtype=tl.float16)
+    b_s = tl.zeros([BT, BT], dtype=tl.float16)
+    b_norm = tl.zeros([BT, BV], dtype=tl.float16)
     for i_k in range(tl.cdiv(K, BK)):
         p_q = tl.make_block_ptr(
             q + i_bC * s_qk_h,
@@ -466,9 +466,9 @@ def chunk_mlstm_bwd_kernel_dqkvif(
 
     b_m_next = tl.load(m + i_bC * (NT + 1) + i_t + 1)
 
-    b_dq = tl.zeros([BT, BK], dtype=tl.bfloat16)
-    b_dk = tl.zeros([BT, BK], dtype=tl.bfloat16)
-    b_ds = tl.zeros([BT, BT], dtype=tl.bfloat16)
+    b_dq = tl.zeros([BT, BK], dtype=tl.float16)
+    b_dk = tl.zeros([BT, BK], dtype=tl.float16)
+    b_ds = tl.zeros([BT, BT], dtype=tl.float16)
     for i_v in range(tl.cdiv(V, BV)):
         p_v = tl.make_block_ptr(
             v + i_bC * s_vh_h,
@@ -592,12 +592,10 @@ def mLSTMFunc(chunk_size, save_states: bool = False):
             final_C, final_n, final_m = None, None, None
             if output_final_state:
                 final_C = q.new_empty(
-                    B, H, K, V, dtype=torch.bfloat16, requires_grad=False
+                    B, H, K, V, dtype=torch.float16, requires_grad=False
                 )
-                final_n = q.new_empty(
-                    B, H, K, dtype=torch.bfloat16, requires_grad=False
-                )
-                final_m = q.new_empty(B, H, dtype=torch.bfloat16, requires_grad=False)
+                final_n = q.new_empty(B, H, K, dtype=torch.float16, requires_grad=False)
+                final_m = q.new_empty(B, H, dtype=torch.float16, requires_grad=False)
 
             C = q.new_empty(B, H, NT * K, V)
             n = q.new_empty(B, H, NT, K)
@@ -913,7 +911,7 @@ def mLSTMFunc(chunk_size, save_states: bool = False):
 mLSTMFunction = mLSTMFunc(chunk_size=64)
 
 
-def mlstm_triton(
+def mlstm_fwbw(
     q: torch.Tensor,
     k: torch.Tensor,
     v: torch.Tensor,
