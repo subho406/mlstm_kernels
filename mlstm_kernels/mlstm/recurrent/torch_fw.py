@@ -1,7 +1,7 @@
 # Copyright JKU Linz 2024
 # Author: Maximilian Beck
 import math
-
+from typing import Optional
 import torch
 import torch.nn.functional as F
 
@@ -13,50 +13,36 @@ This module contains the recurrent implementation of the mLSTM.
 
 
 def recurrent_sequence_fw(
-    matQ: torch.Tensor,
-    matK: torch.Tensor,
-    matV: torch.Tensor,
-    vecI: torch.Tensor,
-    vecF: torch.Tensor,
-    initial_matC: torch.Tensor = None,
-    initial_vecN: torch.Tensor = None,
-    initial_scaM: torch.Tensor = None,
-    eps: float = 1e-6,
+    matQ: torch.Tensor, # (B, NH, S, DHQK)
+    matK: torch.Tensor, # (B, NH, S, DHQK)
+    matV: torch.Tensor, # (B, NH, S, DHV)
+    vecI: torch.Tensor, # (B, NH, S, 1)
+    vecF: torch.Tensor, # (B, NH, S, 1)
+    matC_initial: torch.Tensor = None, # (B, NH, DHQK, DHV)
+    vecN_initial: torch.Tensor = None, # (B, NH, DHQK)
+    scaM_initial: torch.Tensor = None, # (B, NH)
+    return_last_states: bool = False,
+    return_all_states: bool = False,
+    EPS: float = 1e-6,
     **kwargs,
-) -> torch.Tensor:
-    """This is the core mLSTM operation in stabilized recurrent form. It operates on a full
-    input sequence of length S. It is stabilized by adding a third "max" state.
-    This is analog to [1].
-
-    [1] Milakov, Maxim, and Natalia Gimelshein. “Online Normalizer Calculation for Softmax.” arXiv, July 28, 2018.
-        http://arxiv.org/abs/1805.02867.
-
-
-    Args:
-        matQ (torch.Tensor): (B, NH, S, DHQK)
-        matK (torch.Tensor): (B, NH, S, DHQK)
-        matV (torch.Tensor): (B, NH, S, DHV)
-        vecI (torch.Tensor): (B, NH, S)
-        vecF (torch.Tensor): (B, NH, S)
-        initial_matC (torch.Tensor, optional): (B, NH, DHQK, DHV). Defaults to None.
-        initial_vecN (torch.Tensor, optional): (B, NH, DHQK). Defaults to None.
-        initial_scaM (torch.Tensor, optional): (B, NH). Defaults to None.
-        eps (float, optional): Used for building the forgetgate matrix. Defaults
-
-    Returns:
-        torch.Tensor: (B, NH, S, DHV), hidden states
-    """
-
+) -> tuple[
+    torch.Tensor, # (B, NH, S, DHV)
+    torch.Tensor, # (B, NH, S, DHQK)
+    torch.Tensor, # (B, NH, S)
+    Optional[tuple[torch.Tensor, torch.Tensor, torch.Tensor]], # (matC_state_last (B, NH, DHQK, DHV), vecN_state_last (B, NH, DHQK), vecM_state_last (B, NH, 1))
+    Optional[tuple[torch.Tensor, torch.Tensor, torch.Tensor]], # (matC_states (B, NH, S, DHQK, DHV), vecN_states (B, NH, S, DHQK), vecM_states (B, NH, S))
+]:
     B, NH, S, DHQK = matQ.shape
     DHV = matV.shape[-1]
     device = matQ.device
     dtype = matQ.dtype
 
-    if initial_matC is not None:
+    if matC_initial is not None:
         assert (
-            initial_vecN is not None and initial_scaM is not None
+            vecN_initial is not None and scaM_initial is not None
         ), "Initial states must be provided together."
-        matC_state, vecN_state, vecM_state = initial_matC, initial_vecN, initial_scaM
+        assert scaM_initial.dim() == 2, "Initial states must be 2D."
+        matC_state, vecN_state, vecM_state = matC_initial, vecN_initial, scaM_initial[:, :, None]
     else:
         # memory state
         matC_state = torch.zeros((B, NH, DHQK, DHV), dtype=dtype, device=device)
@@ -65,7 +51,14 @@ def recurrent_sequence_fw(
         # max state
         vecM_state = torch.zeros((B, NH, 1), dtype=dtype, device=device)
 
-    hidden_states = []
+    if return_all_states:
+        matC_list = []
+        matC_list.append(matC_state)
+
+    vecH_list = []
+    vecN_list, vecM_list = [], []
+    vecN_list.append(vecN_state)
+    vecM_list.append(vecM_state)
     for t in range(S):
         # gates
         vecF_t, vecI_t = vecF[:, :, t], vecI[:, :, t]  # (B, NH, 1)
@@ -78,7 +71,7 @@ def recurrent_sequence_fw(
         )
 
         # step
-        h, (matC_state, vecN_state, vecM_state) = recurrent_step_fw(
+        vecH, (matC_state, vecN_state, vecM_state) = recurrent_step_fw(
             matC_old=matC_state,
             vecN_old=vecN_state,
             scaM_old=vecM_state,
@@ -87,26 +80,50 @@ def recurrent_sequence_fw(
             vecV=vecV_t,
             scaI=vecI_t,
             scaF=vecF_t,
-            EPS=eps,
+            EPS=EPS,
         )
-        hidden_states.append(h)
+        vecH_list.append(vecH)
+        vecN_list.append(vecN_state)
+        vecM_list.append(vecM_state)
 
-    hidden_states = torch.stack(hidden_states, dim=-2)  # (B, NH, S, DHV)
-    return hidden_states
+        if return_all_states:
+            matC_list.append(matC_state.requires_grad_(True))
+
+    matH = torch.stack(vecH_list, dim=-2)  # (B, NH, S, DHV)
+    vecN_states = torch.stack(vecN_list, dim=-2)  # (B, NH, S, DHQK)
+    vecM_states = torch.cat(vecM_list, dim=-1)  # (B, NH, S)
+
+    ret_tuple = (matH, vecN_states, vecM_states)
+
+    if return_last_states:
+        ret_tuple += ((matC_state, vecN_state, vecM_state),)
+    else:
+        ret_tuple += (None,)
+
+    if return_all_states:
+        matC_states = torch.stack(matC_list, dim=-3).requires_grad_(True) # (B, NH, S, DHQK, DHV)
+        matC_states.retain_grad()  
+        ret_tuple += ((matC_states, vecN_states, vecM_states),)
+    else:
+        ret_tuple += (None,)
+
+    return ret_tuple
 
 
 def recurrent_step_fw(
-    matC_old: torch.Tensor,
-    vecN_old: torch.Tensor,
-    scaM_old: torch.Tensor,
-    vecQ: torch.Tensor,
-    vecK: torch.Tensor,
-    vecV: torch.Tensor,
-    scaI: torch.Tensor,
-    scaF: torch.Tensor,
+    matC_old: torch.Tensor,  # (B, NH, DHQK, DHV)
+    vecN_old: torch.Tensor,  # (B, NH, DHQK)
+    scaM_old: torch.Tensor,  # (B, NH, 1)
+    vecQ: torch.Tensor,  # (B, NH, DHQK)
+    vecK: torch.Tensor,  # (B, NH, DHQK)
+    vecV: torch.Tensor,  # (B, NH, DHV)
+    scaI: torch.Tensor,  # (B, NH, 1)
+    scaF: torch.Tensor,  # (B, NH, 1)
     EPS: float = 1e-6,
     **kwargs,
-) -> tuple[torch.Tensor, tuple[torch.Tensor, torch.Tensor]]:
+) -> tuple[
+    torch.Tensor, tuple[torch.Tensor, torch.Tensor, torch.Tensor]
+]:  # vecH, (matC_state_new (B, NH, DHQK, DHV), vecN_state_new (B, NH, DHQK), vecM_state_new (B, NH, 1))
     """This is a single step of the mLSTM operation in recurrent form.
 
     Args:
@@ -135,20 +152,20 @@ def recurrent_step_fw(
     scaF_act = torch.exp(scaF_log + scaM_old - scaM_state_new)  # (B, NH, 1)
     scaI_act = torch.exp(scaI - scaM_state_new)  # (B, NH, 1)
 
-    vecK_scaled = vecK / math.sqrt(DHQK)  # (B, NH, DHQK)
+    vecQ_scaled = vecQ / math.sqrt(DHQK)  # (B, NH, DHQK)
 
     matC_state_new = scaF_act[:, :, :, None] * matC_old + scaI_act[:, :, :, None] * (
-        (vecK_scaled[:, :, :, None] @ vecV[:, :, None, :])
+        (vecK[:, :, :, None] @ vecV[:, :, None, :])
     )  # (B, NH, DHQK, DHV)
-    vecN_state_new = scaF_act * vecN_old + scaI_act * vecK_scaled  # (B, NH, DHQK)
+    vecN_state_new = scaF_act * vecN_old + scaI_act * vecK  # (B, NH, DHQK)
 
-    h_num = vecQ[:, :, None, :] @ matC_state_new  # (B, NH, 1, DHV)
+    h_num = vecQ_scaled[:, :, None, :] @ matC_state_new  # (B, NH, 1, DHV)
     h_num = h_num.squeeze(2)  # (B, NH, DHV)
 
-    qn_dotproduct = vecQ[:, :, None, :] @ vecN_state_new[:, :, :, None]  # (B, NH, 1, 1)
-    qn_dotproduct = qn_dotproduct.squeeze(2) # (B, NH, 1)
+    qn_dotproduct = vecQ_scaled[:, :, None, :] @ vecN_state_new[:, :, :, None]  # (B, NH, 1, 1)
+    qn_dotproduct = qn_dotproduct.squeeze(2)  # (B, NH, 1)
     max_val = torch.exp(-scaM_state_new)  # (B, NH, 1)
-    h_denom = torch.maximum(qn_dotproduct.abs(), max_val) + EPS # (B, NH, 1)
+    h_denom = torch.maximum(qn_dotproduct.abs(), max_val) + EPS  # (B, NH, 1)
     h = h_num / h_denom  # (B, NH, DHV) / (B, NH, 1) = (B, NH, DHV)
 
     return h, (matC_state_new, vecN_state_new, scaM_state_new)

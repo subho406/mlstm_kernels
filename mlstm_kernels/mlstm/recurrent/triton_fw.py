@@ -171,16 +171,16 @@ def _recurrent_step_fw_kernel_C(
     scaI_act = tl.exp(scaI_val - scaM_new_val).to(scaM_old.type.element_ty)
 
     # TODO add masking to avoid out of bound access
-    vecK_val_scaled = tl.load(vecK_ptr) * qk_scale
+    vecK_val = tl.load(vecK_ptr)
     vecV_val = tl.load(vecV_ptr)
 
     matC_old_val = tl.load(matC_old_bptr, boundary_check=(0, 1), padding_option="zero")
 
     matC_new_val = scaF_act * matC_old_val + scaI_act * (
-        vecK_val_scaled[:, None] * vecV_val[None, :]
+        vecK_val[:, None] * vecV_val[None, :]
     )
 
-    vecN_new_val = scaF_act * tl.load(vecN_old_ptr) + scaI_act * vecK_val_scaled
+    vecN_new_val = scaF_act * tl.load(vecN_old_ptr) + scaI_act * vecK_val
 
     # ? Store data
     tl.store(matC_new_bptr, matC_new_val.to(matC_new.type.element_ty), boundary_check=(0, 1))
@@ -197,6 +197,7 @@ def _recurrent_step_fw_kernel_h(
     matC_new,  # (B, NH, DHQK, DHV)
     vecN_new,  # (B, NH, DHQK)
     scaM_new,  # (B, NH, 1)
+    qk_scale,
     s_matC_b,
     s_matC_nh,
     s_matC_dhqk,
@@ -267,7 +268,7 @@ def _recurrent_step_fw_kernel_h(
         matC_new_val = tl.load(matC_new_bptr, boundary_check=(0, 1), padding_option="zero")
         vecN_new_val = tl.load(vecN_new_ptr)
 
-        vecQ_val = tl.load(vecQ_ptr)  # TODO add masking to avoid out of bound access
+        vecQ_val = tl.load(vecQ_ptr) * qk_scale  # TODO add masking to avoid out of bound access
 
         # outputs
         h_num_temp = vecQ_val[:, None] * matC_new_val
@@ -403,6 +404,7 @@ def recurrent_step_fw(
         matC_new=matC_new,
         vecN_new=vecN_new,
         scaM_new=scaM_new,
+        qk_scale=qk_scale,
         s_matC_b=matC_old.stride(0),
         s_matC_nh=matC_old.stride(1),
         s_matC_dhqk=matC_old.stride(2),

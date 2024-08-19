@@ -725,13 +725,11 @@ def mlstm_bw(
 
     ## ? postprocessing
     # compute the vecDeltaFbar values with dfbar = rev_cumsum((q*dq - k*dk).sum(-1))
-    # TODO should we cast to float32 here?
-    vecDeltaFbar_acc = (
-        matQ.to(dtype=torch.float32) * matDeltaQ.to(dtype=torch.float32)
-        - matK.to(dtype=torch.float32) * matDeltaK.to(dtype=torch.float32)
-    ).sum(-1)
+    # should we cast to float32 here?
+    # No! this causes loading and casting all the data again.
+    vecDeltaFbar_acc = (matQ * matDeltaQ - matK * matDeltaK).sum(-1)
     vecDeltaFbar = vecDeltaFbar_acc.flip(-1).cumsum(-1).flip(-1)
-    vecDeltaF = (vecDeltaFbar * torch.sigmoid(-vecF)).to(dtype=vecF.dtype)
+    vecDeltaF = (vecDeltaFbar * torch.sigmoid(-vecF))
     ## ? end postprocessing
 
     return matDeltaQ, matDeltaK, matDeltaV, vecDeltaI, vecDeltaF

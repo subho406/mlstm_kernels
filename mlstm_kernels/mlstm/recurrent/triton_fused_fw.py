@@ -18,6 +18,10 @@ We want to compare this to the torch implementation in mlstm_kernels/mlstm/recur
 
 This is a fused forward decoding step kernel for the mLSTM. Factor of 2 speedup compared to torch.compile.
 Ca. 30% faster than non-fused version.
+
+TODO this kernel still does not use tensor cores. 
+Not sure how to use tensor cores with triton in this case. One needs to pad a block with zeros in SRAM. 
+I don't know how to do this with triton, yet.
 """
 
 ENABLE_AUTOTUNING = True
@@ -203,7 +207,7 @@ def _recurrent_step_fw_kernel(
 
         # update rule
         # TODO add masking to avoid out of bound access
-        vecK_val_scaled = tl.load(vecK_ptr) * qk_scale.to(DTYPE)
+        vecK_val = tl.load(vecK_ptr) 
         vecV_val = tl.load(vecV_ptr)
         # tl.static_print("vecK_val_scaled", vecK_val_scaled)
         # tl.static_print("vecV_val", vecV_val)
@@ -212,10 +216,10 @@ def _recurrent_step_fw_kernel(
         )
 
         matC_new_val = scaF_act * matC_old_val + scaI_act * (
-            vecK_val_scaled[:, None] * vecV_val[None, :]
+            vecK_val[:, None] * vecV_val[None, :]
         )
 
-        vecN_new_val = scaF_act * tl.load(vecN_old_ptr) + scaI_act * vecK_val_scaled
+        vecN_new_val = scaF_act * tl.load(vecN_old_ptr) + scaI_act * vecK_val
         # tl.static_print("vecN_new_val", vecN_new_val)
         # tl.static_print("matC_new_val", matC_new_val)
         # tl.static_print("matC_old_val", matC_old_val)
@@ -234,7 +238,7 @@ def _recurrent_step_fw_kernel(
         matC_new_bptr = tl.advance(matC_new_bptr, (BLOCK_DQK, 0))
 
         # ? accumulate h_num & qn_dotproduct
-        vecQ_val = tl.load(vecQ_ptr)  # TODO add masking to avoid out of bound access
+        vecQ_val = tl.load(vecQ_ptr) * qk_scale.to(DTYPE) # TODO add masking to avoid out of bound access
         # outputs
         h_num_temp = vecQ_val[:, None] * matC_new_val
         # tl.static_print("h_num_temp", h_num_temp)
