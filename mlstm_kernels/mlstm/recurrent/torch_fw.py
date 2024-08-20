@@ -87,7 +87,7 @@ def recurrent_sequence_fw(
         vecM_list.append(vecM_state)
 
         if return_all_states:
-            matC_list.append(matC_state.requires_grad_(True))
+            matC_list.append(matC_state)
 
     matH = torch.stack(vecH_list, dim=-2)  # (B, NH, S, DHV)
     vecN_states = torch.stack(vecN_list, dim=-2)  # (B, NH, S, DHQK)
@@ -101,7 +101,7 @@ def recurrent_sequence_fw(
         ret_tuple += (None,)
 
     if return_all_states:
-        matC_states = torch.stack(matC_list, dim=-3).requires_grad_(True) # (B, NH, S, DHQK, DHV)
+        matC_states = torch.stack(matC_list, dim=-3) # (B, NH, S, DHQK, DHV)
         matC_states.retain_grad()  
         ret_tuple += ((matC_states, vecN_states, vecM_states),)
     else:
