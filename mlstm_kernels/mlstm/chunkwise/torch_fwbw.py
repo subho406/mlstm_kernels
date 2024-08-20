@@ -760,7 +760,7 @@ class _mlstm_chunkwise_fwbw(torch.autograd.Function):
         RECOMPUTE_STATES_IN_BW: bool = True,
         CHUNK_SIZE: int = 64,
         EPS: float = 1e-6,
-    ):
+    ) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor]:
         B, NH, S, DHQK = matQ.shape
         if qk_scale is None:
             qk_scale = DHQK**-0.5
