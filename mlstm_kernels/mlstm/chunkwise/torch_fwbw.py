@@ -27,11 +27,11 @@ Variables:
 """
 
 
-def _mlstm_chunkwise__recurrent_fw(
+def _mlstm_chunkwise__recurrent_fw_C(
     matK: torch.Tensor,  # (B, NH, S, DHQK)
     matV: torch.Tensor,  # (B, NH, S, DHV)
-    vecA: torch.Tensor,  # (B, NH, NC, L)
-    scaG: torch.Tensor,  # (B, NH, NC)
+    vecB: torch.Tensor,  # (B, NH, NC, L) # cumsum(logsigmoid(f))
+    vecI: torch.Tensor,  # (B, NH, NC, L)
     matC_states: torch.Tensor = None,  # (B, NH, (NC + 1) * DHQK, DHV)
     vecN_states: torch.Tensor = None,  # (B, NH, (NC + 1) * DHQK)
     scaMinter_states: torch.Tensor = None,  # (B, NH, (NC + 1)
@@ -79,7 +79,8 @@ def _mlstm_chunkwise__recurrent_fw(
         if scaMinter_initial is None
         else scaMinter_initial
     )
-
+    vecA = (vecB[..., -1, None] - vecB) + vecI
+    scaG = vecB[..., -1]
     scaA_max = vecA.max(-1).values
 
     for k in range(0, NUM_CHUNKS):
@@ -140,7 +141,7 @@ def _mlstm_chunkwise__recurrent_fw(
     return matC_states, vecN_states, scaMinter_states
 
 
-def _mlstm_chunkwise__parallel_fw(
+def _mlstm_chunkwise__parallel_fw_H(
     matQ: torch.Tensor,  # (B, NH, S, DHQK)
     matK: torch.Tensor,  # (B, NH, S, DHQK)
     matV: torch.Tensor,  # (B, NH, S, DHV)
@@ -268,23 +269,18 @@ def _mlstm_chunkwise_fw(
 
     # compute the gates, the g and the a and b vectors
     vecF_logsig = F.logsigmoid(vecF)
+    vecB = vecF_logsig.cumsum(-1)
 
-    vecB_f_cs = vecF_logsig.cumsum(-1)
-    vecA_f_rcs = vecF_logsig.sum(-1, keepdim=True) - vecB_f_cs
-
-    vecB = vecB_f_cs
-    vecA = vecA_f_rcs + vecI
-    scaG = vecF_logsig.sum(-1)
 
     if qk_scale is None:
         qk_scale = DHQK**-0.5
 
     #! materialize the  C_k, n_k, m_k states for each chunk
-    matC_k_states, vecN_k_states, scaMinter_k_states = _mlstm_chunkwise__recurrent_fw(
+    matC_k_states, vecN_k_states, scaMinter_k_states = _mlstm_chunkwise__recurrent_fw_C(
         matK=matK,
         matV=matV,
-        vecA=vecA,
-        scaG=scaG,
+        vecB=vecB,
+        vecI=vecI,
         matC_initial=matC_initial,
         vecN_initial=vecN_initial,
         scaMinter_initial=scaM_initial,
@@ -294,7 +290,7 @@ def _mlstm_chunkwise_fw(
     )
 
     #! compute the outputs within each chunk
-    matH_out, vecN_out, vecM_out = _mlstm_chunkwise__parallel_fw(
+    matH_out, vecN_out, vecM_out = _mlstm_chunkwise__parallel_fw_H(
         matQ=matQ,
         matK=matK,
         matV=matV,
@@ -336,7 +332,6 @@ def _mlstm_chunkwise_fw(
 def _mlstm_chunkwise__recurrent_bw_dC(
     matQ: torch.Tensor,  # (B, NH, S, DHQK)
     vecB: torch.Tensor,  # (B, NH, NC, L)
-    scaG: torch.Tensor,  # (B, NH, NC)
     scaM_inter: torch.Tensor,  # (B, NH, NC+1)
     vecM_combine: torch.Tensor,  # (B, NH, S)
     matDeltaH: torch.Tensor,  # (B, NH, S, DHV)
@@ -361,15 +356,12 @@ def _mlstm_chunkwise__recurrent_bw_dC(
     if qk_scale is None:
         qk_scale = DHQK**-0.5
 
-    # TODO from here!
-    # narrow down the error in the backward pass, to the indexing of the C_k and deltsC_k states
-    # check this also in the forward pass
-    # TODO from here!
-    # TODO from here keep track of indices!
     if matDeltaC_last is not None:
         matDeltaC_k = matDeltaC_last
     else:
         matDeltaC_k = torch.zeros((B, NH, DHQK, DHV), dtype=_dtype, device=_device)
+
+    scaG = vecB[..., -1] # (B, NH, NC)
 
     for k in range(NC - 1, -1, -1):  # goes until 0
         # store the matDeltaC_k from the previous iteration
@@ -425,9 +417,9 @@ def _mlstm_chunkwise__parallel_bw_dQKV(
     matQ: torch.Tensor,  # (B, NH, S, DHQK)
     matK: torch.Tensor,  # (B, NH, S, DHQK)
     matV: torch.Tensor,  # (B, NH, S, DHV)
-    vecI: torch.Tensor,  # (B, NH, NC, L)
-    vecA: torch.Tensor,  # (B, NH, NC, L)
     vecB: torch.Tensor,  # (B, NH, NC, L)
+    vecI: torch.Tensor,  # (B, NH, NC, L)
+    # vecA: torch.Tensor,  # (B, NH, NC, L)
     vecM_combine: torch.Tensor,  # (B, NH, S) = (B, NH, NC * L)
     scaM_inter: torch.Tensor,  # (B, NH, NC+1)
     matC_states: torch.Tensor,  # (B, NH, NC * DHQK, DHV)
@@ -489,6 +481,8 @@ def _mlstm_chunkwise__parallel_bw_dQKV(
     matC_states = rearrange(
         matC_states, "b nh (nc dhqk) dhv -> b nh nc dhqk dhv", nc=NC
     )
+
+    vecA = (vecB[..., -1, None] - vecB) + vecI
 
     # compute the gates vecA, vecB
     scaM_inter_kminus1 = scaM_inter[:, :, :-1, None]
@@ -558,23 +552,18 @@ def _mlstm_chunkwise_bw(
 
     # compute the gates, the g and the a and b vectors
     vecF_logsig = F.logsigmoid(vecF)
-    vecB_f_cs = vecF_logsig.cumsum(-1)
-    vecA_f_rcs = vecF_logsig.sum(-1, keepdim=True) - vecB_f_cs
-
-    vecB = vecB_f_cs
-    vecA = vecA_f_rcs + vecI
-    scaG = vecF_logsig.sum(-1)
+    vecB = vecF_logsig.cumsum(-1)
 
     #! recompute the "all" states if needed
     if matC_all is None:
         assert (
             (matC_all is None) and (vecN_all is None) and (scaM_all is None)
         ), "Either all or none of the states must be provided."
-        matC_all, vecN_all, scaM_all = _mlstm_chunkwise__recurrent_fw(
+        matC_all, vecN_all, scaM_all = _mlstm_chunkwise__recurrent_fw_C(
             matK=matK,
             matV=matV,
-            vecA=vecA,
-            scaG=scaG,
+            vecB=vecB,
+            vecI=vecI,
             matC_initial=matC_initial,
             vecN_initial=vecN_initial,
             scaMinter_initial=scaM_initial,
@@ -591,7 +580,6 @@ def _mlstm_chunkwise_bw(
     matDeltaC_states = _mlstm_chunkwise__recurrent_bw_dC(
         matQ=matQ,  # (B, NH, S, DHQK)
         vecB=vecB,  # (B, NH, NC, L)
-        scaG=scaG,  # (B, NH, NC)
         scaM_inter=scaM_all,  # (B, NH, NC+1)
         vecM_combine=vecM_out,  # (B, NH, S)
         matDeltaH=matDeltaH_scaled,  # (B, NH, S, DHV)
@@ -618,9 +606,8 @@ def _mlstm_chunkwise_bw(
         matQ=matQ,
         matK=matK,
         matV=matV,
-        vecI=vecI,
-        vecA=vecA,
         vecB=vecB,
+        vecI=vecI,
         vecM_combine=vecM_out,
         scaM_inter=scaM_all,  # (B, NH, NC)
         matC_states=matC_k_states,  # (B, NH, NC * DHQK, DHV)
