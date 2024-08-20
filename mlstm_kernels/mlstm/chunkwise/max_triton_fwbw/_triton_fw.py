@@ -29,15 +29,137 @@ Variables:
     matD, D: gating matrix for the parallel form.
 """
 
-@triton.jit
-def _mlstm_chunkwise__recurrent_fw_kernel():
-    pass
 
-def _mlstm_chunkwise__recurrent_fw(
+# Note: we only pass stride for the head dimension (we do not access individual batch elements directly)
+@triton.jit
+def _mlstm_chunkwise__recurrent_fw_C_kernel(
+    matK,  # (B, NH, S, DHQK)
+    matV,  # (B, NH, S, DHHV)
+    vecB,  # (B, NH, NC, L)
+    vecI,  # (B, NH, NC, L)
+    matC_states,  # (B, NH, (NC + 1) * DHQK, DHHV)
+    vecN_states,  # (B, NH, (NC + 1) * DHQK)
+    scaMinter_states,  # (B, NH, (NC + 1))
+    matC_initial,  # (B, NH, DHQK, DHHV)
+    vecN_initial,  # (B, NH, DHQK)
+    scaMinter_initial,  # (B, NH)
+    qk_scale,
+    str_matK_B_NH,
+    str_matK_S,
+    str_matK_DHQK,
+    str_matV_B_NH,
+    str_matV_S,
+    str_matV_DHHV,
+    str_vecBI_B_NH,
+    str_vecBI_NC,
+    str_vecBI_L,
+    str_matCstates_B_NH,
+    str_matCstates_NCDHQK,
+    str_matCstates_DHHV,
+    str_vecNstates_B_NH,
+    str_vecNstates_NCDHQK,
+    str_scaMinterstates_B_NH,
+    str_scaMinterstates_NC,
+    str_matCinitial_B_NH,
+    str_matCinitial_DHQK,
+    str_matCinitial_DHHV,
+    str_vecNinitial_B_NH,
+    str_vecNinitial_DHQK,
+    str_scaMinterinitial_B_NH,
+    B: tl.constexpr,
+    NH: tl.constexpr,
+    S: tl.constexpr,
+    DHQK: tl.constexpr,
+    DHHV: tl.constexpr,
+    NC: tl.constexpr,
+    L: tl.constexpr,
+    siz_b_DHQK: tl.constexpr,
+    siz_b_DHHV: tl.constexpr,
+    USE_INITIAL_STATE: tl.constexpr,
+    DTYPE: tl.constexpr = tl.float16,
+):
+    idx_b_DHQK, idx_b_DHHV, idx_b_BNH = (
+        tl.program_id(0),
+        tl.program_id(1),
+        tl.program_id(2),
+    )
+
+    # create running states in shared memory
+    matC_val = tl.zeros((siz_b_DHQK, siz_b_DHHV), dtype=tl.float32)
+    vecN_val = tl.zeros((siz_b_DHQK,), dtype=tl.float32)
+    scaMinter_val = tl.zeros((1,), dtype=tl.float32)
+    # scaMinter_next_val = tl.zeros((1,), dtype=tl.float32) # TODO we create this in the loop
+
+    if USE_INITIAL_STATE:
+        # each thread block loads a (siz_b_DHQK, siz_b_DHHV) block from matC_initial
+        matCinitial_ptr = tl.make_block_ptr(
+            base=matC_initial + idx_b_BNH * str_matCinitial_B_NH,
+            shape=(DHQK, DHHV),
+            strides=(str_matCinitial_DHQK, str_matCinitial_DHHV),
+            offsets=(idx_b_DHQK * siz_b_DHQK, idx_b_DHHV * siz_b_DHHV),
+            block_shape=(siz_b_DHQK, siz_b_DHHV),
+            order=(0, 1),
+        )
+        # each thread block loads a (siz_b_DHQK,) chunk from vecN_initial
+        vecNinitial_ptr = (
+            vecN_initial
+            + idx_b_BNH * str_vecNinitial_B_NH
+            + idx_b_DHQK * siz_b_DHQK
+            + tl.arange(0, siz_b_DHQK)
+        )
+        # each thread block loads the scaMinter_initial
+        scaMinterinitial_ptr = scaMinter_initial + idx_b_BNH * str_scaMinterinitial_B_NH
+        
+        # load initial states
+        matC_val = tl.load(matCinitial_ptr, boundary_check=(0,1)).to(tl.float32)
+        vecN_val = tl.load(vecNinitial_ptr).to(tl.float32)
+        scaMinter_val = tl.load(scaMinterinitial_ptr).to(tl.float32)
+
+    tl.static_print("matC_val", matC_val)
+    tl.static_print("vecN_val", vecN_val)
+    tl.static_print("scaMinter_val", scaMinter_val)
+    
+    # iterate over chunks
+    for k in range(NC):
+        # create pointer for matCstates_k, vecNstates_k, scaMinterstates_k
+        # each thread block stores a (siz_b_DHQK, siz_b_DHHV) block to matC_states_k
+        matCstates_k_ptr = tl.make_block_ptr(
+            base=matC_states + idx_b_BNH * str_matCstates_B_NH + k * DHQK * DHHV,
+            shape=(DHQK, DHHV),
+            strides=(str_matCstates_NCDHQK, str_matCstates_DHHV),
+            offsets=(idx_b_DHQK * siz_b_DHQK, idx_b_DHHV * siz_b_DHHV),
+            block_shape=(siz_b_DHQK, siz_b_DHHV),
+            order=(0, 1),
+        )
+        # TODO from here
+
+        # store the states from the previous iteration
+        # TODO
+
+        # load / compute vecA_k, scaG_k
+        # TODO
+
+        # scaM_inter_k update
+
+        # load matK_k, matV_k
+
+        # matC_k update
+
+        # vecN_k update
+
+        # move to next iteration
+
+
+    # store the states from the last iteration
+    # TODO
+
+
+
+def _mlstm_chunkwise__recurrent_fw_C(
     matK: torch.Tensor,  # (B, NH, S, DHQK)
     matV: torch.Tensor,  # (B, NH, S, DHHV)
-    vecA: torch.Tensor,  # (B, NH, NC, L)
-    scaG: torch.Tensor,  # (B, NH, NC)
+    vecB: torch.Tensor,  # (B, NH, NC, L)
+    vecI: torch.Tensor,  # (B, NH, NC, L)
     matC_states: torch.Tensor = None,  # (B, NH, (NC + 1) * DHQK, DHHV)
     vecN_states: torch.Tensor = None,  # (B, NH, (NC + 1) * DHQK)
     scaMinter_states: torch.Tensor = None,  # (B, NH, (NC + 1)
@@ -50,7 +172,109 @@ def _mlstm_chunkwise__recurrent_fw(
 ) -> tuple[
     torch.Tensor, torch.Tensor, torch.Tensor
 ]:  # matC_states (B, NH, (NC+1) * DHQK, DHHV), vecN_states (B, NH, (NC+1) * DHQK), scaMinter_states (B, NH, (NC+1))
-    pass 
+    B, NH, S, DHQK = matK.shape
+    DHHV = matV.shape[-1]
+
+    NC = NUM_CHUNKS
+    L = CHUNK_SIZE
+
+    siz_b_DHQK = min(64, triton.next_power_of_2(DHQK))
+    siz_b_DHHV = min(64, triton.next_power_of_2(DHHV))
+
+    num_b_DHQK = triton.cdiv(DHQK, siz_b_DHQK)
+    num_b_DHHV = triton.cdiv(DHHV, siz_b_DHHV)
+
+    num_stages = 1
+    num_warps = 4 if siz_b_DHQK == 64 else 2
+
+    if qk_scale is None:
+        qk_scale = DHQK**-0.5
+
+    USE_INITIAL_STATE = matC_initial is not None
+    if USE_INITIAL_STATE:
+        assert vecN_initial is not None and scaMinter_initial is not None
+        str_matCinitial_B_NH = matC_initial.stride(1)
+        str_matCinitial_DHQK = matC_initial.stride(2)
+        str_matCinitial_DHHV = matC_initial.stride(3)
+        str_vecNinitial_B_NH = vecN_initial.stride(1)
+        str_vecNinitial_DHQK = vecN_initial.stride(2)
+        str_scaMinterinitial_B_NH = scaMinter_initial.stride(1)
+    else:
+        str_matCinitial_B_NH = 0
+        str_matCinitial_DHQK = 0
+        str_matCinitial_DHHV = 0
+        str_vecNinitial_B_NH = 0
+        str_vecNinitial_DHQK = 0
+        str_scaMinterinitial_B_NH = 0
+
+    grid = (num_b_DHQK, num_b_DHHV, NUM_CHUNKS)
+
+    # TODO make these tensors empty not zeros
+    matC_states = (
+        torch.zeros(B, NH, (NC + 1) * DHQK, DHHV, device=matK.device, dtype=matK.dtype)
+        if matC_states is None
+        else matC_states
+    )
+    vecN_states = (
+        torch.zeros(B, NH, (NC + 1) * DHQK, device=matK.device, dtype=matK.dtype)
+        if vecN_states is None
+        else vecN_states
+    )
+    scaMinter_states = (
+        torch.zeros(B, NH, (NC + 1), device=matK.device, dtype=matK.dtype)
+        if scaMinter_states is None
+        else scaMinter_states
+    )
+
+    _mlstm_chunkwise__recurrent_fw_C_kernel[grid](
+        matK=matK,
+        matV=matV,
+        vecB=vecB,
+        vecI=vecI,
+        matC_states=matC_states,
+        vecN_states=vecN_states,
+        scaMinter_states=scaMinter_states,
+        matC_initial=matC_initial,
+        vecN_initial=vecN_initial,
+        scaMinter_initial=scaMinter_initial,
+        qk_scale=qk_scale,
+        str_matK_B_NH=matK.stride(1),
+        str_matK_S=matK.stride(2),
+        str_matK_DHQK=matK.stride(3),
+        str_matV_B_NH=matV.stride(1),
+        str_matV_S=matV.stride(2),
+        str_matV_DHHV=matV.stride(3),
+        str_vecBI_B_NH=vecB.stride(1),
+        str_vecBI_NC=vecB.stride(2),
+        str_vecBI_L=vecB.stride(3),
+        str_matCstates_B_NH=matC_states.stride(1),
+        str_matCstates_NCDHQK=matC_states.stride(2),
+        str_matCstates_DHHV=matC_states.stride(3),
+        str_vecNstates_B_NH=vecN_states.stride(1),
+        str_vecNstates_NCDHQK=vecN_states.stride(2),
+        str_scaMinterstates_B_NH=scaMinter_states.stride(1),
+        str_scaMinterstates_NC=scaMinter_states.stride(2),
+        str_matCinitial_B_NH=str_matCinitial_B_NH,
+        str_matCinitial_DHQK=str_matCinitial_DHQK,
+        str_matCinitial_DHHV=str_matCinitial_DHHV,
+        str_vecNinitial_B_NH=str_vecNinitial_B_NH,
+        str_vecNinitial_DHQK=str_vecNinitial_DHQK,
+        str_scaMinterinitial_B_NH=str_scaMinterinitial_B_NH,
+        B=B,
+        NH=NH,
+        S=S,
+        DHQK=DHQK,
+        DHHV=DHHV,
+        NC=NC,
+        L=L,
+        siz_b_DHQK=siz_b_DHQK,
+        siz_b_DHHV=siz_b_DHHV,
+        USE_INITIAL_STATE=USE_INITIAL_STATE,
+        num_stages=num_stages,
+        num_warps=num_warps,
+    )
+
+    return matC_states, vecN_states, scaMinter_states
 
 
 def _mlstm_chunkwise__parallel_fw(
@@ -67,7 +291,9 @@ def _mlstm_chunkwise__parallel_fw(
     CHUNK_SIZE: int = 64,
     NUM_CHUNKS: int = 1,
     EPS: float = 1e-6,
-) -> tuple[torch.Tensor, torch.Tensor]:  # matH_out (B, NH, S, DHHV), vecN_out (B, NH, S)
+) -> tuple[
+    torch.Tensor, torch.Tensor
+]:  # matH_out (B, NH, S, DHHV), vecN_out (B, NH, S)
     """This function defines the grid and block sizes for the kernel launch and calls the kernel."""
     pass
 
@@ -121,7 +347,7 @@ def _mlstm_chunkwise_fw(
         qk_scale = DHQK**-0.5
 
     #! materialize the  C_k, n_k, m_k states for each chunk
-    matC_k_states, vecN_k_states, scaMinter_k_states = _mlstm_chunkwise__recurrent_fw(
+    matC_k_states, vecN_k_states, scaMinter_k_states = _mlstm_chunkwise__recurrent_fw_C(
         matK=matK,
         matV=matV,
         vecA=vecA,
