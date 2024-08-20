@@ -335,10 +335,12 @@ def _mlstm_chunkwise__recurrent_bw_dC(
     scaM_inter: torch.Tensor,  # (B, NH, NC+1)
     vecM_combine: torch.Tensor,  # (B, NH, S)
     matDeltaH: torch.Tensor,  # (B, NH, S, DHV)
+    vecN_out: torch.Tensor,  # (B, NH, S)
     matDeltaC_last: torch.Tensor = None,  # (B, NH, DHQK, DHV)
     qk_scale: float = None,
     CHUNK_SIZE: int = 64,
     NUM_CHUNKS: int = 1,
+    EPS: float = 1e-6,
 ) -> torch.Tensor:  # matDeltaC_states (B, NH, (NC+1) * DHQK, DHV)
     """Computes only the deltaC gradients for the backward pass.
     The other gradients are computed in the other (kernel) function.
@@ -396,7 +398,8 @@ def _mlstm_chunkwise__recurrent_bw_dC(
         matQ_k = matQ[:, :, k * L : (k + 1) * L, :]  # (B, NH, L, DHQK)
         matQbar_k = matQ_k * vecBbar_k * qk_scale
 
-        matDeltaH_k = matDeltaH[:, :, k * L : (k + 1) * L, :]  # (B, NH, L, DHV)
+        vecN_k = vecN_out[:, :, k * L : (k + 1) * L, None]  # (B, NH, L, 1)
+        matDeltaH_k = (matDeltaH[:, :, k * L : (k + 1) * L, :] / (vecN_k + EPS))  # (B, NH, L, DHV)
 
         # matDeltaC_k-1 update
         matDeltaC_kminus1 = (
@@ -424,10 +427,12 @@ def _mlstm_chunkwise__parallel_bw_dQKV(
     scaM_inter: torch.Tensor,  # (B, NH, NC+1)
     matC_states: torch.Tensor,  # (B, NH, NC * DHQK, DHV)
     matDeltaH: torch.Tensor,  # (B, NH, S, DHV)
+    vecN_out: torch.Tensor,  # (B, NH, S)
     matDeltaC_states: torch.Tensor,  # (B, NH, NC * DHQK, DHV)
     qk_scale: float = None,
     CHUNK_SIZE: int = 64,
     NUM_CHUNKS: int = 1,
+    EPS: float = 1e-6,
 ) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
     B, NH, S, DHQK, DHV = *matQ.shape, matV.shape[-1]
     NC = NUM_CHUNKS
@@ -436,6 +441,8 @@ def _mlstm_chunkwise__parallel_bw_dQKV(
 
     #! intra chunk gradients
     # load / prepare the inputs
+    matDeltaH = matDeltaH / (vecN_out[:, :, :, None] + EPS)
+
     matDeltaH = rearrange(matDeltaH, "b nh (nc l) dh -> b nh nc l dh", l=L)
 
     matQ = rearrange(matQ, "b nh (nc l) dh -> b nh nc l dh", l=L)
@@ -572,9 +579,6 @@ def _mlstm_chunkwise_bw(
             NUM_CHUNKS=NC,
         )
 
-    #! prepare incoming gradients: divide by the denominator
-    # TODO maybe do this division inside the kernels
-    matDeltaH_scaled = matDeltaH / (vecN_out[:, :, :, None] + EPS)
 
     #! recurrent backward: compute the deltaC gradients
     matDeltaC_states = _mlstm_chunkwise__recurrent_bw_dC(
@@ -582,11 +586,13 @@ def _mlstm_chunkwise_bw(
         vecB=vecB,  # (B, NH, NC, L)
         scaM_inter=scaM_all,  # (B, NH, NC+1)
         vecM_combine=vecM_out,  # (B, NH, S)
-        matDeltaH=matDeltaH_scaled,  # (B, NH, S, DHV)
+        matDeltaH=matDeltaH,  # (B, NH, S, DHV)
+        vecN_out=vecN_out, # (B, NH, S)
         matDeltaC_last=matDeltaC_last,  # (B, NH, DHQK, DHV)
         qk_scale=qk_scale,
         CHUNK_SIZE=CHUNK_SIZE,
         NUM_CHUNKS=NC,
+        EPS=EPS,
     )  # (B, NH, NC * DHQK, DHV)
 
     # print("matC_states", matC_all, matC_all.shape)
@@ -611,11 +617,13 @@ def _mlstm_chunkwise_bw(
         vecM_combine=vecM_out,
         scaM_inter=scaM_all,  # (B, NH, NC)
         matC_states=matC_k_states,  # (B, NH, NC * DHQK, DHV)
-        matDeltaH=matDeltaH_scaled,
+        matDeltaH=matDeltaH, # (B, NH, S, DHV)
+        vecN_out=vecN_out,  # (B, NH, S)
         matDeltaC_states=matDeltaC_k_states,  # (B, NH, NC * DHQK, DHV)
         qk_scale=qk_scale,
         CHUNK_SIZE=CHUNK_SIZE,
         NUM_CHUNKS=NC,
+        EPS=EPS,
     )
 
     #! postprocessing: compute deltaF and deltaI gradients
