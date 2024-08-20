@@ -61,7 +61,7 @@ def recurrent_sequence_fw(
     vecM_list.append(vecM_state)
     for t in range(S):
         # gates
-        vecF_t, vecI_t = vecF[:, :, t], vecI[:, :, t]  # (B, NH, 1)
+        vecF_t, vecI_t = vecF[:, :, t, None], vecI[:, :, t, None]  # (B, NH, 1)
 
         # projections
         vecQ_t, vecK_t, vecV_t = (
@@ -142,7 +142,9 @@ def recurrent_step_fw(
             (hidden_state [B, NH, DHV], (c_state_new [B, NH, DHQK, DHV], n_state_new [B, NH, DHQK]], m_state_new [B, NH, 1]))
     """
     B, NH, DHQK = vecQ.shape
-
+    assert scaM_old.shape == (B, NH, 1)
+    assert scaI.shape == (B, NH, 1)
+    assert scaF.shape == (B, NH, 1)
     # gates
     scaF_log = torch.nn.functional.logsigmoid(scaF)
 
