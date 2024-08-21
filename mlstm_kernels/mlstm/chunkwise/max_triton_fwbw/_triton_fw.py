@@ -121,7 +121,7 @@ def _mlstm_chunkwise__recurrent_fw_C_kernel(
 
     # iterate over chunks
     for k in range(NC):
-        tl.device_print("k", k)
+        # tl.device_print("k", k)
         # create pointer for matCstates_k, vecNstates_k, scaMinterstates_k
         # each thread block stores a (siz_b_DHQK, siz_b_DHHV) block to matC_states_k
         matCstates_k_ptr = tl.make_block_ptr(
@@ -164,7 +164,7 @@ def _mlstm_chunkwise__recurrent_fw_C_kernel(
 
         vecA_k_val = (vecB_last_k_val - vecB_k_val) + vecI_k_val
         scaG_k_val = vecB_last_k_val
-        tl.device_print("vecAk_val dev",vecA_k_val)
+        # tl.device_print("vecAk_val dev",vecA_k_val)
         tl.static_print("vecA_k_val", vecA_k_val)
         tl.static_print("scaG_k_val", scaG_k_val)
         # scaM_inter_k update
@@ -192,21 +192,23 @@ def _mlstm_chunkwise__recurrent_fw_C_kernel(
             order=(1, 0),
         )
         matK_k_val = tl.load(matK_k_ptr, boundary_check=(0, 1)).to(tl.float32)
-        matV_k_val = tl.load(matV_k_ptr, boundary_check=(0, 1)).to(DTYPE)
+        matV_k_val = tl.load(matV_k_ptr, boundary_check=(0, 1)).to(tl.float32)
         tl.static_print("matK_k_val", matK_k_val)
         tl.static_print("matV_k_val", matV_k_val)
         
         # matC_k update
-        vecAbar_k_val = tl.exp(vecA_k_val - scaMinter_k_val[:, None])
+        vecAbar_k_val = tl.exp(vecA_k_val - scaMinter_k_val)
         scaGbar_k_val = tl.exp(scaG_k_val + scaMinter_k_val - scaMinter_next_val)
 
         tl.static_print("vecAbar_k_val", vecAbar_k_val)
         tl.static_print("scaGbar_k_val", scaGbar_k_val)
 
-        matKbar_k_val = (matK_k_val * vecAbar_k_val[None, :])
+        # matKbar_k_val = (matK_k_val * vecAbar_k_val[None, :])
+        matKbar_k_val = matK_k_val
         tl.static_print("matKbar_k_val", matKbar_k_val)
+        # matV_k_val = matV_k_val * vecAbar_k_val[:, None]
 
-        matC_k_val = scaGbar_k_val * matC_k_val + tl.dot(matKbar_k_val.to(DTYPE), matV_k_val)
+        matC_k_val = scaGbar_k_val * matC_k_val + tl.dot(matKbar_k_val.to(DTYPE), matV_k_val.to(DTYPE))
         # matC_k_val += tl.dot(matKbar_k_val.to(DTYPE), matV_k_val)
         tl.static_print("matC_k_val", matC_k_val)
 

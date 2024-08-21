@@ -103,7 +103,7 @@ def _mlstm_chunkwise__recurrent_fw_C(
 
         vecAbar_k = torch.exp(vecA_k - scaM_inter_k_next[...,None])[:, :, :, None]
 
-        matK_chunk_gated = matK_chunk * vecAbar_k
+        matK_chunk_gated = matK_chunk# * vecAbar_k
 
         scaGbar_k = torch.exp(scaG_k + scaM_inter_k - scaM_inter_k_next)[:, :, None]
 
@@ -122,7 +122,7 @@ def _mlstm_chunkwise__recurrent_fw_C(
 
         # NOTE: no update in-place (i.e. +=) as this gives error for autograd backward
         matC_k_next = (
-            scaGbar_k[..., None] * matC_k + matK_chunk_gated.transpose(-2, -1) @ matV_chunk
+            scaGbar_k[..., None] * matC_k + matK_chunk_gated.transpose(-2, -1) @ (matV_chunk)
         )
 
         # n_k update
