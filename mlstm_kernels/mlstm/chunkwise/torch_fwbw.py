@@ -82,6 +82,7 @@ def _mlstm_chunkwise__recurrent_fw_C(
     vecA = (vecB[..., -1, None] - vecB) + vecI
     scaG = vecB[..., -1]
     scaA_max = vecA.max(-1).values
+    print(f"scaA: {vecA}")
 
     for k in range(0, NUM_CHUNKS):
 
@@ -95,7 +96,6 @@ def _mlstm_chunkwise__recurrent_fw_C(
         scaA_max_k = scaA_max[:, :, k]
         scaG_k = scaG[:, :, k]
         scaM_inter_k_next = torch.max(scaG_k + scaM_inter_k, scaA_max_k)
-
         # C_k update
         matK_chunk = matK[:, :, k * CHUNK_SIZE : (k + 1) * CHUNK_SIZE, :]  # * qk_scale
         matV_chunk = matV[:, :, k * CHUNK_SIZE : (k + 1) * CHUNK_SIZE, :]

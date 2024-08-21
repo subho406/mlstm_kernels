@@ -98,7 +98,7 @@ def _mlstm_chunkwise__recurrent_fw_C_kernel(
             strides=(str_matCinitial_DHQK, str_matCinitial_DHHV),
             offsets=(idx_b_DHQK * siz_b_DHQK, idx_b_DHHV * siz_b_DHHV),
             block_shape=(siz_b_DHQK, siz_b_DHHV),
-            order=(0, 1),
+            order=(1, 0),
         )
         # each thread block loads a (siz_b_DHQK,) chunk from vecN_initial
         vecNinitial_ptr = (
@@ -121,6 +121,7 @@ def _mlstm_chunkwise__recurrent_fw_C_kernel(
 
     # iterate over chunks
     for k in range(NC):
+        tl.device_print("k", k)
         # create pointer for matCstates_k, vecNstates_k, scaMinterstates_k
         # each thread block stores a (siz_b_DHQK, siz_b_DHHV) block to matC_states_k
         matCstates_k_ptr = tl.make_block_ptr(
@@ -129,13 +130,14 @@ def _mlstm_chunkwise__recurrent_fw_C_kernel(
             strides=(str_matCstates_NCDHQK, str_matCstates_DHHV),
             offsets=(idx_b_DHQK * siz_b_DHQK, idx_b_DHHV * siz_b_DHHV),
             block_shape=(siz_b_DHQK, siz_b_DHHV),
-            order=(0, 1),
+            order=(1, 0),
         )
         vecNstates_k_ptr = (
             vecN_states
             + idx_b_BNH * str_vecNstates_B_NH
             + k * DHQK
-            + tl.arange(0, DHQK)
+            + idx_b_DHQK * siz_b_DHQK
+            + tl.arange(0, siz_b_DHQK)
         )
         scaMinterstates_k_ptr = (
             scaMinter_states + idx_b_BNH * str_scaMinterstates_B_NH + k
@@ -162,10 +164,11 @@ def _mlstm_chunkwise__recurrent_fw_C_kernel(
 
         vecA_k_val = (vecB_last_k_val - vecB_k_val) + vecI_k_val
         scaG_k_val = vecB_last_k_val
+        tl.device_print("vecAk_val dev",vecA_k_val)
         tl.static_print("vecA_k_val", vecA_k_val)
         tl.static_print("scaG_k_val", scaG_k_val)
         # scaM_inter_k update
-        scaAmax_k_val = tl.max(vecA_k_val)
+        scaAmax_k_val, _ = tl.max(vecA_k_val)
         tl.static_print("scaAmax_k_val", scaAmax_k_val)
         scaMinter_next_val = tl.maximum(scaG_k_val + scaMinter_k_val, scaAmax_k_val)
         tl.static_print("scaMinter_next_val", scaMinter_next_val)
@@ -203,8 +206,8 @@ def _mlstm_chunkwise__recurrent_fw_C_kernel(
         matKbar_k_val = (matK_k_val * vecAbar_k_val[None, :])
         tl.static_print("matKbar_k_val", matKbar_k_val)
 
-        matC_k_val = scaGbar_k_val * matC_k_val
-        matC_k_val += tl.dot(matKbar_k_val.to(DTYPE), matV_k_val)
+        matC_k_val = scaGbar_k_val * matC_k_val + tl.dot(matKbar_k_val.to(DTYPE), matV_k_val)
+        # matC_k_val += tl.dot(matKbar_k_val.to(DTYPE), matV_k_val)
         tl.static_print("matC_k_val", matC_k_val)
 
         # vecN_k update
@@ -221,13 +224,14 @@ def _mlstm_chunkwise__recurrent_fw_C_kernel(
         strides=(str_matCstates_NCDHQK, str_matCstates_DHHV),
         offsets=(idx_b_DHQK * siz_b_DHQK, idx_b_DHHV * siz_b_DHHV),
         block_shape=(siz_b_DHQK, siz_b_DHHV),
-        order=(0, 1),
+        order=(1, 0),
     )
     vecNstates_k_ptr = (
         vecN_states
         + idx_b_BNH * str_vecNstates_B_NH
         + NC * DHQK
-        + tl.arange(0, DHQK)
+        + idx_b_DHQK * siz_b_DHQK
+        + tl.arange(0, siz_b_DHQK)
     )
     scaMinterstates_k_ptr = (
         scaMinter_states + idx_b_BNH * str_scaMinterstates_B_NH + NC
@@ -292,21 +296,21 @@ def _mlstm_chunkwise__recurrent_fw_C(
         str_vecNinitial_DHQK = 0
         str_scaMinterinitial_B_NH = 0
 
-    grid = (num_b_DHQK, num_b_DHHV, NUM_CHUNKS)
+    grid = (num_b_DHQK, num_b_DHHV, B * NH)
 
     # TODO make these tensors empty not zeros
     matC_states = (
-        torch.zeros(B, NH, (NC + 1) * DHQK, DHHV, device=matK.device, dtype=matK.dtype)
+        torch.ones(B, NH, (NC + 1) * DHQK, DHHV, device=matK.device, dtype=matK.dtype)
         if matC_states is None
         else matC_states
     )
     vecN_states = (
-        torch.zeros(B, NH, (NC + 1) * DHQK, device=matK.device, dtype=matK.dtype)
+        torch.ones(B, NH, (NC + 1) * DHQK, device=matK.device, dtype=matK.dtype)
         if vecN_states is None
         else vecN_states
     )
     scaMinter_states = (
-        torch.zeros(B, NH, (NC + 1), device=matK.device, dtype=matK.dtype)
+        torch.ones(B, NH, (NC + 1), device=matK.device, dtype=matK.dtype)
         if scaMinter_states is None
         else scaMinter_states
     )
