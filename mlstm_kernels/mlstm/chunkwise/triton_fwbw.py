@@ -65,7 +65,7 @@ def chunk_mlstm_fwd_kernel_C(
             (BK,),
             (0,),
         )
-        p_m0 = initial_m
+        p_m0 = initial_m # mbeck: isn't here the batch head offset missing?
 
         b_C = tl.load(p_C0, boundary_check=(0, 1)).to(tl.float16)
         b_n = tl.load(p_n0, boundary_check=(0,)).to(tl.float16)

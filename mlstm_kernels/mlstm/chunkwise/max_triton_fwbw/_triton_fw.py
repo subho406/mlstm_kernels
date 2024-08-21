@@ -122,6 +122,22 @@ def _mlstm_chunkwise__recurrent_fw_C_kernel(
     # iterate over chunks
     for k in range(NC):
         # tl.device_print("k", k)
+        matK_k_ptr = tl.make_block_ptr(
+            base=matK + idx_b_BNH * str_matK_B_NH,
+            shape=(DHQK, S),
+            strides=(str_matK_DHQK, str_matK_S),
+            offsets=(idx_b_DHQK * siz_b_DHQK, k * L),
+            block_shape=(siz_b_DHQK, L),
+            order=(0, 1),  # TODO check if this is correct
+        )
+        matV_k_ptr = tl.make_block_ptr(
+            base=matV + idx_b_BNH * str_matV_B_NH,
+            shape=(S, DHHV),
+            strides=(str_matV_S, str_matV_DHHV),
+            offsets=(k * L, idx_b_DHHV * siz_b_DHHV),
+            block_shape=(L, siz_b_DHHV),
+            order=(1, 0),
+        )
         # create pointer for matCstates_k, vecNstates_k, scaMinterstates_k
         # each thread block stores a (siz_b_DHQK, siz_b_DHHV) block to matC_states_k
         matCstates_k_ptr = tl.make_block_ptr(
@@ -174,23 +190,6 @@ def _mlstm_chunkwise__recurrent_fw_C_kernel(
         tl.static_print("scaMinter_next_val", scaMinter_next_val)
 
         # load matK_k, matV_k
-        matK_k_ptr = tl.make_block_ptr(
-            base=matK + idx_b_BNH * str_matK_B_NH,
-            shape=(S, DHQK),
-            strides=(str_matK_DHQK, str_matK_S),
-            offsets=(idx_b_DHQK * siz_b_DHQK, k * L),
-            block_shape=(siz_b_DHQK, L),
-            order=(0, 1),  # TODO check if this is correct
-        )
-
-        matV_k_ptr = tl.make_block_ptr(
-            base=matV + idx_b_BNH * str_matV_B_NH,
-            shape=(S, DHHV),
-            strides=(str_matV_S, str_matV_DHHV),
-            offsets=(k * L, idx_b_DHHV * siz_b_DHHV),
-            block_shape=(L, siz_b_DHHV),
-            order=(1, 0),
-        )
         matK_k_val = tl.load(matK_k_ptr, boundary_check=(0, 1)).to(tl.float32)
         matV_k_val = tl.load(matV_k_ptr, boundary_check=(0, 1)).to(tl.float32)
         tl.static_print("matK_k_val", matK_k_val)
@@ -203,6 +202,7 @@ def _mlstm_chunkwise__recurrent_fw_C_kernel(
         tl.static_print("vecAbar_k_val", vecAbar_k_val)
         tl.static_print("scaGbar_k_val", scaGbar_k_val)
 
+        # TODO we want this to work:
         # matKbar_k_val = (matK_k_val * vecAbar_k_val[None, :])
         matKbar_k_val = matK_k_val
         tl.static_print("matKbar_k_val", matKbar_k_val)
@@ -243,7 +243,7 @@ def _mlstm_chunkwise__recurrent_fw_C_kernel(
     if (idx_b_DHQK == 0) and (idx_b_DHHV == 0):
         tl.store(scaMinterstates_k_ptr, scaMinter_k_val.to(dtype=DTYPE))
 
-
+@contiguous_noctx
 def _mlstm_chunkwise__recurrent_fw_C(
     matK: torch.Tensor,  # (B, NH, S, DHQK)
     matV: torch.Tensor,  # (B, NH, S, DHHV)
