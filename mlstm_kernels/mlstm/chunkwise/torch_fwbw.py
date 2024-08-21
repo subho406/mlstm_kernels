@@ -103,7 +103,7 @@ def _mlstm_chunkwise__recurrent_fw_C(
 
         vecAbar_k = torch.exp(vecA_k - scaM_inter_k_next[...,None])[:, :, :, None]
 
-        matK_chunk_gated = matK_chunk# * vecAbar_k
+        matK_chunk_gated = matK_chunk * vecAbar_k
 
         scaGbar_k = torch.exp(scaG_k + scaM_inter_k - scaM_inter_k_next)[:, :, None]
 

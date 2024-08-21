@@ -196,15 +196,15 @@ def _mlstm_chunkwise__recurrent_fw_C_kernel(
         tl.static_print("matV_k_val", matV_k_val)
         
         # matC_k update
-        vecAbar_k_val = tl.exp(vecA_k_val - scaMinter_k_val)
+        vecAbar_k_val = tl.exp(vecA_k_val - scaMinter_next_val)
         scaGbar_k_val = tl.exp(scaG_k_val + scaMinter_k_val - scaMinter_next_val)
 
         tl.static_print("vecAbar_k_val", vecAbar_k_val)
         tl.static_print("scaGbar_k_val", scaGbar_k_val)
 
         # TODO we want this to work:
-        # matKbar_k_val = (matK_k_val * vecAbar_k_val[None, :])
-        matKbar_k_val = matK_k_val
+        matKbar_k_val = (matK_k_val * vecAbar_k_val[None, :])
+        # matKbar_k_val = matK_k_val
         tl.static_print("matKbar_k_val", matKbar_k_val)
         # matV_k_val = matV_k_val * vecAbar_k_val[:, None]
 
