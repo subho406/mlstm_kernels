@@ -115,10 +115,6 @@ def _mlstm_chunkwise__recurrent_fw_C_kernel(
         vecN_k_val = tl.load(vecNinitial_ptr).to(tl.float32)
         scaMinter_k_val = tl.load(scaMinterinitial_ptr).to(tl.float32)
 
-    tl.static_print("matC_val", matC_k_val)
-    tl.static_print("vecN_val", vecN_k_val)
-    tl.static_print("scaMinter_val", scaMinter_k_val)
-
     # iterate over chunks
     for k in range(NC):
         # tl.device_print("k", k)
@@ -180,41 +176,25 @@ def _mlstm_chunkwise__recurrent_fw_C_kernel(
 
         vecA_k_val = (vecB_last_k_val - vecB_k_val) + vecI_k_val
         scaG_k_val = vecB_last_k_val
-        # tl.device_print("vecAk_val dev",vecA_k_val)
-        tl.static_print("vecA_k_val", vecA_k_val)
-        tl.static_print("scaG_k_val", scaG_k_val)
+        
         # scaM_inter_k update
         scaAmax_k_val, _ = tl.max(vecA_k_val)
-        tl.static_print("scaAmax_k_val", scaAmax_k_val)
         scaMinter_next_val = tl.maximum(scaG_k_val + scaMinter_k_val, scaAmax_k_val)
-        tl.static_print("scaMinter_next_val", scaMinter_next_val)
 
         # load matK_k, matV_k
         matK_k_val = tl.load(matK_k_ptr, boundary_check=(0, 1)).to(tl.float32)
-        matV_k_val = tl.load(matV_k_ptr, boundary_check=(0, 1)).to(tl.float32)
-        tl.static_print("matK_k_val", matK_k_val)
-        tl.static_print("matV_k_val", matV_k_val)
+        matV_k_val = tl.load(matV_k_ptr, boundary_check=(0, 1)).to(DTYPE)
         
         # matC_k update
         vecAbar_k_val = tl.exp(vecA_k_val - scaMinter_next_val)
         scaGbar_k_val = tl.exp(scaG_k_val + scaMinter_k_val - scaMinter_next_val)
 
-        tl.static_print("vecAbar_k_val", vecAbar_k_val)
-        tl.static_print("scaGbar_k_val", scaGbar_k_val)
+        matKbar_k_val = (matK_k_val * vecAbar_k_val[None, :]).to(DTYPE)
 
-        # TODO we want this to work:
-        matKbar_k_val = (matK_k_val * vecAbar_k_val[None, :])
-        # matKbar_k_val = matK_k_val
-        tl.static_print("matKbar_k_val", matKbar_k_val)
-        # matV_k_val = matV_k_val * vecAbar_k_val[:, None]
-
-        matC_k_val = scaGbar_k_val * matC_k_val + tl.dot(matKbar_k_val.to(DTYPE), matV_k_val.to(DTYPE))
-        # matC_k_val += tl.dot(matKbar_k_val.to(DTYPE), matV_k_val)
-        tl.static_print("matC_k_val", matC_k_val)
+        matC_k_val = scaGbar_k_val * matC_k_val + tl.dot(matKbar_k_val, matV_k_val)
 
         # vecN_k update
         vecN_k_val = scaGbar_k_val * vecN_k_val + tl.sum(matKbar_k_val, axis=1)
-        tl.static_print("vecN_k_val", vecN_k_val)
 
         # move to next iteration
         scaMinter_k_val = scaMinter_next_val
