@@ -5,7 +5,7 @@ import triton
 import triton.language as tl
 from typing import Optional
 from einops import rearrange
-from ....kernel_utils import contiguous_noctx
+from ....kernel_utils import contiguous_noctx, is_power_of_2, torch2triton_dtype
 
 """Triton.
 
@@ -76,7 +76,7 @@ def _mlstm_chunkwise__recurrent_fw_C_kernel(
     siz_b_DHQK: tl.constexpr,
     siz_b_DHHV: tl.constexpr,
     USE_INITIAL_STATE: tl.constexpr,
-    DTYPE: tl.constexpr = tl.float16,
+    DTYPE: tl.constexpr = tl.float32,
 ):
     idx_b_DHQK, idx_b_DHHV, idx_b_BNH = (
         tl.program_id(0),
@@ -85,9 +85,9 @@ def _mlstm_chunkwise__recurrent_fw_C_kernel(
     )
 
     # create running states in shared memory
-    matC_val = tl.zeros((siz_b_DHQK, siz_b_DHHV), dtype=tl.float32)
-    vecN_val = tl.zeros((siz_b_DHQK,), dtype=tl.float32)
-    scaMinter_val = tl.zeros((1,), dtype=tl.float32)
+    matC_k_val = tl.zeros((siz_b_DHQK, siz_b_DHHV), dtype=tl.float32)
+    vecN_k_val = tl.zeros((siz_b_DHQK,), dtype=tl.float32)
+    scaMinter_k_val = 0.0 #tl.zeros((1,), dtype=tl.float32)
     # scaMinter_next_val = tl.zeros((1,), dtype=tl.float32) # TODO we create this in the loop
 
     if USE_INITIAL_STATE:
@@ -109,16 +109,16 @@ def _mlstm_chunkwise__recurrent_fw_C_kernel(
         )
         # each thread block loads the scaMinter_initial
         scaMinterinitial_ptr = scaMinter_initial + idx_b_BNH * str_scaMinterinitial_B_NH
-        
-        # load initial states
-        matC_val = tl.load(matCinitial_ptr, boundary_check=(0,1)).to(tl.float32)
-        vecN_val = tl.load(vecNinitial_ptr).to(tl.float32)
-        scaMinter_val = tl.load(scaMinterinitial_ptr).to(tl.float32)
 
-    tl.static_print("matC_val", matC_val)
-    tl.static_print("vecN_val", vecN_val)
-    tl.static_print("scaMinter_val", scaMinter_val)
-    
+        # load initial states
+        matC_k_val = tl.load(matCinitial_ptr, boundary_check=(0, 1)).to(tl.float32)
+        vecN_k_val = tl.load(vecNinitial_ptr).to(tl.float32)
+        scaMinter_k_val = tl.load(scaMinterinitial_ptr).to(tl.float32)
+
+    tl.static_print("matC_val", matC_k_val)
+    tl.static_print("vecN_val", vecN_k_val)
+    tl.static_print("scaMinter_val", scaMinter_k_val)
+
     # iterate over chunks
     for k in range(NC):
         # create pointer for matCstates_k, vecNstates_k, scaMinterstates_k
@@ -131,28 +131,111 @@ def _mlstm_chunkwise__recurrent_fw_C_kernel(
             block_shape=(siz_b_DHQK, siz_b_DHHV),
             order=(0, 1),
         )
-        # TODO from here
+        vecNstates_k_ptr = (
+            vecN_states
+            + idx_b_BNH * str_vecNstates_B_NH
+            + k * DHQK
+            + tl.arange(0, DHQK)
+        )
+        scaMinterstates_k_ptr = (
+            scaMinter_states + idx_b_BNH * str_scaMinterstates_B_NH + k
+        )
 
         # store the states from the previous iteration
-        # TODO
+        tl.store(matCstates_k_ptr, matC_k_val.to(dtype=DTYPE), boundary_check=(0, 1))
+        tl.store(vecNstates_k_ptr, vecN_k_val.to(dtype=DTYPE))  # TODO add mask for boundary check
+        if (idx_b_DHQK == 0) and (idx_b_DHHV == 0):
+            tl.store(scaMinterstates_k_ptr, scaMinter_k_val.to(dtype=DTYPE))
 
         # load / compute vecA_k, scaG_k
-        # TODO
+        # last element of vecB in k-th chunk
+        vecB_last_k_val = tl.load(
+            vecB + idx_b_BNH * str_vecBI_B_NH + k * str_vecBI_NC + (L - 1)
+        ).to(tl.float32)
+        vecB_k_val = tl.load(
+            vecB + idx_b_BNH * str_vecBI_B_NH + k * str_vecBI_NC + tl.arange(0, L)
+        ).to(tl.float32)
 
+        vecI_k_val = tl.load(
+            vecI + idx_b_BNH * str_vecBI_B_NH + k * str_vecBI_NC + tl.arange(0, L)
+        ).to(tl.float32)
+
+        vecA_k_val = (vecB_last_k_val - vecB_k_val) + vecI_k_val
+        scaG_k_val = vecB_last_k_val
+        tl.static_print("vecA_k_val", vecA_k_val)
+        tl.static_print("scaG_k_val", scaG_k_val)
         # scaM_inter_k update
+        scaAmax_k_val = tl.max(vecA_k_val)
+        tl.static_print("scaAmax_k_val", scaAmax_k_val)
+        scaMinter_next_val = tl.maximum(scaG_k_val + scaMinter_k_val, scaAmax_k_val)
+        tl.static_print("scaMinter_next_val", scaMinter_next_val)
 
         # load matK_k, matV_k
+        matK_k_ptr = tl.make_block_ptr(
+            base=matK + idx_b_BNH * str_matK_B_NH,
+            shape=(S, DHQK),
+            strides=(str_matK_DHQK, str_matK_S),
+            offsets=(idx_b_DHQK * siz_b_DHQK, k * L),
+            block_shape=(siz_b_DHQK, L),
+            order=(0, 1),  # TODO check if this is correct
+        )
 
+        matV_k_ptr = tl.make_block_ptr(
+            base=matV + idx_b_BNH * str_matV_B_NH,
+            shape=(S, DHHV),
+            strides=(str_matV_S, str_matV_DHHV),
+            offsets=(k * L, idx_b_DHHV * siz_b_DHHV),
+            block_shape=(L, siz_b_DHHV),
+            order=(1, 0),
+        )
+        matK_k_val = tl.load(matK_k_ptr, boundary_check=(0, 1)).to(tl.float32)
+        matV_k_val = tl.load(matV_k_ptr, boundary_check=(0, 1)).to(DTYPE)
+        tl.static_print("matK_k_val", matK_k_val)
+        tl.static_print("matV_k_val", matV_k_val)
+        
         # matC_k update
+        vecAbar_k_val = tl.exp(vecA_k_val - scaMinter_k_val[:, None])
+        scaGbar_k_val = tl.exp(scaG_k_val + scaMinter_k_val - scaMinter_next_val)
+
+        tl.static_print("vecAbar_k_val", vecAbar_k_val)
+        tl.static_print("scaGbar_k_val", scaGbar_k_val)
+
+        matKbar_k_val = (matK_k_val * vecAbar_k_val[None, :])
+        tl.static_print("matKbar_k_val", matKbar_k_val)
+
+        matC_k_val = scaGbar_k_val * matC_k_val
+        matC_k_val += tl.dot(matKbar_k_val.to(DTYPE), matV_k_val)
+        tl.static_print("matC_k_val", matC_k_val)
 
         # vecN_k update
+        vecN_k_val = scaGbar_k_val * vecN_k_val + tl.sum(matKbar_k_val, axis=1)
+        tl.static_print("vecN_k_val", vecN_k_val)
 
         # move to next iteration
-
+        scaMinter_k_val = scaMinter_next_val
 
     # store the states from the last iteration
-    # TODO
-
+    matCstates_k_ptr = tl.make_block_ptr(
+        base=matC_states + idx_b_BNH * str_matCstates_B_NH + NC * DHQK * DHHV,
+        shape=(DHQK, DHHV),
+        strides=(str_matCstates_NCDHQK, str_matCstates_DHHV),
+        offsets=(idx_b_DHQK * siz_b_DHQK, idx_b_DHHV * siz_b_DHHV),
+        block_shape=(siz_b_DHQK, siz_b_DHHV),
+        order=(0, 1),
+    )
+    vecNstates_k_ptr = (
+        vecN_states
+        + idx_b_BNH * str_vecNstates_B_NH
+        + NC * DHQK
+        + tl.arange(0, DHQK)
+    )
+    scaMinterstates_k_ptr = (
+        scaMinter_states + idx_b_BNH * str_scaMinterstates_B_NH + NC
+    )
+    tl.store(matCstates_k_ptr, matC_k_val.to(dtype=DTYPE), boundary_check=(0, 1))
+    tl.store(vecNstates_k_ptr, vecN_k_val.to(dtype=DTYPE))  # TODO add mask for boundary check
+    if (idx_b_DHQK == 0) and (idx_b_DHHV == 0):
+        tl.store(scaMinterstates_k_ptr, scaMinter_k_val.to(dtype=DTYPE))
 
 
 def _mlstm_chunkwise__recurrent_fw_C(
@@ -177,6 +260,8 @@ def _mlstm_chunkwise__recurrent_fw_C(
 
     NC = NUM_CHUNKS
     L = CHUNK_SIZE
+
+    assert is_power_of_2(L), "Chunk size must be a power of 2."
 
     siz_b_DHQK = min(64, triton.next_power_of_2(DHQK))
     siz_b_DHHV = min(64, triton.next_power_of_2(DHHV))
@@ -272,6 +357,7 @@ def _mlstm_chunkwise__recurrent_fw_C(
         USE_INITIAL_STATE=USE_INITIAL_STATE,
         num_stages=num_stages,
         num_warps=num_warps,
+        DTYPE=torch2triton_dtype(matK.dtype),
     )
 
     return matC_states, vecN_states, scaMinter_states

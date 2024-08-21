@@ -40,3 +40,7 @@ def contiguous_noctx(fn):
 
 def torch2triton_dtype(dtype):
     return _torch_to_triton_dtype[dtype]
+
+def is_power_of_2(n):
+    assert isinstance(n, int)
+    return (n & (n - 1)) == 0
