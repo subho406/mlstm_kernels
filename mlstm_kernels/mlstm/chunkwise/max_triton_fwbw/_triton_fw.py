@@ -388,6 +388,7 @@ def _mlstm_chunkwise_parallel_fw_H_kernel(
     siz_b_DHQK: tl.constexpr,
     siz_b_DHHV: tl.constexpr,
     DTYPE: tl.constexpr = tl.float32,
+    EPS: tl.constexpr = 1e-6,
 ):
     idx_b_DHHV, idx_b_NC, idx_b_BNH = (
         tl.program_id(0),
@@ -414,7 +415,7 @@ def _mlstm_chunkwise_parallel_fw_H_kernel(
     idx_mask = tl.arange(0, L)
     mask = idx_mask[:, None] >= idx_mask[None, :]
     matD_full_val = vecB_val[:, None] - vecB_val[None, :] + vecI_val[None, :]
-    matD_val = torch.where(mask, matD_full_val, -float("inf"))
+    matD_val = tl.where(mask, matD_full_val, -float("inf"))
 
     # compute vecM_k_intra (L,) & vecM_k_combine (L,)
     vecM_intra_val = tl.max(matD_val, axis=1)
@@ -426,45 +427,114 @@ def _mlstm_chunkwise_parallel_fw_H_kernel(
     ## loop over DHQK blocks
     matS_val = tl.zeros((L, L), dtype=tl.float32)
     matH_inter_val = tl.zeros((L, siz_b_DHHV), dtype=tl.float32)
-    matH_inter_denom = tl.zeros((L,), dtype=tl.float32)
+    vecH_inter_denom_val = tl.zeros((L,), dtype=tl.float32)
     for idx_b_DHQK in range(tl.cdiv(DHQK, siz_b_DHQK)):
-        # load matQ block (L, siz_b_DHQK)
+        # define pointers for iteration
         matQ_ptr = tl.make_block_ptr(
             base=matQ + idx_b_BNH * str_matQK_B_NH,
             shape=(S, DHQK),
             strides=(str_matQK_S, str_matQK_DHQK),
             offsets=(idx_b_NC * L, idx_b_DHQK * siz_b_DHQK),
             block_shape=(L, siz_b_DHQK),
+            order=(1, 0),
+        )
+        matK_ptr = tl.make_block_ptr(
+            base=matK + idx_b_BNH * str_matQK_B_NH,
+            shape=(DHQK, S),
+            strides=(str_matQK_DHQK, str_matQK_S),
+            offsets=(idx_b_DHQK * siz_b_DHQK, idx_b_NC * L),
+            block_shape=(siz_b_DHQK, L),
             order=(0, 1),
         )
+        matC_km1_ptr = tl.make_block_ptr(
+            base=matC_states
+            + idx_b_BNH * str_matCstates_B_NH
+            + idx_b_NC * str_matCstates_NCDHQK,
+            shape=(DHQK, DHHV),
+            strides=(str_matCstates_NCDHQK, str_matCstates_DHHV),
+            offsets=(idx_b_DHQK * siz_b_DHQK, idx_b_DHHV * siz_b_DHHV),
+            block_shape=(siz_b_DHQK, siz_b_DHHV),
+            order=(1, 0),
+        )
+        vecN_km1_ptr = (
+            vecN_states
+            + idx_b_BNH * str_vecNstates_B_NH
+            + idx_b_NC * DHQK
+            + idx_b_DHHV * siz_b_DHQK
+            + tl.arange(0, siz_b_DHQK)
+        )
+
+        # load matQ block (L, siz_b_DHQK)
+        matQ_val = tl.load(matQ_ptr, boundary_check=(0, 1)).to(DTYPE)
         # load matK transposed block (L, siz_b_DHQK)
-        pass
+        matK_val = tl.load(matK_ptr, boundary_check=(0, 1)).to(DTYPE)
 
-    # accumulate matS (L, L)
+        # accumulate matS (L, L)
+        matS_val += tl.dot(matQ_val, matK_val) * qk_scale
 
-    # compute matQbar (L, siz_b_DHQK)
+        # compute matQbar (L, siz_b_DHQK)
+        matQbar_val = matQ_val * vecBbar_val[:, None] * qk_scale
 
-    # load matC_kminus1_tile (siz_b_DHQK, siz_b_DHHV)
+        # load matC_kminus1_tile (siz_b_DHQK, siz_b_DHHV)
+        matC_km1_val = tl.load(matC_km1_ptr, boundary_check=(0, 1)).to(DTYPE)
+        # accumulate matH_k_inter (L, siz_b_DHHV)
+        matH_inter_val += tl.dot(matQbar_val, matC_km1_val)
 
-    # accumulate matH_k_inter (L, siz_b_DHHV)
-
-    # accumulate matH_k_inter_denom (L,)
+        # load vecN_km1 (siz_b_DHQK,)
+        vecN_km1_val = tl.load(vecN_km1_ptr).to(DTYPE)
+        # accumulate vecH_k_inter_denom (L,)
+        vecH_inter_denom_val += tl.sum(matQbar_val * vecN_km1_val[None, :], axis=1)
 
     ## loop end
 
     # compute matSbar (L, L)
+    matSbar_val = tl.exp(matS_val - vecM_combine_val[:, None]).to(DTYPE)
+
+    # load matV (L, siz_b_DHHV)
+    matV_ptr = tl.make_block_ptr(
+        base=matV + idx_b_BNH * str_matHV_B_NH,
+        shape=(S, DHHV),
+        strides=(str_matHV_S, str_matHV_DHHV),
+        offsets=(idx_b_NC * L, idx_b_DHHV * siz_b_DHHV),
+        block_shape=(L, siz_b_DHHV),
+        order=(1, 0),
+    )
+    matV_val = tl.load(matV_ptr, boundary_check=(0, 1)).to(DTYPE)
 
     # compute matH_k_intra (L, siz_b_DHHV)
+    matH_intra_val = tl.dot(matSbar_val, matV_val)
+    # compute vecH_k_intra_denom (L,)
+    vecH_intra_denom_val = tl.sum(matSbar_val, axis=1)
 
     # compute matH_k_num (L, siz_b_DHHV)
+    matH_num_val = matH_inter_val + matH_intra_val
 
-    # compute matH_k_denom (L,)
-
-    # compute matH_k_intra
+    # compute H_k_denom (L,)
+    vecH_denom_val = tl.maximum(
+        tl.abs(vecH_inter_denom_val + vecH_intra_denom_val), tl.exp(-vecM_combine_val)
+    )
 
     # compute matH_k_out (L, siz_b_DHHV)
+    matHout_val = matH_num_val / (vecH_denom_val[:, None] + EPS)
 
-    # store matH_k_out, matH_k_denom, vecM_k_combine
+    # store matH_k_out, vecN_k_denom, vecM_k_combine
+    matHout_ptr = tl.make_block_ptr(
+        base=matHout + idx_b_BNH * str_matHV_B_NH,
+        shape=(S, DHHV),
+        strides=(str_matHV_S, str_matHV_DHHV),
+        offsets=(idx_b_NC * L, idx_b_DHHV * siz_b_DHHV),
+        block_shape=(L, siz_b_DHHV),
+        order=(1, 0),
+    )
+    vecNout_ptr = (
+        vecNout + idx_b_BNH * str_vecNstates_B_NH + idx_b_NC * L + tl.arange(0, L)
+    )
+    vecMout_ptr = (
+        vecMout + idx_b_BNH * str_vecNstates_B_NH + idx_b_NC * L + tl.arange(0, L)
+    )
+    tl.store(matHout_ptr, matHout_val, boundary_check=(0, 1))
+    tl.store(vecNout_ptr, vecH_denom_val)
+    tl.store(vecMout_ptr, vecM_combine_val)
 
 
 @contiguous_noctx
