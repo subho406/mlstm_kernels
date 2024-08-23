@@ -155,7 +155,7 @@ def _mlstm_chunkwise__parallel_fw_H(
     CHUNK_SIZE: int = 64,
     NUM_CHUNKS: int = 1,
     EPS: float = 1e-6,
-) -> tuple[torch.Tensor, torch.Tensor]:  # matH_out (B, NH, S, DHV), vecN_out (B, NH, S)
+) -> tuple[torch.Tensor, torch.Tensor]:  # matH_out (B, NH, S, DHV), vecN_out (B, NH, S), vecM_out (B, NH, S)
     _device = matQ.device
     NC, L = NUM_CHUNKS, CHUNK_SIZE
     matC_k_states = rearrange(
