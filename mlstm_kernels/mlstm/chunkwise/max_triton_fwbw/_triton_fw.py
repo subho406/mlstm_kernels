@@ -223,8 +223,8 @@ def _mlstm_chunkwise__recurrent_fw_C_kernel(
     tl.store(matCstates_k_ptr, matC_k_val.to(dtype=DTYPE), boundary_check=(0, 1))
     if idx_b_DHHV == 0:
         tl.store(
-        vecNstates_k_ptr, vecN_k_val.to(dtype=DTYPE)
-    )  # TODO add mask for boundary check
+            vecNstates_k_ptr, vecN_k_val.to(dtype=DTYPE)
+        )  # TODO add mask for boundary check
     if (idx_b_DHQK == 0) and (idx_b_DHHV == 0):
         tl.store(scaMinterstates_k_ptr, scaMinter_k_val.to(dtype=DTYPE))
 
@@ -280,7 +280,6 @@ def _mlstm_chunkwise__recurrent_fw_C(
         str_vecNinitial_B_NH = 0
         str_vecNinitial_DHQK = 0
         str_scaMinterinitial_B_NH = 0
-
 
     matC_states = (
         torch.empty(B, NH, (NC + 1) * DHQK, DHHV, device=matK.device, dtype=matK.dtype)
@@ -360,9 +359,9 @@ def _mlstm_chunkwise_parallel_fw_H_kernel(
     scaMinter_states,  # (B, NH, NC)
     vecI,  # (B, NH, NC, L)
     vecB,  # (B, NH, NC, L)
-    matHout, # (B, NH, S, DHHV)
-    vecNout, # (B, NH, S)
-    vecMout, # (B, NH, S)
+    matHout,  # (B, NH, S, DHHV)
+    vecNout,  # (B, NH, S)
+    vecMout,  # (B, NH, S)
     qk_scale,
     str_matQK_B_NH,
     str_matQK_S,
@@ -390,22 +389,56 @@ def _mlstm_chunkwise_parallel_fw_H_kernel(
     siz_b_DHHV: tl.constexpr,
     DTYPE: tl.constexpr = tl.float32,
 ):
-    idx_b_DHHV, idx_b_NC, idx_b_BNH = tl.program_id(0), tl.program_id(1), tl.program_id(2)
+    idx_b_DHHV, idx_b_NC, idx_b_BNH = (
+        tl.program_id(0),
+        tl.program_id(1),
+        tl.program_id(2),
+    )
 
     # load vecB (L,)
+    vecB_val = tl.load(
+        vecB + idx_b_BNH * str_vecBI_B_NH + idx_b_NC * str_vecBI_NC + tl.arange(0, L)
+    ).to(tl.float32)
+
+    # load vecI (L,)
+    vecI_val = tl.load(
+        vecI + idx_b_BNH * str_vecBI_B_NH + idx_b_NC * str_vecBI_NC + tl.arange(0, L)
+    ).to(tl.float32)
+
+    # load scaMinter_km1 (1,)
+    scaMinter_km1_val = tl.load(
+        scaMinter_states + idx_b_BNH * str_scaMinterstates_B_NH + idx_b_NC
+    ).to(tl.float32)
 
     # compute gate matrix matDbar (L, L)
+    idx_mask = tl.arange(0, L)
+    mask = idx_mask[:, None] >= idx_mask[None, :]
+    matD_full_val = vecB_val[:, None] - vecB_val[None, :] + vecI_val[None, :]
+    matD_val = torch.where(mask, matD_full_val, -float("inf"))
 
     # compute vecM_k_intra (L,) & vecM_k_combine (L,)
+    vecM_intra_val = tl.max(matD_val, axis=1)
+    vecM_combine_val = tl.maximum(vecB_val + scaMinter_km1_val, vecM_intra_val)
 
     # compute vecBbar (L,)
-
-
+    vecBbar_val = tl.exp(vecB_val + scaMinter_km1_val - vecM_combine_val)
 
     ## loop over DHQK blocks
-
-    # load matQ block (L, siz_b_DHQK)
-    # load matK block (L, siz_b_DHQK)
+    matS_val = tl.zeros((L, L), dtype=tl.float32)
+    matH_inter_val = tl.zeros((L, siz_b_DHHV), dtype=tl.float32)
+    matH_inter_denom = tl.zeros((L,), dtype=tl.float32)
+    for idx_b_DHQK in range(tl.cdiv(DHQK, siz_b_DHQK)):
+        # load matQ block (L, siz_b_DHQK)
+        matQ_ptr = tl.make_block_ptr(
+            base=matQ + idx_b_BNH * str_matQK_B_NH,
+            shape=(S, DHQK),
+            strides=(str_matQK_S, str_matQK_DHQK),
+            offsets=(idx_b_NC * L, idx_b_DHQK * siz_b_DHQK),
+            block_shape=(L, siz_b_DHQK),
+            order=(0, 1),
+        )
+        # load matK transposed block (L, siz_b_DHQK)
+        pass
 
     # accumulate matS (L, L)
 
@@ -416,11 +449,9 @@ def _mlstm_chunkwise_parallel_fw_H_kernel(
     # accumulate matH_k_inter (L, siz_b_DHHV)
 
     # accumulate matH_k_inter_denom (L,)
-    
+
     ## loop end
 
-
-    
     # compute matSbar (L, L)
 
     # compute matH_k_intra (L, siz_b_DHHV)
@@ -479,7 +510,7 @@ def _mlstm_chunkwise__parallel_fw_H(
     matH_out = torch.ones(B, NH, S, DHHV, device=matQ.device, dtype=matQ.dtype)
     vecN_out = torch.ones(B, NH, S, device=matQ.device, dtype=matQ.dtype)
     vecM_out = torch.ones(B, NH, S, device=matQ.device, dtype=matQ.dtype)
-    
+
     grid = (num_b_DHHV, NC, B * NH)
     _mlstm_chunkwise_parallel_fw_H_kernel[grid](
         matQ=matQ,
@@ -522,7 +553,6 @@ def _mlstm_chunkwise__parallel_fw_H(
     )
 
     return matH_out, vecN_out, vecM_out
-
 
 
 @contiguous_noctx
