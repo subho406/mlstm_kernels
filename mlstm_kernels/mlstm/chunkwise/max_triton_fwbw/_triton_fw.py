@@ -28,7 +28,7 @@ Variables:
     matD, D: gating matrix for the parallel form.
 """
 
-
+# TODO use the strides in the pointers for generic use case (even if they are 1 normally)
 # Note: we only pass stride for the head dimension (we do not access individual batch elements directly)
 @triton.jit
 def _mlstm_chunkwise__recurrent_fw_C_kernel(
@@ -340,9 +340,9 @@ def _mlstm_chunkwise__recurrent_fw_C(
         siz_b_DHQK=siz_b_DHQK,
         siz_b_DHHV=siz_b_DHHV,
         USE_INITIAL_STATE=USE_INITIAL_STATE,
+        DTYPE=torch2triton_dtype(matK.dtype),
         num_stages=num_stages,
         num_warps=num_warps,
-        DTYPE=torch2triton_dtype(matK.dtype),
     )
 
     return matC_states, vecN_states, scaMinter_states
