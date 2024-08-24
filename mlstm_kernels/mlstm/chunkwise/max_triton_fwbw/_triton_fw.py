@@ -349,6 +349,7 @@ def _mlstm_chunkwise__recurrent_fw_C(
     return matC_states, vecN_states, scaMinter_states
 
 
+
 @triton.jit
 def _mlstm_chunkwise_parallel_fw_H_kernel(
     matQ,  # (B, NH, S, DHQK)
@@ -423,7 +424,9 @@ def _mlstm_chunkwise_parallel_fw_H_kernel(
 
     # compute vecBbar (L,)
     vecBbar_val = tl.exp(vecB_val + scaMinter_km1_val - vecM_combine_val)
-
+    tl.static_print("vecBbar_val", vecBbar_val)
+    tl.device_print("vecBbar_val",vecBbar_val)
+    
     ## loop over DHQK blocks
     matS_val = tl.zeros((L, L), dtype=tl.float32)
     matH_inter_val = tl.zeros((L, siz_b_DHHV), dtype=tl.float32)
@@ -473,6 +476,9 @@ def _mlstm_chunkwise_parallel_fw_H_kernel(
         matS_val += tl.dot(matQ_val, matK_val) * qk_scale
 
         # compute matQbar (L, siz_b_DHQK)
+        tl.static_print("matQ_val", matQ_val)
+        tl.static_print("vecBbar_val", vecBbar_val[:, None])
+        tl.static_print("qk_scale", qk_scale)
         matQbar_val = matQ_val * vecBbar_val[:, None] * qk_scale
 
         # load matC_kminus1_tile (siz_b_DHQK, siz_b_DHHV)
@@ -536,6 +542,18 @@ def _mlstm_chunkwise_parallel_fw_H_kernel(
     tl.store(vecNout_ptr, vecH_denom_val)
     tl.store(vecMout_ptr, vecM_combine_val)
 
+"""Debug plan _mlstm_chunkwise_parallel_fw_H_kernel.
+
+After first attempt (all inputs randn, one chunk, dhqk=dhv):
+- vecMout match: vecBbar val is correct, vecM_combine val is correct, vecMout val is correct
+- vecNout does not match: ???
+- matHout does not match: ???
+
+Step 1: try to match vecNout
+> set inter contributions to zero, i.e. matC_states, vecN_states, scaMinter_states to zero
+
+
+"""
 
 @contiguous_noctx
 def _mlstm_chunkwise__parallel_fw_H(
@@ -620,6 +638,9 @@ def _mlstm_chunkwise__parallel_fw_H(
         siz_b_DHQK=siz_b_DHQK,
         siz_b_DHHV=siz_b_DHHV,
         DTYPE=torch2triton_dtype(matQ.dtype),
+        EPS=EPS,
+        num_stages=num_stages,
+        num_warps=num_warps,
     )
 
     return matH_out, vecN_out, vecM_out
