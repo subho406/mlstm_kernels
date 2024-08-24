@@ -206,7 +206,7 @@ def _mlstm_chunkwise__parallel_fw_H(
 
     # ? Combine H_intra with H_inter
     vecBbar = torch.exp(vecM_b_inter - vecM_k_combine)
-    print(f"p_fw, vecBbar: {vecBbar}, {vecBbar.shape}")
+    # print(f"p_fw, vecBbar: {vecBbar}, {vecBbar.shape}")
     matQ_chunk_gated = matQ * vecBbar * qk_scale
 
     matNumerator_common = (

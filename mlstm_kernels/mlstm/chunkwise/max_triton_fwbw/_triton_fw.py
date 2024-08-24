@@ -421,17 +421,21 @@ def _mlstm_chunkwise_parallel_fw_H_kernel(
     # compute vecM_k_intra (L,) & vecM_k_combine (L,)
     vecM_intra_val = tl.max(matD_val, axis=1)
     vecM_combine_val = tl.maximum(vecB_val + scaMinter_km1_val, vecM_intra_val)
+    # tl.static_print("vecM_combine_val", vecM_combine_val[:, None])
+    # tl.static_print("matD_val", matD_val)
+    matDbar_val = tl.exp(matD_val - vecM_combine_val[:, None])
 
     # compute vecBbar (L,)
     vecBbar_val = tl.exp(vecB_val + scaMinter_km1_val - vecM_combine_val)
-    tl.static_print("vecBbar_val", vecBbar_val)
-    tl.device_print("vecBbar_val",vecBbar_val)
+    # tl.static_print("vecBbar_val", vecBbar_val)
+    # tl.device_print("vecBbar_val",vecBbar_val)
     
     ## loop over DHQK blocks
     matS_val = tl.zeros((L, L), dtype=tl.float32)
     matH_inter_val = tl.zeros((L, siz_b_DHHV), dtype=tl.float32)
     vecH_inter_denom_val = tl.zeros((L,), dtype=tl.float32)
     for idx_b_DHQK in range(tl.cdiv(DHQK, siz_b_DHQK)):
+        # tl.device_print("idx_b_DHQK", idx_b_DHQK)
         # define pointers for iteration
         matQ_ptr = tl.make_block_ptr(
             base=matQ + idx_b_BNH * str_matQK_B_NH,
@@ -479,7 +483,7 @@ def _mlstm_chunkwise_parallel_fw_H_kernel(
         tl.static_print("matQ_val", matQ_val)
         tl.static_print("vecBbar_val", vecBbar_val[:, None])
         tl.static_print("qk_scale", qk_scale)
-        matQbar_val = matQ_val * vecBbar_val[:, None] * qk_scale
+        matQbar_val = (matQ_val * vecBbar_val[:, None] * qk_scale).to(DTYPE)
 
         # load matC_kminus1_tile (siz_b_DHQK, siz_b_DHHV)
         matC_km1_val = tl.load(matC_km1_ptr, boundary_check=(0, 1)).to(DTYPE)
@@ -494,7 +498,7 @@ def _mlstm_chunkwise_parallel_fw_H_kernel(
     ## loop end
 
     # compute matSbar (L, L)
-    matSbar_val = tl.exp(matS_val - vecM_combine_val[:, None]).to(DTYPE)
+    matSbar_val = (matS_val * matDbar_val).to(DTYPE)
 
     # load matV (L, siz_b_DHHV)
     matV_ptr = tl.make_block_ptr(
@@ -538,7 +542,7 @@ def _mlstm_chunkwise_parallel_fw_H_kernel(
     vecMout_ptr = (
         vecMout + idx_b_BNH * str_vecNstates_B_NH + idx_b_NC * L + tl.arange(0, L)
     )
-    tl.store(matHout_ptr, matHout_val, boundary_check=(0, 1))
+    tl.store(matHout_ptr, matHout_val.to(DTYPE), boundary_check=(0, 1))
     tl.store(vecNout_ptr, vecH_denom_val)
     tl.store(vecMout_ptr, vecM_combine_val)
 
@@ -549,9 +553,7 @@ After first attempt (all inputs randn, one chunk, dhqk=dhv):
 - vecNout does not match: ???
 - matHout does not match: ???
 
-Step 1: try to match vecNout
-> set inter contributions to zero, i.e. matC_states, vecN_states, scaMinter_states to zero
-
+Fix 1: the Sbar matrix was wrong. too late yesterday probably :D
 
 """
 
