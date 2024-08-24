@@ -28,6 +28,7 @@ Variables:
     matD, D: gating matrix for the parallel form.
 """
 
+
 # TODO use the strides in the pointers for generic use case (even if they are 1 normally)
 # Note: we only pass stride for the head dimension (we do not access individual batch elements directly)
 @triton.jit
@@ -115,12 +116,10 @@ def _mlstm_chunkwise__recurrent_fw_C_kernel(
 
     # iterate over chunks
     for k in range(NC):
+        # load matK in transposed form
         matK_k_ptr = tl.make_block_ptr(
             base=matK + idx_b_BNH * str_matK_B_NH,
-            shape=(
-                DHQK,
-                S,
-            ),  # TODO this order is important! why?? in memory it is (S, DHQK)
+            shape=(DHQK, S),
             strides=(str_matK_DHQK, str_matK_S),
             offsets=(idx_b_DHQK * siz_b_DHQK, k * L),
             block_shape=(siz_b_DHQK, L),
@@ -228,7 +227,6 @@ def _mlstm_chunkwise__recurrent_fw_C_kernel(
         tl.store(scaMinterstates_k_ptr, scaMinter_k_val.to(dtype=DTYPE))
 
 
-@contiguous_noctx
 def _mlstm_chunkwise__recurrent_fw_C(
     matK: torch.Tensor,  # (B, NH, S, DHQK)
     matV: torch.Tensor,  # (B, NH, S, DHHV)
@@ -348,7 +346,6 @@ def _mlstm_chunkwise__recurrent_fw_C(
     return matC_states, vecN_states, scaMinter_states
 
 
-
 @triton.jit
 def _mlstm_chunkwise_parallel_fw_H_kernel(
     matQ,  # (B, NH, S, DHQK)
@@ -428,7 +425,7 @@ def _mlstm_chunkwise_parallel_fw_H_kernel(
     vecBbar_val = tl.exp(vecB_val + scaMinter_km1_val - vecM_combine_val)
     # tl.static_print("vecBbar_val", vecBbar_val)
     # tl.device_print("vecBbar_val",vecBbar_val)
-    
+
     ## loop over DHQK blocks
     matS_val = tl.zeros((L, L), dtype=tl.float32)
     matH_inter_val = tl.zeros((L, siz_b_DHHV), dtype=tl.float32)
@@ -453,9 +450,7 @@ def _mlstm_chunkwise_parallel_fw_H_kernel(
             order=(0, 1),
         )
         matC_km1_ptr = tl.make_block_ptr(
-            base=matC_states
-            + idx_b_BNH * str_matCstates_B_NH
-            + idx_b_NC * DHQK * DHHV,
+            base=matC_states + idx_b_BNH * str_matCstates_B_NH + idx_b_NC * DHQK * DHHV,
             shape=(DHQK, DHHV),
             strides=(str_matCstates_NCDHQK, str_matCstates_DHHV),
             offsets=(idx_b_DHQK * siz_b_DHQK, idx_b_DHHV * siz_b_DHHV),
@@ -545,6 +540,7 @@ def _mlstm_chunkwise_parallel_fw_H_kernel(
     tl.store(vecNout_ptr, vecH_denom_val.to(DTYPE))
     tl.store(vecMout_ptr, vecM_combine_val.to(DTYPE))
 
+
 """Debug plan _mlstm_chunkwise_parallel_fw_H_kernel.
 
 After first attempt (all inputs randn, one chunk, dhqk=dhv):
@@ -558,7 +554,7 @@ Fix 3: pointer to vecN_km1 was wrong. fixed now.
 Added also output deviation plots. Looks good now.
 """
 
-@contiguous_noctx
+
 def _mlstm_chunkwise__parallel_fw_H(
     matQ: torch.Tensor,  # (B, NH, S, DHQK)
     matK: torch.Tensor,  # (B, NH, S, DHQK)
