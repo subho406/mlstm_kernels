@@ -364,19 +364,19 @@ def _mlstm_chunkwise__recurrent_bw_dC(
 
     scaG = vecB[..., -1] # (B, NH, NC)
 
-    for k in range(NC - 1, -1, -1):  # goes until 0
+    for k in range(NC, 0, -1):  # goes until 1
         # store the matDeltaC_k from the previous iteration
         # in the first iteration, this is the delta error from the last chunk
-        matDeltaC_states[:, :, (k + 1) * DHQK : (k + 2) * DHQK, :] = matDeltaC_k.clone()
+        matDeltaC_states[:, :, k * DHQK : (k + 1) * DHQK, :] = matDeltaC_k.clone()
 
         # load
-        scaG_k = scaG[:, :, k, None]
-        scaM_inter_kminus1 = scaM_inter[:, :, k, None]
-        scaM_inter_k = scaM_inter[:, :, k + 1, None]
+        scaG_k = scaG[:, :, (k-1), None]
+        scaM_inter_kminus1 = scaM_inter[:, :, (k-1), None]
+        scaM_inter_k = scaM_inter[:, :, k, None]
         scaGbar_k = torch.exp(scaG_k + scaM_inter_kminus1 - scaM_inter_k)[:, :, None]
 
-        vecB_k = vecB[:, :, k, :]  # (B, NH, L)
-        vecM_combine_k = vecM_combine[:, :, k * L : (k + 1) * L]  # (B, NH, L)
+        vecB_k = vecB[:, :, (k-1), :]  # (B, NH, L)
+        vecM_combine_k = vecM_combine[:, :, (k-1) * L : k * L]  # (B, NH, L)
         vecBbar_k = torch.exp(vecB_k + scaM_inter_kminus1 - vecM_combine_k)[
             :, :, :, None
         ]  # (B, NH, L, 1)
@@ -394,11 +394,11 @@ def _mlstm_chunkwise__recurrent_bw_dC(
         #     scaGbar_k,
         # )
 
-        matQ_k = matQ[:, :, k * L : (k + 1) * L, :]  # (B, NH, L, DHQK)
+        matQ_k = matQ[:, :, (k-1) * L : k * L, :]  # (B, NH, L, DHQK)
         matQbar_k = matQ_k * vecBbar_k * qk_scale
 
-        vecN_k = vecN_out[:, :, k * L : (k + 1) * L, None]  # (B, NH, L, 1)
-        matDeltaH_k = (matDeltaH[:, :, k * L : (k + 1) * L, :] / (vecN_k + EPS))  # (B, NH, L, DHV)
+        vecN_k = vecN_out[:, :, (k-1) * L : k * L, None]  # (B, NH, L, 1)
+        matDeltaH_k = (matDeltaH[:, :, (k-1) * L : k * L, :] / (vecN_k + EPS))  # (B, NH, L, DHV)
 
         # matDeltaC_k-1 update
         matDeltaC_kminus1 = (
