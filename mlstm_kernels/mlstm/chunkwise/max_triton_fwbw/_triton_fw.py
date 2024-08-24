@@ -456,7 +456,7 @@ def _mlstm_chunkwise_parallel_fw_H_kernel(
         matC_km1_ptr = tl.make_block_ptr(
             base=matC_states
             + idx_b_BNH * str_matCstates_B_NH
-            + idx_b_NC * str_matCstates_NCDHQK,
+            + idx_b_NC * DHQK * DHHV,
             shape=(DHQK, DHHV),
             strides=(str_matCstates_NCDHQK, str_matCstates_DHHV),
             offsets=(idx_b_DHQK * siz_b_DHQK, idx_b_DHHV * siz_b_DHHV),
@@ -480,9 +480,9 @@ def _mlstm_chunkwise_parallel_fw_H_kernel(
         matS_val += tl.dot(matQ_val, matK_val) * qk_scale
 
         # compute matQbar (L, siz_b_DHQK)
-        tl.static_print("matQ_val", matQ_val)
-        tl.static_print("vecBbar_val", vecBbar_val[:, None])
-        tl.static_print("qk_scale", qk_scale)
+        # tl.static_print("matQ_val", matQ_val)
+        # tl.static_print("vecBbar_val", vecBbar_val[:, None])
+        # tl.static_print("qk_scale", qk_scale)
         matQbar_val = (matQ_val * vecBbar_val[:, None] * qk_scale).to(DTYPE)
 
         # load matC_kminus1_tile (siz_b_DHQK, siz_b_DHHV)
@@ -543,8 +543,8 @@ def _mlstm_chunkwise_parallel_fw_H_kernel(
         vecMout + idx_b_BNH * str_vecNstates_B_NH + idx_b_NC * L + tl.arange(0, L)
     )
     tl.store(matHout_ptr, matHout_val.to(DTYPE), boundary_check=(0, 1))
-    tl.store(vecNout_ptr, vecH_denom_val)
-    tl.store(vecMout_ptr, vecM_combine_val)
+    tl.store(vecNout_ptr, vecH_denom_val.to(DTYPE))
+    tl.store(vecMout_ptr, vecM_combine_val.to(DTYPE))
 
 """Debug plan _mlstm_chunkwise_parallel_fw_H_kernel.
 
@@ -554,7 +554,8 @@ After first attempt (all inputs randn, one chunk, dhqk=dhv):
 - matHout does not match: ???
 
 Fix 1: the Sbar matrix was wrong. too late yesterday probably :D
-
+Fix 2: pointer to matC_km1 was wrong. fixed now.
+Now values match, but there are still larger deviations in the output.
 """
 
 @contiguous_noctx
