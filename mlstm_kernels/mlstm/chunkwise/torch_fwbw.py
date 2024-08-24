@@ -82,7 +82,6 @@ def _mlstm_chunkwise__recurrent_fw_C(
     vecA = (vecB[..., -1, None] - vecB) + vecI
     scaG = vecB[..., -1]
     scaA_max = vecA.max(-1).values
-    print(f"scaA: {vecA}")
 
     for k in range(0, NUM_CHUNKS):
 
@@ -505,7 +504,6 @@ def _mlstm_chunkwise__parallel_bw_dQKV(
     matDeltaK_inter = (matV * vecAbar) @ (matDeltaC_states.transpose(-2, -1))
     matDeltaQ_inter = (matDeltaH * vecBbar) @ (matC_states * qk_scale).transpose(-2, -1)
 
-
     # combine the delta gradients
     matDeltaQ = matDeltaQ_intra + matDeltaQ_inter
     matDeltaK = matDeltaK_intra + matDeltaK_inter
@@ -771,7 +769,7 @@ class _mlstm_chunkwise_fwbw(torch.autograd.Function):
             scaM_initial=scaM_initial,
             qk_scale=qk_scale,
             return_last_states=return_last_states,
-            return_all_states=(RECOMPUTE_STATES_IN_BW == False),
+            return_all_states=(not RECOMPUTE_STATES_IN_BW),
             EPS=EPS,
             CHUNK_SIZE=CHUNK_SIZE,
         )

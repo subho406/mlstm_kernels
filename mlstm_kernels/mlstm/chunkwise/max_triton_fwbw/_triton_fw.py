@@ -1,5 +1,4 @@
 import torch
-from torch.amp import custom_fwd, custom_bwd
 import torch.nn.functional as F
 import triton
 import triton.language as tl
@@ -9,7 +8,7 @@ from ....kernel_utils import contiguous_noctx, is_power_of_2, torch2triton_dtype
 
 """Triton.
 
-Forward and backward pass of the mLSTM chunkwise formulation.
+Forward pass of the mLSTM chunkwise formulation.
 
 Notation:
 Dimensions:
@@ -599,9 +598,9 @@ def _mlstm_chunkwise__parallel_fw_H(
     num_warps = 4 if siz_b_DHQK == 64 else 2
 
     # TODO make these empty
-    matH_out = torch.ones(B, NH, S, DHHV, device=matQ.device, dtype=matQ.dtype)
-    vecN_out = torch.ones(B, NH, S, device=matQ.device, dtype=matQ.dtype)
-    vecM_out = torch.ones(B, NH, S, device=matQ.device, dtype=matQ.dtype)
+    matH_out = torch.empty(B, NH, S, DHHV, device=matQ.device, dtype=matQ.dtype)
+    vecN_out = torch.empty(B, NH, S, device=matQ.device, dtype=matQ.dtype)
+    vecM_out = torch.empty(B, NH, S, device=matQ.device, dtype=matQ.dtype)
 
     grid = (num_b_DHHV, NC, B * NH)
     _mlstm_chunkwise_parallel_fw_H_kernel[grid](
