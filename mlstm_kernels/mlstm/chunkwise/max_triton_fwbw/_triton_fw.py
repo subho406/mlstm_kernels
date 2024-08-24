@@ -467,7 +467,7 @@ def _mlstm_chunkwise_parallel_fw_H_kernel(
             vecN_states
             + idx_b_BNH * str_vecNstates_B_NH
             + idx_b_NC * DHQK
-            + idx_b_DHHV * siz_b_DHQK
+            + idx_b_DHQK * siz_b_DHQK
             + tl.arange(0, siz_b_DHQK)
         )
 
@@ -555,7 +555,8 @@ After first attempt (all inputs randn, one chunk, dhqk=dhv):
 
 Fix 1: the Sbar matrix was wrong. too late yesterday probably :D
 Fix 2: pointer to matC_km1 was wrong. fixed now.
-Now values match, but there are still larger deviations in the output.
+Fix 3: pointer to vecN_km1 was wrong. fixed now.
+Added also output deviation plots. Looks good now.
 """
 
 @contiguous_noctx
