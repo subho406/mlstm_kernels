@@ -305,14 +305,11 @@ def _mlstm_chunkwise__parallel_bw_dQKV_kernel(
     matDeltaK,  # (B, NH, S, DHQK)
     matDeltaV,  # (num_b_DHQK, B, NH, S, DHHV)
     qk_scale,
-    str_matQ_B_NH, # shared with matDeltaQ
-    str_matQ_S,
-    str_matQ_DHQK,
-    str_matK_B_NH, # shared with matDeltaK
-    str_matK_S,
-    str_matK_DHQK,
+    str_matQK_B_NH,  # shared with matQ, matDeltaQ, matK, matDeltaK
+    str_matQK_S,
+    str_matQK_DHQK,
     str_matDV_num_b_DHQK,
-    str_matV_B_NH, # shared with matDeltaV, matDeltaH
+    str_matV_B_NH,  # shared with matDeltaV, matDeltaH
     str_matV_S,
     str_matV_DHHV,
     str_vecBI_B_NH,
@@ -342,7 +339,72 @@ def _mlstm_chunkwise__parallel_bw_dQKV_kernel(
     DTYPE: tl.constexpr = tl.float32,
     EPS: tl.constexpr = 1e-6,
 ):
-    tl.static_print("Hello from Triton")
+    idx_b_DHQK, idx_b_NC, idx_b_BNH = (
+        tl.program_id(0),
+        tl.program_id(1),
+        tl.program_id(2),
+    )
+    num_cta_BNH = tl.num_programs(2)
+
+    # [intra] recompute matDbar
+    # load gates (L,)
+    vecB_val = tl.load(
+        vecB + idx_b_BNH * str_vecBI_B_NH + idx_b_NC * str_vecBI_NC + tl.arange(0, L)
+    ).to(tl.float32)  # (L,)
+    vecI_val = tl.load(
+        vecI + idx_b_BNH * str_vecBI_B_NH + idx_b_NC * str_vecBI_NC + tl.arange(0, L)
+    ).to(tl.float32)  # (L,)
+    # load vecM_combine (L,)
+    vecM_combine_val = tl.load(
+        vecM_combine
+        + idx_b_BNH * str_vecM_combine_B_NH
+        + idx_b_NC * L
+        + tl.arange(0, L)
+    )
+
+    # compute gate matrix matDbar (L, L)
+    idx_mask = tl.arange(0, L)
+    mask = idx_mask[:, None] >= idx_mask[None, :]
+    matD_full_val = vecB_val[:, None] - vecB_val[None, :] + vecI_val[None, :]
+    matD_val = tl.where(mask, matD_full_val, -float("inf"))
+    matDbar_val = tl.exp(matD_val - vecM_combine_val[:, None])
+
+    # compute vecAbar, vecBbar
+    # TODO from here
+
+    # [intra] recompute matS, matSbar
+    # NOTE: we compute only a part of matS as we do not sum over the full DHQK dim
+    # we have to sum the matV after the kernel.
+    matQ_ptr = tl.make_block_ptr(
+        base=matQ + idx_b_BNH * str_matQK_B_NH,
+        shape=(S, DHQK),
+        strides=(str_matQK_S, str_matQK_DHQK),
+        offsets=(idx_b_NC * L, idx_b_DHQK * siz_b_DHQK),
+        block_shape=(L, siz_b_DHQK),
+        order=(1, 0),
+    )
+    matK_ptr = tl.make_block_ptr(
+        base=matK + idx_b_BNH * str_matQK_B_NH,
+        shape=(DHQK, S),
+        strides=(str_matQK_DHQK, str_matQK_S),
+        offsets=(idx_b_DHQK * siz_b_DHQK, idx_b_NC * L),
+        block_shape=(siz_b_DHQK, L),
+        order=(0, 1),
+    )
+    matQ_val = tl.load(matQ_ptr, boundary_check=(0, 1)).to(DTYPE)
+    matK_val = tl.load(matK_ptr, boundary_check=(0, 1)).to(DTYPE)
+    matS_val = tl.dot(matQ_val, matK_val) * qk_scale
+    matSbar_val = matS_val * matDbar_val
+
+    matDeltaQ_val = tl.zeros((L, siz_b_DHQK), dtype=tl.float32)
+    matDeltaK_val = tl.zeros((L, siz_b_DHQK), dtype=tl.float32)
+    matDeltaS_val = tl.zeros((L, L), dtype=tl.float32)
+    for idx_b_DHHV in range(tl.cdiv(DHHV, siz_b_DHHV)):
+        #? pointers for iteration
+        matV_ptr = tl.make_block_ptr(
+            base=None,
+        )
+        #? end pointers
 
 
 def _mlstm_chunkwise__parallel_bw_dQKV(
@@ -377,7 +439,9 @@ def _mlstm_chunkwise__parallel_bw_dQKV(
     siz_b_DHQK = min(
         32 if _dtype == torch.float32 else 64, triton.next_power_of_2(DHQK)
     )
-    siz_b_DHHV = min(32 if _dtype == torch.float32 else 64, triton.next_power_of_2(DHHV))
+    siz_b_DHHV = min(
+        32 if _dtype == torch.float32 else 64, triton.next_power_of_2(DHHV)
+    )
 
     num_b_DHQK = triton.cdiv(DHQK, siz_b_DHQK)
     num_b_DHHV = triton.cdiv(DHHV, siz_b_DHHV)
@@ -449,6 +513,6 @@ def _mlstm_chunkwise__parallel_bw_dQKV(
         num_warps=num_warps,
     )
     # sum up the contributions of each siz_b_DHQK block
-    matDeltaV = matDeltaV.sum(dim=0) # (B, NH, S, DHHV)
+    matDeltaV = matDeltaV.sum(dim=0)  # (B, NH, S, DHHV)
 
     return matDeltaQ, matDeltaK, matDeltaV

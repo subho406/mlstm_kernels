@@ -61,7 +61,7 @@ class _mlstm_chunkwise_fwbw(torch.autograd.Function):
             scaM_initial=scaM_initial,
             qk_scale=qk_scale,
             return_last_states=return_last_states,
-            return_all_states=(RECOMPUTE_STATES_IN_BW == False),
+            return_all_states=(not RECOMPUTE_STATES_IN_BW),
             EPS=EPS,
             CHUNK_SIZE=CHUNK_SIZE,
         )
