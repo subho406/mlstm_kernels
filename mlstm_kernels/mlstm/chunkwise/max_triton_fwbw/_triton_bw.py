@@ -388,6 +388,8 @@ def _mlstm_chunkwise__parallel_bw_dQKV_kernel(
 
     vecAbar_val = tl.exp(vecA_val - scaM_inter_k_val)  # (L,)
     vecBbar_val = tl.exp(vecB_val + scaM_inter_km1_val - vecM_combine_val)  # (L, )
+    # tl.device_print("vecAbar", vecAbar_val)
+    # tl.device_print("vecBbar", vecBbar_val)
 
     # [intra] recompute matS, matSbar
     # NOTE: we compute only a part of matS as we do not sum over the full DHQK dim
@@ -402,20 +404,21 @@ def _mlstm_chunkwise__parallel_bw_dQKV_kernel(
     )
     matK_ptr = tl.make_block_ptr(
         base=matK + idx_b_BNH * str_matQK_B_NH,
-        shape=(DHQK, S),
-        strides=(str_matQK_DHQK, str_matQK_S),
-        offsets=(idx_b_DHQK * siz_b_DHQK, idx_b_NC * L),
-        block_shape=(siz_b_DHQK, L),
-        order=(0, 1),
+        shape=(S, DHQK),
+        strides=(str_matQK_S, str_matQK_DHQK),
+        offsets=(idx_b_NC * L, idx_b_DHQK * siz_b_DHQK),
+        block_shape=(L, siz_b_DHQK),
+        order=(1, 0),
     )
     matQ_val = tl.load(matQ_ptr, boundary_check=(0, 1)).to(DTYPE)  # (L, siz_b_DHQK)
     matK_val = tl.load(matK_ptr, boundary_check=(0, 1)).to(DTYPE)  # (siz_b_DHQK, L)
-    matS_val = tl.dot(matQ_val, matK_val) * qk_scale
+    matS_val = tl.dot(matQ_val, tl.trans(matK_val)) * qk_scale
     matSbar_val = (matS_val * matDbar_val).to(DTYPE)  # (L, L)
 
-    matKbar_val = (
-        tl.trans(matK_val).to(tl.float32) * vecAbar_val[:, None]
-    ).to(DTYPE)  # (L, siz_b_DHQK)
+    matKbar_val = (matK_val.to(tl.float32) * vecAbar_val[:, None]).to(
+        DTYPE
+    )  # (L, siz_b_DHQK)
+    tl.static_print("matKbar_val", matKbar_val)
 
     matDeltaQ_inter_val = tl.zeros((L, siz_b_DHQK), dtype=tl.float32)
     matDeltaK_inter_val = tl.zeros((L, siz_b_DHQK), dtype=tl.float32)
@@ -482,9 +485,7 @@ def _mlstm_chunkwise__parallel_bw_dQKV_kernel(
             tl.float32
         )  # (L, siz_b_DHHV)
         vecN_out_val = tl.load(vecN_out_ptr).to(tl.float32)  # (L,)
-        matDeltaH_val = (matDeltaH_val / (vecN_out_val[:, None] + EPS)).to(
-            DTYPE
-        )  # (L, siz_b_DHHV)
+        matDeltaH_val = matDeltaH_val / (vecN_out_val[:, None] + EPS)  # (L, siz_b_DHHV)
 
         # [inter] matDeltaK += (matV @ matDeltaC_k.transpose()) * vecAbar
         matV_val = tl.load(matV_ptr, boundary_check=(0, 1)).to(DTYPE)  # (L, siz_b_DHHV)
@@ -497,20 +498,20 @@ def _mlstm_chunkwise__parallel_bw_dQKV_kernel(
         )  # (L, siz_b_DHQK)
 
         # [inter] matDeltaQ += matDeltaH @ matC_km1.transpose() * vecBbar
-        matC_km1_val = tl.load(matC_km1_ptr, boundary_check=(0, 1)).to(
-            DTYPE
-        )  # (siz_b_DHHV, siz_b_DHQK)
-        matDeltaQ_inter_val += (
-            tl.dot(matDeltaH_val, matC_km1_val) * vecBbar_val[:, None]
+        matC_km1_val = tl.load(matC_km1_ptr, boundary_check=(0, 1))  # (siz_b_DHHV, siz_b_DHQK)
+        tl.static_print("matDeltaH_val", matDeltaH_val)
+        tl.static_print("vecBbar_val", vecBbar_val)
+        matDeltaQ_inter_val += tl.dot(
+            (matDeltaH_val * vecBbar_val[:, None]).to(DTYPE), (matC_km1_val * qk_scale).to(DTYPE)
         )  # (L, siz_b_DHQK)
 
         # [intra] matDeltaS += (matDeltaH @ matV.transpose()) * matDbar
         matDeltaS_val += (
-            tl.dot(matDeltaH_val, tl.trans(matV_val)) * matDbar_val
+            tl.dot(matDeltaH_val.to(DTYPE), tl.trans(matV_val)) * matDbar_val
         )  # (L, L)
 
         # [inter, intra] matDeltaV = matSbar.transpose() @ matDeltaH + matKbar @ matDeltaC_k
-        matDeltaV_val = tl.dot(tl.trans(matSbar_val), matDeltaH_val) + tl.dot(
+        matDeltaV_val = tl.dot(tl.trans(matSbar_val), matDeltaH_val.to(DTYPE)) + tl.dot(
             matKbar_val, matDeltaC_k_val
         )
         # store matDeltaV (NOTE: each idx_b_DHQK stores its own contribution in HBM, it will be summed outside the kernel)
@@ -545,8 +546,16 @@ def _mlstm_chunkwise__parallel_bw_dQKV_kernel(
         block_shape=(L, siz_b_DHQK),
         order=(1, 0),
     )
-    tl.store(matDeltaK_ptr, matDeltaK_val.to(matDeltaK.dtype.element_ty), boundary_check=(0, 1))
-    tl.store(matDeltaQ_ptr, matDeltaQ_val.to(matDeltaQ.dtype.element_ty), boundary_check=(0, 1))
+    tl.store(
+        matDeltaK_ptr,
+        matDeltaK_val.to(matDeltaK.dtype.element_ty),
+        boundary_check=(0, 1),
+    )
+    tl.store(
+        matDeltaQ_ptr,
+        matDeltaQ_val.to(matDeltaQ.dtype.element_ty),
+        boundary_check=(0, 1),
+    )
 
 
 def _mlstm_chunkwise__parallel_bw_dQKV(
