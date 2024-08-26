@@ -2,6 +2,9 @@ import torch
 from torch.amp import custom_fwd, custom_bwd
 from ....kernel_utils import contiguous
 
+from ._triton_fw import _mlstm_chunkwise_fw
+from ._triton_bw import _mlstm_chunkwise_bw
+
 """Triton.
 
 Forward and backward pass of the mLSTM chunkwise formulation.
@@ -165,3 +168,38 @@ class _mlstm_chunkwise_fwbw(torch.autograd.Function):
             None,
             None,
         )
+
+def mlstm_chunkwise_fwbw(
+    matQ: torch.Tensor,  # (B, NH, S, DHQK)
+    matK: torch.Tensor,  # (B, NH, S, DHQK)
+    matV: torch.Tensor,  # (B, NH, S, DHV)
+    vecI: torch.Tensor,  # (B, NH, S)
+    vecF: torch.Tensor,  # (B, NH, S)
+    matC_initial: torch.Tensor = None,  # (B, NH, DHQK, DHV)
+    vecN_initial: torch.Tensor = None,  # (B, NH, DHQK)
+    scaM_initial: torch.Tensor = None,  # (B, NH)
+    qk_scale: float = None,
+    return_last_states: bool = False,
+    RECOMPUTE_STATES_IN_BW: bool = True,
+    CHUNK_SIZE: int = 64,
+    EPS: float = 1e-6,
+):
+    matH, matC_last, vecN_last, scaM_last = _mlstm_chunkwise_fwbw.apply(
+        matQ,
+        matK,
+        matV,
+        vecI,
+        vecF,
+        matC_initial,
+        vecN_initial,
+        scaM_initial,
+        qk_scale,
+        return_last_states,
+        RECOMPUTE_STATES_IN_BW,
+        CHUNK_SIZE,
+        EPS,
+    )
+    if return_last_states:
+        return matH, (matC_last, vecN_last, scaM_last)
+    else:
+        return matH

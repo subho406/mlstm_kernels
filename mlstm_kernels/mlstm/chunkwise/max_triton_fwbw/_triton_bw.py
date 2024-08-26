@@ -6,6 +6,8 @@ from typing import Optional
 from einops import rearrange
 from ....kernel_utils import contiguous_noctx, is_power_of_2, torch2triton_dtype
 
+from ._triton_fw import _mlstm_chunkwise__recurrent_fw_C
+
 """Triton.
 
 Backward pass of the mLSTM chunkwise formulation.
@@ -600,12 +602,11 @@ def _mlstm_chunkwise__parallel_bw_dQKV(
     num_stages = 1
     num_warps = 4 if siz_b_DHQK == 64 else 2
 
-    # TODO make empty tensors later
-    matDeltaQ = torch.ones((B, NH, S, DHQK), dtype=_dtype, device=_device)
-    matDeltaK = torch.ones((B, NH, S, DHQK), dtype=_dtype, device=_device)
+    matDeltaQ = torch.empty((B, NH, S, DHQK), dtype=_dtype, device=_device)
+    matDeltaK = torch.empty((B, NH, S, DHQK), dtype=_dtype, device=_device)
     # each b_DHQK thread block computes the contribution of its siz_b_DHQK block of matDeltaC
     # we need to sum them up to get the final result (we do this outside the kernel)
-    matDeltaV = torch.ones((num_b_DHQK, B, NH, S, DHHV), dtype=_dtype, device=_device)
+    matDeltaV = torch.empty((num_b_DHQK, B, NH, S, DHHV), dtype=_dtype, device=_device)
 
     grid = (num_b_DHQK, NC, B * NH)
     _mlstm_chunkwise__parallel_bw_dQKV_kernel[grid](
@@ -664,3 +665,147 @@ def _mlstm_chunkwise__parallel_bw_dQKV(
     matDeltaV = matDeltaV.sum(dim=0)  # (B, NH, S, DHHV)
 
     return matDeltaQ, matDeltaK, matDeltaV
+
+@contiguous_noctx
+def _mlstm_chunkwise_bw(
+    ## Forward arguments
+    matQ: torch.Tensor,  # (B, NH, S, DHQK)
+    matK: torch.Tensor,  # (B, NH, S, DHQK)
+    matV: torch.Tensor,  # (B, NH, S, DHV)
+    vecI: torch.Tensor,  # (B, NH, S)
+    vecF: torch.Tensor,  # (B, NH, S)
+    matC_initial: torch.Tensor = None,  # (B, NH, DHQK, DHV)
+    vecN_initial: torch.Tensor = None,  # (B, NH, DHQK)
+    scaM_initial: torch.Tensor = None,  # (B, NH)
+    qk_scale: float = None,
+    ## Backward arguments
+    matC_all: torch.Tensor = None,  # (B, NH, NC * DHQK, DHV)
+    vecN_all: torch.Tensor = None,  # (B, NH, NC * DHQK)
+    scaM_all: torch.Tensor = None,  # (B, NH, NC)
+    vecN_out: torch.Tensor = None,  # (B, NH, NC * L) = (B, NH, S)
+    vecM_out: torch.Tensor = None,  # (B, NH, NC * L) = (B, NH, S)
+    matDeltaH: torch.Tensor = None,  # (B, NH, S, DHV)
+    matDeltaC_last: torch.Tensor = None,  # (B, NH, DHQK, DHV)
+    vecDeltaN_last: torch.Tensor = None,  # (B, NH, DHQK) # TODO not used, maybe leave out
+    scaDeltaM_last: torch.Tensor = None,  # (B, NH) # TODO not used, maybe leave out
+    ## Common arguments
+    CHUNK_SIZE: int = 64,
+    EPS: float = 1e-6,
+):
+    B, NH, S, DHQK = matQ.shape
+    DHV = matV.shape[-1]
+
+    assert (
+        S % CHUNK_SIZE == 0
+    ), f"Sequence length {S} is not divisible by chunk size {CHUNK_SIZE}."
+
+    NC = S // CHUNK_SIZE
+
+    if qk_scale is None:
+        qk_scale = DHQK**-0.5
+
+    vecI = rearrange(vecI, "b nh (nc l) -> b nh nc l", l=CHUNK_SIZE)
+    vecF = rearrange(vecF, "b nh (nc l) -> b nh nc l", l=CHUNK_SIZE)
+
+    # compute the gates, the g and the a and b vectors
+    vecF_logsig = F.logsigmoid(vecF)
+    vecB = vecF_logsig.cumsum(-1)
+
+    #! recompute the "all" states if needed
+    if matC_all is None:
+        assert (
+            (matC_all is None) and (vecN_all is None) and (scaM_all is None)
+        ), "Either all or none of the states must be provided."
+        matC_all, vecN_all, scaM_all = _mlstm_chunkwise__recurrent_fw_C(
+            matK=matK,
+            matV=matV,
+            vecB=vecB,
+            vecI=vecI,
+            matC_initial=matC_initial,
+            vecN_initial=vecN_initial,
+            scaMinter_initial=scaM_initial,
+            qk_scale=qk_scale,
+            CHUNK_SIZE=CHUNK_SIZE,
+            NUM_CHUNKS=NC,
+        )
+
+    #! recurrent backward: compute the deltaC gradients
+    matDeltaC_states = _mlstm_chunkwise__recurrent_bw_dC(
+        matQ=matQ,  # (B, NH, S, DHQK)
+        vecB=vecB,  # (B, NH, NC, L)
+        scaM_inter=scaM_all,  # (B, NH, NC+1)
+        vecM_combine=vecM_out,  # (B, NH, S)
+        matDeltaH=matDeltaH,  # (B, NH, S, DHV)
+        vecN_out=vecN_out,  # (B, NH, S)
+        matDeltaC_last=matDeltaC_last,  # (B, NH, DHQK, DHV)
+        qk_scale=qk_scale,
+        CHUNK_SIZE=CHUNK_SIZE,
+        NUM_CHUNKS=NC,
+        EPS=EPS,
+    )  # (B, NH, NC * DHQK, DHV)
+
+    # print("matC_states", matC_all, matC_all.shape)
+    # print("matDeltaC_states", matDeltaC_states, matDeltaC_states.shape)
+    # print("scaM_all", scaM_all, scaM_all.shape)
+    #! parallel backward: compute the deltaQ, deltaK, deltaV, deltaI gradients
+    matC_k_states = matC_all[:, :, :-DHQK, :]  # take the first NC states
+
+    matDeltaC_k_states = matDeltaC_states[:, :, DHQK:, :]  # take the last NC states
+
+    # print("matC_k_states", matC_k_states, matC_k_states.shape)
+    # print("matDeltaC_k_states", matDeltaC_k_states, matDeltaC_k_states.shape)
+    # print("scaM_inter_k_states", scaM_inter_k_states, scaM_inter_k_states.shape)
+
+    matDeltaQ, matDeltaK, matDeltaV = _mlstm_chunkwise__parallel_bw_dQKV(
+        matQ=matQ,
+        matK=matK,
+        matV=matV,
+        vecB=vecB,
+        vecI=vecI,
+        vecM_combine=vecM_out,
+        scaM_inter=scaM_all,  # (B, NH, NC)
+        matC_states=matC_k_states,  # (B, NH, NC * DHQK, DHV)
+        matDeltaH=matDeltaH,  # (B, NH, S, DHV)
+        vecN_out=vecN_out,  # (B, NH, S)
+        matDeltaC_states=matDeltaC_k_states,  # (B, NH, NC * DHQK, DHV)
+        qk_scale=qk_scale,
+        CHUNK_SIZE=CHUNK_SIZE,
+        NUM_CHUNKS=NC,
+        EPS=EPS,
+    )
+
+    #! postprocessing: compute deltaF and deltaI gradients
+    ## ? postprocessing
+    vecF = rearrange(vecF, "b nh nc l -> b nh (nc l)")
+    # compute the vecDeltaFbar values with dfbar = rev_cumsum((q*dq - k*dk).sum(-1))
+    vecDeltaFbar_acc = (matQ * matDeltaQ - matK * matDeltaK).sum(-1)
+    vecDeltaFbar = vecDeltaFbar_acc.flip(-1).cumsum(-1).flip(-1)
+    vecDeltaF = vecDeltaFbar * torch.sigmoid(-vecF)
+    ## ? end postprocessing
+    # compute deltaI
+    # both are equivalent:
+    # vecDeltaI = (matV * matDeltaV).sum(-1)
+    vecDeltaI = (matK * matDeltaK).sum(-1)
+
+    # vecDeltaI = torch.zeros((B, NH, S), dtype=vecI.dtype, device=vecI.device)
+
+    matDeltaC_initial = (
+        matDeltaC_states[:, :, :DHQK, :] if matC_initial is not None else None
+    )
+    vecDeltaN_initial = (
+        torch.zeros_like(vecN_initial) if vecN_initial is not None else None
+    )
+    scaDeltaM_initial = (
+        torch.zeros_like(scaM_initial) if scaM_initial is not None else None
+    )
+
+    return (
+        matDeltaQ,
+        matDeltaK,
+        matDeltaV,
+        vecDeltaI,
+        vecDeltaF,
+        matDeltaC_initial,
+        vecDeltaN_initial,
+        scaDeltaM_initial,
+    )
