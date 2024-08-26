@@ -3,10 +3,20 @@ from matplotlib import pyplot as plt
 
 
 def convert_to_diff_imarray(target: torch.Tensor, baseline: torch.Tensor = None):
+    assert baseline.ndim == target.ndim
+    if baseline.ndim > 2:
+        baseline = baseline.clone()
+        target = target.clone()
+        # take only first element of each dimension
+        while baseline.ndim > 2:
+            baseline = baseline[0, ...]
+        while target.ndim > 2:
+            target = target[0, ...]
+
     if baseline is None:
-        imarr = target.float().abs().squeeze().cpu().numpy()
+        imarr = target.detach().float().abs().squeeze().cpu().numpy()
     else:
-        imarr = (target.float() - baseline.float()).abs().squeeze().cpu().numpy()
+        imarr = (target.detach().float() - baseline.detach().float()).abs().squeeze().cpu().numpy()
     if imarr.ndim < 2:
         imarr = imarr[:, None]
     return imarr

@@ -420,7 +420,7 @@ def _mlstm_chunkwise__parallel_bw_dQKV_kernel(
     matKbar_val = (matK_val.to(tl.float32) * vecAbar_val[:, None]).to(
         DTYPE
     )  # (L, siz_b_DHQK)
-    tl.static_print("matKbar_val", matKbar_val)
+    # tl.static_print("matKbar_val", matKbar_val)
 
     matDeltaQ_inter_val = tl.zeros((L, siz_b_DHQK), dtype=tl.float32)
     matDeltaK_inter_val = tl.zeros((L, siz_b_DHQK), dtype=tl.float32)
@@ -501,8 +501,8 @@ def _mlstm_chunkwise__parallel_bw_dQKV_kernel(
 
         # [inter] matDeltaQ += matDeltaH @ matC_km1.transpose() * vecBbar
         matC_km1_val = tl.load(matC_km1_ptr, boundary_check=(0, 1))  # (siz_b_DHHV, siz_b_DHQK)
-        tl.static_print("matDeltaH_val", matDeltaH_val)
-        tl.static_print("vecBbar_val", vecBbar_val)
+        # tl.static_print("matDeltaH_val", matDeltaH_val)
+        # tl.static_print("vecBbar_val", vecBbar_val)
         matDeltaQ_inter_val += tl.dot(
             (matDeltaH_val * vecBbar_val[:, None]).to(DTYPE), (matC_km1_val * qk_scale).to(DTYPE)
         )  # (L, siz_b_DHQK)
@@ -602,11 +602,11 @@ def _mlstm_chunkwise__parallel_bw_dQKV(
     num_stages = 1
     num_warps = 4 if siz_b_DHQK == 64 else 2
 
-    matDeltaQ = torch.empty((B, NH, S, DHQK), dtype=_dtype, device=_device)
-    matDeltaK = torch.empty((B, NH, S, DHQK), dtype=_dtype, device=_device)
+    matDeltaQ = torch.zeros((B, NH, S, DHQK), dtype=_dtype, device=_device)
+    matDeltaK = torch.zeros((B, NH, S, DHQK), dtype=_dtype, device=_device)
     # each b_DHQK thread block computes the contribution of its siz_b_DHQK block of matDeltaC
     # we need to sum them up to get the final result (we do this outside the kernel)
-    matDeltaV = torch.empty((num_b_DHQK, B, NH, S, DHHV), dtype=_dtype, device=_device)
+    matDeltaV = torch.zeros((num_b_DHQK, B, NH, S, DHHV), dtype=_dtype, device=_device)
 
     grid = (num_b_DHQK, NC, B * NH)
     _mlstm_chunkwise__parallel_bw_dQKV_kernel[grid](

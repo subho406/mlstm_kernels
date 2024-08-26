@@ -92,11 +92,12 @@ def recurrent_sequence_fw(
     matH = torch.stack(vecH_list, dim=-2)  # (B, NH, S, DHV)
     vecN_states = torch.stack(vecN_list, dim=-2)  # (B, NH, S, DHQK)
     vecM_states = torch.cat(vecM_list, dim=-1)  # (B, NH, S)
+    print("vecM_states", vecM_states.shape)
 
     ret_tuple = (matH, vecN_states, vecM_states)
 
     if return_last_states:
-        ret_tuple += ((matC_state, vecN_state, vecM_state),)
+        ret_tuple += ((matC_state, vecN_state, vecM_state.squeeze(-1)),)
     else:
         ret_tuple += (None,)
 

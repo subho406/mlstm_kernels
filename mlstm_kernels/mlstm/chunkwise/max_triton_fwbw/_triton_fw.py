@@ -649,10 +649,10 @@ def _mlstm_chunkwise__parallel_fw_H(
 def _mlstm_chunkwise_fw(
     matQ: torch.Tensor,  # (B, NH, S, DHQK)
     matK: torch.Tensor,  # (B, NH, S, DHQK)
-    matV: torch.Tensor,  # (B, NH, S, DHHV)
+    matV: torch.Tensor,  # (B, NH, S, DHV)
     vecI: torch.Tensor,  # (B, NH, S)
     vecF: torch.Tensor,  # (B, NH, S)
-    matC_initial: torch.Tensor = None,  # (B, NH, DHQK, DHHV)
+    matC_initial: torch.Tensor = None,  # (B, NH, DHQK, DHV)
     vecN_initial: torch.Tensor = None,  # (B, NH, DHQK)
     scaM_initial: torch.Tensor = None,  # (B, NH)
     qk_scale: float = None,
@@ -661,17 +661,17 @@ def _mlstm_chunkwise_fw(
     CHUNK_SIZE: int = 64,
     EPS: float = 1e-6,
 ) -> tuple[
-    torch.Tensor,  # matH_out (B, NH, S, DHHV)
+    torch.Tensor,  # matH_out (B, NH, S, DHV)
     torch.Tensor,  # vecN_out (B, NH, S)
     Optional[
         tuple[torch.Tensor, torch.Tensor, torch.Tensor]
-    ],  # last_states (matC_states (B, NH, DHQK, DHHV), vecN_states (B, NH, DHQK), scaMinter_states (B, NH))
+    ],  # last_states (matC_states (B, NH, DHQK, DHV), vecN_states (B, NH, DHQK), scaMinter_states (B, NH))
     Optional[
         tuple[torch.Tensor, torch.Tensor, torch.Tensor]
-    ],  # all_states (matC_states (B, NH, (NC+1) * DHQK, DHHV), vecN_states (B, NH, (NC+1) * DHQK), scaMinter_states (B, NH, (NC+1)))
+    ],  # all_states (matC_states (B, NH, (NC+1) * DHQK, DHV), vecN_states (B, NH, (NC+1) * DHQK), scaMinter_states (B, NH, (NC+1)))
 ]:
     B, NH, S, DHQK = matQ.shape
-    DHHV = matV.shape[-1]
+    DHV = matV.shape[-1]
     assert (
         S % CHUNK_SIZE == 0
     ), f"Sequence length {S} is not divisible by chunk size {CHUNK_SIZE}."
@@ -682,13 +682,7 @@ def _mlstm_chunkwise_fw(
 
     # compute the gates, the g and the a and b vectors
     vecF_logsig = F.logsigmoid(vecF)
-
-    vecB_f_cs = vecF_logsig.cumsum(-1)
-    vecA_f_rcs = vecF_logsig.sum(-1, keepdim=True) - vecB_f_cs
-
-    vecB = vecB_f_cs
-    vecA = vecA_f_rcs + vecI
-    scaG = vecF_logsig.sum(-1)
+    vecB = vecF_logsig.cumsum(-1)
 
     if qk_scale is None:
         qk_scale = DHQK**-0.5
@@ -697,8 +691,8 @@ def _mlstm_chunkwise_fw(
     matC_k_states, vecN_k_states, scaMinter_k_states = _mlstm_chunkwise__recurrent_fw_C(
         matK=matK,
         matV=matV,
-        vecA=vecA,
-        scaG=scaG,
+        vecB=vecB,
+        vecI=vecI,
         matC_initial=matC_initial,
         vecN_initial=vecN_initial,
         scaMinter_initial=scaM_initial,
@@ -745,3 +739,4 @@ def _mlstm_chunkwise_fw(
         ret_tuple += (None,)
 
     return ret_tuple  # (matH_out, vecN_out, vecM_out, optional(last_states), optional(all_states))
+
