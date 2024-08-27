@@ -250,6 +250,7 @@ def _mlstm_chunkwise_fw(
 ) -> tuple[
     torch.Tensor,  # matH_out (B, NH, S, DHV)
     torch.Tensor,  # vecN_out (B, NH, S)
+    torch.Tensor,  # vecM_out (B, NH, S)
     Optional[
         tuple[torch.Tensor, torch.Tensor, torch.Tensor]
     ],  # last_states (matC_states (B, NH, DHQK, DHV), vecN_states (B, NH, DHQK), scaMinter_states (B, NH))
@@ -580,6 +581,13 @@ def _mlstm_chunkwise_bw(
             NUM_CHUNKS=NC,
         )
 
+    print("scaM_all", scaM_all)
+    print("vecM_out", vecM_out)
+    print("vecN_out", vecN_out)
+    print("matQ", matQ)
+    print("vecB", vecB)
+    print("matDeltaH", matDeltaH)
+
     #! recurrent backward: compute the deltaC gradients
     matDeltaC_states = _mlstm_chunkwise__recurrent_bw_dC(
         matQ=matQ,  # (B, NH, S, DHQK)
@@ -596,7 +604,7 @@ def _mlstm_chunkwise_bw(
     )  # (B, NH, NC * DHQK, DHV)
 
     # print("matC_states", matC_all, matC_all.shape)
-    # print("matDeltaC_states", matDeltaC_states, matDeltaC_states.shape)
+    print("matDeltaC_states", matDeltaC_states, matDeltaC_states.shape)
     # print("scaM_all", scaM_all, scaM_all.shape)
     #! parallel backward: compute the deltaQ, deltaK, deltaV, deltaI gradients
     # scaM_inter_k_states = scaM_all[:, :, 1:]  # take the last NC states

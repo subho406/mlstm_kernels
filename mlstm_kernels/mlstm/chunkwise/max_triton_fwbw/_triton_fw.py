@@ -375,6 +375,8 @@ def _mlstm_chunkwise_parallel_fw_H_kernel(
     str_vecBI_B_NH,
     str_vecBI_NC,
     str_vecBI_L,
+    str_vecMN_B_NH,
+    str_vecMN_S,
     B: tl.constexpr,
     NH: tl.constexpr,
     S: tl.constexpr,
@@ -531,10 +533,10 @@ def _mlstm_chunkwise_parallel_fw_H_kernel(
         order=(1, 0),
     )
     vecNout_ptr = (
-        vecNout + idx_b_BNH * str_vecNstates_B_NH + idx_b_NC * L + tl.arange(0, L)
+        vecNout + idx_b_BNH * str_vecMN_B_NH + (idx_b_NC * L + tl.arange(0, L)) * str_vecMN_S
     )
     vecMout_ptr = (
-        vecMout + idx_b_BNH * str_vecNstates_B_NH + idx_b_NC * L + tl.arange(0, L)
+        vecMout + idx_b_BNH * str_vecMN_B_NH + (idx_b_NC * L + tl.arange(0, L)) * str_vecMN_S
     )
     tl.store(matHout_ptr, matHout_val.to(DTYPE), boundary_check=(0, 1))
     tl.store(vecNout_ptr, vecH_denom_val.to(DTYPE))
@@ -627,6 +629,8 @@ def _mlstm_chunkwise__parallel_fw_H(
         str_vecBI_B_NH=vecB.stride(1),
         str_vecBI_NC=vecB.stride(2),
         str_vecBI_L=vecB.stride(3),
+        str_vecMN_B_NH=vecN_out.stride(1),
+        str_vecMN_S=vecN_out.stride(2),
         B=B,
         NH=NH,
         S=S,
@@ -663,6 +667,7 @@ def _mlstm_chunkwise_fw(
 ) -> tuple[
     torch.Tensor,  # matH_out (B, NH, S, DHV)
     torch.Tensor,  # vecN_out (B, NH, S)
+    torch.Tensor,  # vecM_out (B, NH, S)
     Optional[
         tuple[torch.Tensor, torch.Tensor, torch.Tensor]
     ],  # last_states (matC_states (B, NH, DHQK, DHV), vecN_states (B, NH, DHQK), scaMinter_states (B, NH))
