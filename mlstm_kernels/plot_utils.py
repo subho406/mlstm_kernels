@@ -71,3 +71,16 @@ def plot_numerical_diffs_single(
     ax1.set_title(title)
     fig.colorbar(pos1, ax=ax1)
     return fig
+
+def plot_numerical_diffs_per_batchhead(baseline, target=None, title="", vmin=0.0, vmax=1e-2, figsize=(10, 6)):
+    baseline = baseline.reshape(-1, baseline.shape[-2], baseline.shape[-1])
+    if target is not None:
+        target = target.reshape(-1, target.shape[-2], target.shape[-1])
+
+    num_batchheads = baseline.shape[0]
+
+    figs = []
+    for i in range(num_batchheads):
+        fig = plot_numerical_diffs_single(baseline=baseline[i,...], target=target[i,...], title=f"BH({i}):{title}", vmin=vmin, vmax=vmax, figsize=figsize)
+        figs.append(fig)
+    return figs
