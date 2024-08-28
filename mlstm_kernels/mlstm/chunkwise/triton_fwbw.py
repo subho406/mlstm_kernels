@@ -450,11 +450,11 @@ def chunk_mlstm_bwd_kernel_dqkvif(
     b_q = tl.load(p_q, boundary_check=(0, 1))
     b_k = tl.load(p_k, boundary_check=(0, 1))
     b_s = tl.dot(b_k, b_q, allow_tf32=False)
-    p_f = f + i_bC * T + i_t * BT + tl.arange(0, BT)
-    p_i = i + i_bC * T + i_t * BT + tl.arange(0, BT)
+    p_f = f + i_bC * T + i_t * BT + tl.arange(0, BT) #
+    p_i = i + i_bC * T + i_t * BT + tl.arange(0, BT) #
     b_f = tl.load(p_f)
-    b_f_last = tl.load(f + i_bC * T + i_t * BT + BT - 1)
-    b_m = tl.load(m + i_bC * (NT + 1) + i_t)
+    b_f_last = tl.load(f + i_bC * T + i_t * BT + BT - 1) #
+    b_m = tl.load(m + i_bC * (NT + 1) + i_t) #
     b_m_total = tl.load(m_total + i_bC * T + i_t * BT + tl.arange(0, BT))
     b_norm = tl.load(norm + i_bC * T + i_t * BT + tl.arange(0, BT))
     b_i = tl.load(p_i)
@@ -462,9 +462,9 @@ def chunk_mlstm_bwd_kernel_dqkvif(
     # TODO: update to stable version of Mamba2
     mask = tl.math.exp2(b_i[:, None] + b_f[None, :] - b_f[:, None] - b_m_total[None, :])
     mask = tl.where(o_i[:, None] <= o_i[None, :], mask * scale, 0)
-    b_s = b_s * mask
+    b_s = b_s * mask #
 
-    b_m_next = tl.load(m + i_bC * (NT + 1) + i_t + 1)
+    b_m_next = tl.load(m + i_bC * (NT + 1) + i_t + 1) #
 
     b_dq = tl.zeros([BT, BK], dtype=tl.float16)
     b_dk = tl.zeros([BT, BK], dtype=tl.float16)

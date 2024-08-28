@@ -417,6 +417,11 @@ def _mlstm_chunkwise__parallel_bw_dQKV_kernel(
     )  # (L, siz_b_DHQK)
     # tl.static_print("matKbar_val", matKbar_val)
 
+    vecN_out_ptr = (
+        vecN_out + idx_b_BNH * S + idx_b_NC * L + tl.arange(0, L)
+    )
+    vecN_out_val = tl.load(vecN_out_ptr).to(tl.float32)  # (L,)
+
     matDeltaQ_inter_val = tl.zeros((L, siz_b_DHQK), dtype=tl.float32)
     matDeltaK_inter_val = tl.zeros((L, siz_b_DHQK), dtype=tl.float32)
     matDeltaS_val = tl.zeros((L, L), dtype=tl.float32)
@@ -460,9 +465,6 @@ def _mlstm_chunkwise__parallel_bw_dQKV_kernel(
             block_shape=(siz_b_DHQK, siz_b_DHHV),
             order=(1, 0),
         )
-        vecN_out_ptr = (
-            vecN_out + idx_b_BNH * str_vecN_out_B_NH + idx_b_NC * L + tl.arange(0, L)
-        )
         # store pointers:
         matDeltaV_ptr = tl.make_block_ptr(
             base=matDeltaV
@@ -481,8 +483,7 @@ def _mlstm_chunkwise__parallel_bw_dQKV_kernel(
         matDeltaH_val = tl.load(matDeltaH_ptr, boundary_check=(0, 1)).to(
             tl.float32
         )  # (L, siz_b_DHHV)
-        vecN_out_val = tl.load(vecN_out_ptr).to(tl.float32)  # (L,)
-        matDeltaH_val = matDeltaH_val / (vecN_out_val[:, None] + EPS)  # (L, siz_b_DHHV)
+        # matDeltaH_val = matDeltaH_val / (vecN_out_val[:, None] + EPS)  # (L, siz_b_DHHV)
 
         # [inter] matDeltaK += (matV @ matDeltaC_k.transpose()) * vecAbar
         matV_val = tl.load(matV_ptr, boundary_check=(0, 1)).to(DTYPE)  # (L, siz_b_DHHV)
@@ -511,9 +512,10 @@ def _mlstm_chunkwise__parallel_bw_dQKV_kernel(
         )  # (L, L)
 
         # [inter, intra] matDeltaV = matSbar.transpose() @ matDeltaH + matKbar @ matDeltaC_k
-        matDeltaV_val = tl.dot(tl.trans(matSbar_val), matDeltaH_val.to(DTYPE)) + tl.dot(
-            matKbar_val, matDeltaC_k_val
-        )
+        matDeltaV_val = tl.dot(
+            tl.trans(matSbar_val),
+            (matDeltaH_val / (vecN_out_val[:, None] + EPS)).to(DTYPE),
+        ) + tl.dot(matKbar_val, matDeltaC_k_val)
         # store matDeltaV (NOTE: each idx_b_DHQK stores its own contribution in HBM, it will be summed outside the kernel)
         tl.store(
             matDeltaV_ptr,
@@ -524,10 +526,12 @@ def _mlstm_chunkwise__parallel_bw_dQKV_kernel(
     matDeltaS_val = matDeltaS_val.to(DTYPE)
     # [intra] matDeltaK = matDeltaS.transpose() @ matQ * qk_scale
     matDeltaK_val = matDeltaK_inter_val + (
-        tl.dot(tl.trans(matDeltaS_val), matQ_val) * qk_scale
+        tl.dot(tl.trans(matDeltaS_val), (matQ_val / (vecN_out_val[:, None] + EPS))) * qk_scale
     )
     # [intra] matDeltaQ = matDeltaS @ matK * qk_scale
-    matDeltaQ_val = matDeltaQ_inter_val + (tl.dot(matDeltaS_val, matK_val) * qk_scale)
+    matDeltaQ_val = matDeltaQ_inter_val + (
+        (tl.dot(matDeltaS_val, matK_val) / (vecN_out_val[:, None] + EPS)) * qk_scale
+    )
 
     # store matDeltaQ, matDeltaK
     matDeltaK_ptr = tl.make_block_ptr(
@@ -615,7 +619,9 @@ def _mlstm_chunkwise__parallel_bw_dQKV(
     print(
         f"matQ shape: {matQ.shape}, strides: {[matQ.stride(0), matQ.stride(1), matQ.stride(2), matQ.stride(3)]}"
     )
+    print(f"matDeltaH shape: {matDeltaH.shape}, strides: {[matDeltaH.stride(0), matDeltaH.stride(1), matDeltaH.stride(2), matDeltaH.stride(3)]}")
     grid = (num_b_DHQK, NC, B * NH)
+    print(f"grid: {grid}")
     _mlstm_chunkwise__parallel_bw_dQKV_kernel[grid](
         matQ=matQ,
         matK=matK,
