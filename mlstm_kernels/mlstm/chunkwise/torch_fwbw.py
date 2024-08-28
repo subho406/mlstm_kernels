@@ -374,15 +374,15 @@ def _mlstm_chunkwise__recurrent_bw_dC(
         scaG_k = scaG[:, :, (k - 1), None]
         scaM_inter_kminus1 = scaM_inter[:, :, (k - 1), None]
         scaM_inter_k = scaM_inter[:, :, k, None]
-        # scaGbar_k = torch.exp(scaG_k + scaM_inter_kminus1 - scaM_inter_k)[:, :, None]
-        scaGbar_k = torch.ones((B, NH, 1, 1), dtype=_dtype, device=_device)
+        scaGbar_k = torch.exp(scaG_k + scaM_inter_kminus1 - scaM_inter_k)[:, :, None]
+        # scaGbar_k = torch.ones((B, NH, 1, 1), dtype=_dtype, device=_device)
 
         vecB_k = vecB[:, :, (k - 1), :]  # (B, NH, L)
         vecM_combine_k = vecM_combine[:, :, (k - 1) * L : k * L]  # (B, NH, L)
-        # vecBbar_k = torch.exp(vecB_k + scaM_inter_kminus1 - vecM_combine_k)[
-        #     :, :, :, None
-        # ]  # (B, NH, L, 1)
-        vecBbar_k = torch.ones((B, NH, L, 1), dtype=_dtype, device=_device)  # (B, NH, L, 1)
+        vecBbar_k = torch.exp(vecB_k + scaM_inter_kminus1 - vecM_combine_k)[
+            :, :, :, None
+        ]  # (B, NH, L, 1)
+        # vecBbar_k = torch.ones((B, NH, L, 1), dtype=_dtype, device=_device)  # (B, NH, L, 1)
 
         # print(
         #     "bw_dC, k:",
@@ -621,7 +621,7 @@ def _mlstm_chunkwise_bw(
     )  # (B, NH, NC * DHQK, DHV)
 
     # print("matC_states", matC_all, matC_all.shape)
-    print("matDeltaC_states", matDeltaC_states, matDeltaC_states.shape)
+    # print("matDeltaC_states", matDeltaC_states, matDeltaC_states.shape)
     # print("scaM_all", scaM_all, scaM_all.shape)
     #! parallel backward: compute the deltaQ, deltaK, deltaV, deltaI gradients
     # scaM_inter_k_states = scaM_all[:, :, 1:]  # take the last NC states
