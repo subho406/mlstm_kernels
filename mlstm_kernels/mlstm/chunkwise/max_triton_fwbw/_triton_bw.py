@@ -368,9 +368,15 @@ def _mlstm_chunkwise__parallel_bw_dQKV_kernel(
     # compute gate matrix matDbar (L, L)
     idx_mask = tl.arange(0, L)
     mask = idx_mask[:, None] >= idx_mask[None, :]
-    matD_full_val = vecB_val[:, None] - vecB_val[None, :] + vecI_val[None, :]
-    matD_val = tl.where(mask, matD_full_val, -float("inf"))
-    matDbar_val = tl.exp(matD_val - vecM_combine_val[:, None])
+    matF_full_val = vecB_val[:, None] - vecB_val[None, :]
+    # print("matF_full_val", matF_full_val)
+    # print("vecB_val", vecB_val)
+    matF_mask_val = tl.where(mask, matF_full_val, -float("inf"))
+    # print("matF_mask", matF_mask_val)
+    matDtilde_val = matF_mask_val + vecI_val[None, :]
+    # print("matDtilde", matDtilde_val)
+    matDbar_val = tl.exp(matDtilde_val - vecM_combine_val[:, None])
+    # print("matDbar_val", matDbar_val)
 
     # [inter,intra] compute vecAbar, vecBbar
     # load scaM_inter_k, scaM_inter_km1
@@ -378,8 +384,8 @@ def _mlstm_chunkwise__parallel_bw_dQKV_kernel(
     scaM_inter_k_val = tl.load(
         scaM_inter + idx_b_BNH * (NC + 1) + (idx_b_NC + 1)
     )  # (1,)
-    print("scaM_inter_km1_val", scaM_inter_km1_val)
-    print("scaM_inter_k_val", scaM_inter_k_val)
+    # print("scaM_inter_km1_val", scaM_inter_km1_val)
+    # print("scaM_inter_k_val", scaM_inter_k_val)
 
     # scaG is the last val of vecB
     scaG_val = tl.load(vecB + idx_b_BNH * S + idx_b_NC * L + L - 1)  # (1,)
@@ -413,6 +419,7 @@ def _mlstm_chunkwise__parallel_bw_dQKV_kernel(
     matK_val = tl.load(matK_ptr, boundary_check=(0, 1)).to(DTYPE)  # (siz_b_DHQK, L)
     matS_val = tl.dot(matQ_val, tl.trans(matK_val)) * qk_scale
     matSbar_val = (matS_val * matDbar_val).to(DTYPE)  # (L, L)
+    # print("matSbar_val", matSbar_val)
 
     matKbar_val = (matK_val.to(tl.float32) * vecAbar_val[:, None]).to(
         DTYPE
@@ -423,10 +430,10 @@ def _mlstm_chunkwise__parallel_bw_dQKV_kernel(
         vecN_out + idx_b_BNH * S + idx_b_NC * L + tl.arange(0, L)
     )
     vecN_out_val = tl.load(vecN_out_ptr).to(tl.float32)  # (L,)
-
+    print("vecN_out_val", vecN_out_val)
     matDeltaQ_inter_val = tl.zeros((L, siz_b_DHQK), dtype=tl.float32)
     matDeltaK_inter_val = tl.zeros((L, siz_b_DHQK), dtype=tl.float32)
-    matDeltaS_val = tl.zeros((L, L), dtype=tl.float32)
+    matDeltaSbar_val = tl.zeros((L, L), dtype=tl.float32)
     # TODO for later: matDeltaDbar for gate delta errors
     for idx_b_DHHV in range(tl.cdiv(DHHV, siz_b_DHHV)):
         # ? pointers for iteration
@@ -509,9 +516,12 @@ def _mlstm_chunkwise__parallel_bw_dQKV_kernel(
         ).to(DTYPE)  # (L, siz_b_DHQK)
 
         # [intra] matDeltaS += (matDeltaH @ matV.transpose()) * matDbar
-        matDeltaS_val += (
-            tl.dot(matDeltaH_val.to(DTYPE), tl.trans(matV_val)) 
+        print("matDeltaH_val", (matDeltaH_val / (vecN_out_val[:, None] + EPS)))
+        print("matV_transpose_val", tl.trans(matV_val))
+        matDeltaSbar_val = (
+            tl.dot((matDeltaH_val / (vecN_out_val[:, None] + EPS)).to(DTYPE), tl.trans(matV_val)) 
         )  # (L, L)
+        print("matDeltaSbar_val", matDeltaSbar_val)
 
         # [inter, intra] matDeltaV = matSbar.transpose() @ matDeltaH + matKbar @ matDeltaC_k
         matDeltaV_val = tl.dot(
@@ -528,15 +538,17 @@ def _mlstm_chunkwise__parallel_bw_dQKV_kernel(
     matDeltaQ_inter_val = matDeltaQ_inter_val * vecBbar_val[:, None] / (vecN_out_val[:, None] + EPS)
     matDeltaK_inter_val = matDeltaK_inter_val * vecAbar_val[:, None]
     
-    matDeltaS_val = (matDeltaS_val * matDbar_val).to(DTYPE)
+    matDeltaS_val = (matDeltaSbar_val * matDbar_val).to(DTYPE)
 
     # [intra] matDeltaK = matDeltaS.transpose() @ matQ * qk_scale
+    tl.static_print("matDeltaS_val", matDeltaS_val)
+    tl.static_print("matQ_val", matQ_val)
     matDeltaK_val = matDeltaK_inter_val + (
-        tl.dot(tl.trans(matDeltaS_val), (matQ_val / (vecN_out_val[:, None] + EPS))) * qk_scale
+        tl.dot(tl.trans(matDeltaS_val), (matQ_val).to(DTYPE)) * qk_scale
     )
     # [intra] matDeltaQ = matDeltaS @ matK * qk_scale
     matDeltaQ_val = matDeltaQ_inter_val + (
-        (tl.dot(matDeltaS_val, matK_val) / (vecN_out_val[:, None] + EPS)) * qk_scale
+        (tl.dot(matDeltaS_val, matK_val)) * qk_scale
     )
 
     # store matDeltaQ, matDeltaK
