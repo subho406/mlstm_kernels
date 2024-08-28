@@ -384,18 +384,18 @@ def _mlstm_chunkwise__recurrent_bw_dC(
         ]  # (B, NH, L, 1)
         # vecBbar_k = torch.ones((B, NH, L, 1), dtype=_dtype, device=_device)  # (B, NH, L, 1)
 
-        # print(
-        #     "bw_dC, k:",
-        #     k,
-        #     "vecBbar_k",
-        #     vecBbar_k,
-        # )
-        # print(
-        #     "bw_dC, k:",
-        #     k,
-        #     "scaGbar_k",
-        #     scaGbar_k,
-        # )
+        print(
+            "bw_dC, k:",
+            k,
+            "vecBbar_k",
+            vecBbar_k,
+        )
+        print(
+            "bw_dC, k:",
+            k,
+            "scaGbar_k",
+            scaGbar_k,
+        )
 
         matQ_k = matQ[:, :, (k - 1) * L : k * L, :]  # (B, NH, L, DHQK)
         matQbar_k = matQ_k * vecBbar_k * qk_scale
@@ -503,6 +503,8 @@ def _mlstm_chunkwise__parallel_bw_dQKV(
     vecAbar = torch.exp(vecA - scaM_inter_k)[:, :, :, :, None]
     # print(f"dqkv, vecAbar: {vecAbar}")
     # print(f"dqkv, vecBbar: {vecBbar}")
+    print("scaM_inter_k", scaM_inter_k)
+    print("scaM_inter_kminus1", scaM_inter_kminus1)
 
     # compute the inter delta gradients
     matDeltaV_inter = (matK * vecAbar) @ matDeltaC_states

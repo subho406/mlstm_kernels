@@ -360,7 +360,7 @@ def _mlstm_chunkwise__parallel_bw_dQKV_kernel(
     # load vecM_combine (L,)
     vecM_combine_val = tl.load(
         vecM_combine
-        + idx_b_BNH * str_vecM_combine_B_NH
+        + idx_b_BNH * S
         + idx_b_NC * L
         + tl.arange(0, L)
     )
@@ -378,6 +378,8 @@ def _mlstm_chunkwise__parallel_bw_dQKV_kernel(
     scaM_inter_k_val = tl.load(
         scaM_inter + idx_b_BNH * (NC + 1) + (idx_b_NC + 1)
     )  # (1,)
+    print("scaM_inter_km1_val", scaM_inter_km1_val)
+    print("scaM_inter_k_val", scaM_inter_k_val)
 
     # scaG is the last val of vecB
     scaG_val = tl.load(vecB + idx_b_BNH * S + idx_b_NC * L + L - 1)  # (1,)
