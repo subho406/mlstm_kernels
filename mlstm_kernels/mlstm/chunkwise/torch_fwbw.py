@@ -492,7 +492,7 @@ def _mlstm_chunkwise__parallel_bw_dQKV(
 
     # TODO compute matDeltaDtilde for the deltaI gradients
     matDeltaQ_intra = (matDeltaS @ matK) * qk_scale
-    matDeltaK_intra = (matDeltaS.transpose(-2, -1) @ matQ) * qk_scale
+    matDeltaK_intra = ((matDeltaS).transpose(-2, -1) @ matQ) * qk_scale
 
     #! inter chunk gradients
     # load / prepare the inputs
