@@ -369,14 +369,9 @@ def _mlstm_chunkwise__parallel_bw_dQKV_kernel(
     idx_mask = tl.arange(0, L)
     mask = idx_mask[:, None] >= idx_mask[None, :]
     matF_full_val = vecB_val[:, None] - vecB_val[None, :]
-    # print("matF_full_val", matF_full_val)
-    # print("vecB_val", vecB_val)
     matF_mask_val = tl.where(mask, matF_full_val, -float("inf"))
-    # print("matF_mask", matF_mask_val)
     matDtilde_val = matF_mask_val + vecI_val[None, :]
-    # print("matDtilde", matDtilde_val)
     matDbar_val = tl.exp(matDtilde_val - vecM_combine_val[:, None])
-    # print("matDbar_val", matDbar_val)
 
     # [inter,intra] compute vecAbar, vecBbar
     # load scaM_inter_k, scaM_inter_km1
@@ -384,8 +379,6 @@ def _mlstm_chunkwise__parallel_bw_dQKV_kernel(
     scaM_inter_k_val = tl.load(
         scaM_inter + idx_b_BNH * (NC + 1) + (idx_b_NC + 1)
     )  # (1,)
-    # print("scaM_inter_km1_val", scaM_inter_km1_val)
-    # print("scaM_inter_k_val", scaM_inter_k_val)
 
     # scaG is the last val of vecB
     scaG_val = tl.load(vecB + idx_b_BNH * S + idx_b_NC * L + L - 1)  # (1,)
@@ -393,8 +386,6 @@ def _mlstm_chunkwise__parallel_bw_dQKV_kernel(
 
     vecAbar_val = tl.exp(vecA_val - scaM_inter_k_val)  # (L,)
     vecBbar_val = tl.exp(vecB_val + scaM_inter_km1_val - vecM_combine_val)  # (L, )
-    tl.device_print("vecAbar", vecAbar_val)
-    tl.device_print("vecBbar", vecBbar_val)
 
     # [intra] recompute matS, matSbar
     # NOTE: we compute only a part of matS as we do not sum over the full DHQK dim
@@ -419,18 +410,15 @@ def _mlstm_chunkwise__parallel_bw_dQKV_kernel(
     matK_val = tl.load(matK_ptr, boundary_check=(0, 1)).to(DTYPE)  # (siz_b_DHQK, L)
     matS_val = tl.dot(matQ_val, tl.trans(matK_val)) * qk_scale
     matSbar_val = (matS_val * matDbar_val).to(DTYPE)  # (L, L)
-    # print("matSbar_val", matSbar_val)
 
     matKbar_val = (matK_val.to(tl.float32) * vecAbar_val[:, None]).to(
         DTYPE
     )  # (L, siz_b_DHQK)
-    # tl.static_print("matKbar_val", matKbar_val)
 
     vecN_out_ptr = (
         vecN_out + idx_b_BNH * S + idx_b_NC * L + tl.arange(0, L)
     )
     vecN_out_val = tl.load(vecN_out_ptr).to(tl.float32)  # (L,)
-    # print("vecN_out_val", vecN_out_val)
     matDeltaQ_inter_val = tl.zeros((L, siz_b_DHQK), dtype=tl.float32)
     matDeltaK_inter_val = tl.zeros((L, siz_b_DHQK), dtype=tl.float32)
     matDeltaSbar_val = tl.zeros((L, L), dtype=tl.float32)
@@ -508,19 +496,15 @@ def _mlstm_chunkwise__parallel_bw_dQKV_kernel(
         matC_km1_val = tl.load(
             matC_km1_ptr, boundary_check=(0, 1)
         )  # (siz_b_DHHV, siz_b_DHQK)
-        # tl.static_print("matDeltaH_val", matDeltaH_val)
         matDeltaQ_inter_val += (
             tl.dot((matDeltaH_val).to(DTYPE), matC_km1_val)
             * qk_scale
         ).to(DTYPE)  # (L, siz_b_DHQK)
 
         # [intra] matDeltaS += (matDeltaH @ matV.transpose()) * matDbar
-        # print("matDeltaH_val", (matDeltaH_val / (vecN_out_val[:, None] + EPS)))
-        # print("matV_transpose_val", tl.trans(matV_val))
         matDeltaSbar_val += (
             tl.dot((matDeltaH_val / (vecN_out_val[:, None] + EPS)).to(DTYPE), tl.trans(matV_val)) 
         )  # (L, L)
-        # print("matDeltaSbar_val", matDeltaSbar_val)
 
         # [inter, intra] matDeltaV = matSbar.transpose() @ matDeltaH + matKbar @ matDeltaC_k
         print("matKbar", matKbar_val)
@@ -541,8 +525,6 @@ def _mlstm_chunkwise__parallel_bw_dQKV_kernel(
     matDeltaS_val = (matDeltaSbar_val * matDbar_val).to(DTYPE)
 
     # [intra] matDeltaK = matDeltaS.transpose() @ matQ * qk_scale
-    # tl.static_print("matDeltaS_val", matDeltaS_val)
-    # tl.static_print("matQ_val", matQ_val)
     matDeltaK_val = matDeltaK_inter_val + (
         tl.dot(tl.trans(matDeltaS_val), (matQ_val).to(DTYPE)) * qk_scale
     )
@@ -617,7 +599,6 @@ def _mlstm_chunkwise__parallel_bw_dQKV(
     )
 
     num_b_DHQK = triton.cdiv(DHQK, siz_b_DHQK)
-    num_b_DHHV = triton.cdiv(DHHV, siz_b_DHHV)
 
     num_stages = 1
     num_warps = 4 if siz_b_DHQK == 64 else 2
@@ -628,18 +609,8 @@ def _mlstm_chunkwise__parallel_bw_dQKV(
     # we need to sum them up to get the final result (we do this outside the kernel)
     matDeltaV = torch.zeros((num_b_DHQK, B, NH, S, DHHV), dtype=_dtype, device=_device)
 
-    print(
-        f"matDeltaV shape: {matDeltaV.shape}, strides: {[matDeltaV.stride(0), matDeltaV.stride(1), matDeltaV.stride(2), matDeltaV.stride(3)]}"
-    )
-    print(
-        f"matV shape: {matV.shape}, strides: {[matV.stride(0), matV.stride(1), matV.stride(2), matV.stride(3)]}"
-    )
-    print(
-        f"matQ shape: {matQ.shape}, strides: {[matQ.stride(0), matQ.stride(1), matQ.stride(2), matQ.stride(3)]}"
-    )
-    print(f"matDeltaH shape: {matDeltaH.shape}, strides: {[matDeltaH.stride(0), matDeltaH.stride(1), matDeltaH.stride(2), matDeltaH.stride(3)]}")
     grid = (num_b_DHQK, NC, B * NH)
-    print(f"grid: {grid}")
+    # print(f"grid: {grid}")
     _mlstm_chunkwise__parallel_bw_dQKV_kernel[grid](
         matQ=matQ,
         matK=matK,

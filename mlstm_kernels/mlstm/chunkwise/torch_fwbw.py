@@ -456,8 +456,6 @@ def _mlstm_chunkwise__parallel_bw_dQKV(
 
     vecM_combine = rearrange(vecM_combine, "b nh (nc l) -> b nh nc l", l=L)
 
-    print("vecN_out", vecN_out)
-
     ltr = torch.tril(
         torch.ones(
             (L, L),
@@ -468,26 +466,18 @@ def _mlstm_chunkwise__parallel_bw_dQKV(
 
     # recompute the gate matrix D
     matF = vecB[:, :, :, :, None] - vecB[:, :, :, None, :]
-    # print("matF", matF)
     matF_mask = torch.where(ltr, matF, -float("inf"))
-    # print("matF_mask", matF_mask)
     matDtilde = matF_mask + vecI[:, :, :, None, :]
-    # print("matDtilde", matDtilde)
     matDbar = torch.exp(matDtilde - vecM_combine[:, :, :, :, None])
-    # print("matDbar", matDbar)
 
     # recompute the S matrix
     matS = (matQ @ matK.transpose(-2, -1)) * qk_scale
     matSbar = matS * matDbar
-    # print("matSbar", matSbar)
 
     # compute the intra delta gradients
     matDeltaV_intra = matSbar.transpose(-2, -1) @ matDeltaH
 
-    print("matDeltaH", matDeltaH, matDeltaH.shape)
-    print("matV_transpose", matV.transpose(-2, -1), matV.transpose(-2, -1).shape)
     matDeltaSbar = matDeltaH @ matV.transpose(-2, -1)
-    print("matDeltaSbar", matDeltaSbar, matDeltaSbar.shape)
     matDeltaS = matDeltaSbar * matDbar
 
     # TODO compute matDeltaDtilde for the deltaI gradients
@@ -510,13 +500,8 @@ def _mlstm_chunkwise__parallel_bw_dQKV(
     scaM_inter_k = scaM_inter[:, :, 1:, None]
     vecBbar = torch.exp(vecB + scaM_inter_kminus1 - vecM_combine)[:, :, :, :, None]
     vecAbar = torch.exp(vecA - scaM_inter_k)[:, :, :, :, None]
-    print(f"dqkv, vecAbar: {vecAbar}")
-    print(f"dqkv, vecBbar: {vecBbar}")
-    # print("scaM_inter_k", scaM_inter_k)
-    # print("scaM_inter_kminus1", scaM_inter_kminus1)
 
     # compute the inter delta gradients
-    print("matKbar", (matK * vecAbar))
     matDeltaV_inter = (matK * vecAbar) @ matDeltaC_states
 
     matDeltaK_inter = (matV * vecAbar) @ (matDeltaC_states.transpose(-2, -1))
