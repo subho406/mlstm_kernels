@@ -510,12 +510,13 @@ def _mlstm_chunkwise__parallel_bw_dQKV(
     scaM_inter_k = scaM_inter[:, :, 1:, None]
     vecBbar = torch.exp(vecB + scaM_inter_kminus1 - vecM_combine)[:, :, :, :, None]
     vecAbar = torch.exp(vecA - scaM_inter_k)[:, :, :, :, None]
-    # print(f"dqkv, vecAbar: {vecAbar}")
-    # print(f"dqkv, vecBbar: {vecBbar}")
+    print(f"dqkv, vecAbar: {vecAbar}")
+    print(f"dqkv, vecBbar: {vecBbar}")
     # print("scaM_inter_k", scaM_inter_k)
     # print("scaM_inter_kminus1", scaM_inter_kminus1)
 
     # compute the inter delta gradients
+    print("matKbar", (matK * vecAbar))
     matDeltaV_inter = (matK * vecAbar) @ matDeltaC_states
 
     matDeltaK_inter = (matV * vecAbar) @ (matDeltaC_states.transpose(-2, -1))
