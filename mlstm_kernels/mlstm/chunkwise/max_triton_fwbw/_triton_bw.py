@@ -347,7 +347,6 @@ def _mlstm_chunkwise__parallel_bw_dQKV_kernel(
         tl.program_id(1),
         tl.program_id(2),
     )
-    # num_cta_BNH = tl.num_programs(2)
 
     # [intra] recompute matDbar
     # load gates (L,)
@@ -732,13 +731,6 @@ def _mlstm_chunkwise_bw(
             NUM_CHUNKS=NC,
         )
 
-    # print("scaM_all", scaM_all)
-    # print("vecM_out", vecM_out)
-    # print("vecN_out", vecN_out)
-    # print("matQ", matQ)
-    # print("vecB", vecB)
-    # print("matDeltaH", matDeltaH)
-
     #! recurrent backward: compute the deltaC gradients
     matDeltaC_states = _mlstm_chunkwise__recurrent_bw_dC(
         matQ=matQ,  # (B, NH, S, DHQK)
@@ -754,18 +746,10 @@ def _mlstm_chunkwise_bw(
         EPS=EPS,
     )  # (B, NH, NC * DHQK, DHV)
 
-    # print("matC_states", matC_all, matC_all.shape)
-    ## TODO from here this shows a deviation
-    # print("matDeltaC_states", matDeltaC_states, matDeltaC_states.shape)
-    # print("scaM_all", scaM_all, scaM_all.shape)
     #! parallel backward: compute the deltaQ, deltaK, deltaV, deltaI gradients
-    matC_k_states = matC_all[:, :, :-DHQK, :].clone().contiguous()  # take the first NC states
+    matC_k_states = matC_all[:, :, :-DHQK, :]  # take the first NC states
 
-    matDeltaC_k_states = matDeltaC_states[:, :, DHQK:, :].clone().contiguous()  # take the last NC states
-
-    # print("matC_k_states", matC_k_states, matC_k_states.shape)
-    # print("matDeltaC_k_states", matDeltaC_k_states, matDeltaC_k_states.shape)
-    # print("scaM_inter_k_states", scaM_inter_k_states, scaM_inter_k_states.shape)
+    matDeltaC_k_states = matDeltaC_states[:, :, DHQK:, :]  # take the last NC states
 
     matDeltaQ, matDeltaK, matDeltaV = _mlstm_chunkwise__parallel_bw_dQKV(
         matQ=matQ,
@@ -801,7 +785,7 @@ def _mlstm_chunkwise_bw(
     # vecDeltaI = torch.zeros((B, NH, S), dtype=vecI.dtype, device=vecI.device)
 
     matDeltaC_initial = (
-        matDeltaC_states[:, :, :DHQK, :].contiguous() if matC_initial is not None else None
+        matDeltaC_states[:, :, :DHQK, :] if matC_initial is not None else None
     )
     vecDeltaN_initial = (
         torch.zeros_like(vecN_initial) if vecN_initial is not None else None
