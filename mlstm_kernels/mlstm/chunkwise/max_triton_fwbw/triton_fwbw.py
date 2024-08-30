@@ -29,7 +29,7 @@ Variables:
 """
 
 ## PyTorch Autograd Function - Boilerplate
-def _mlstm_chunkwise_fwbw_generator(autocast_kernel_dtype=torch.float32) -> Callable:
+def _mlstm_chunkwise_fwbw_generator(autocast_kernel_dtype=torch.float16) -> Callable:
     class _mlstm_chunkwise_fwbw(torch.autograd.Function):
         @staticmethod
         @custom_fwd(device_type="cuda", cast_inputs=autocast_kernel_dtype)
@@ -173,9 +173,9 @@ def _mlstm_chunkwise_fwbw_generator(autocast_kernel_dtype=torch.float32) -> Call
     return _mlstm_chunkwise_fwbw
 
 
-_mlstm_chunkwise_fwbw_float32 = _mlstm_chunkwise_fwbw_generator(torch.float32)
-_mlstm_chunkwise_fwbw_float16 = _mlstm_chunkwise_fwbw_generator(torch.float16)
-_mlstm_chunkwise_fwbw_bfloat16 = _mlstm_chunkwise_fwbw_generator(torch.bfloat16)
+_mlstm_chunkwise_fwbw_float32 = _mlstm_chunkwise_fwbw_generator(autocast_kernel_dtype=torch.float32)
+_mlstm_chunkwise_fwbw_float16 = _mlstm_chunkwise_fwbw_generator(autocast_kernel_dtype=torch.float16)
+_mlstm_chunkwise_fwbw_bfloat16 = _mlstm_chunkwise_fwbw_generator(autocast_kernel_dtype=torch.bfloat16)
 
 
 def _get_chunkwise_fwbw_kernel(autocast_kernel_dtype: torch.dtype) -> Callable:
