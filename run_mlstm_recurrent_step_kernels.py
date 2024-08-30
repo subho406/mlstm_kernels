@@ -9,7 +9,7 @@ os.environ["TRITON_PRINT_AUTOTUNING"] = "1"
 import torch
 
 from mlstm_kernels.components.ln import MultiHeadLayerNorm
-from mlstm_kernels.mlstm.parallel import mlstm_torch_autograd
+from mlstm_kernels.mlstm.parallel import mlstm_parallel_torch_autograd
 from mlstm_kernels.mlstm.recurrent._torch_fw_legacy import (
     mlstm_recurrent_sequence_stabilized,
 )
@@ -17,10 +17,10 @@ from mlstm_kernels.mlstm.recurrent.torch_fw import (
     recurrent_step_fw as recurrent_step_fw_torch,
 )
 from mlstm_kernels.mlstm.recurrent.triton_fw import (
-    recurrent_step_fw as recurrent_step_fw_triton,
+    recurrent_step_fw as mlstm_recurrent_step_triton,
 )
 from mlstm_kernels.mlstm.recurrent.triton_fused_fw import (
-    recurrent_step_fw as recurrent_step_fw_triton_fused,
+    recurrent_step_fw as mlstm_recurrent_step_fused_triton,
 )
 from tqdm import tqdm
 import triton
@@ -41,9 +41,9 @@ if __name__ == "__main__":
     elif kernel == "torch_compile":
         kernel_fn = torch.compile(recurrent_step_fw_torch)
     elif kernel == "triton":
-        kernel_fn = recurrent_step_fw_triton
+        kernel_fn = mlstm_recurrent_step_triton
     elif kernel == "triton_fused":
-        kernel_fn = recurrent_step_fw_triton_fused
+        kernel_fn = mlstm_recurrent_step_fused_triton
     else:
         raise ValueError(f"Kernel {kernel} not recognized!")
 

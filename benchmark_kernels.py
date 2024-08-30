@@ -70,7 +70,7 @@ for HEAD_DIM in HEAD_DIMS:
         # "mlstm_parallel--torch_autograd++fwbw++compile",
         "mlstm_parallel--triton++fwbw",
         "mlstm_chunkwise--triton++fwbw",
-        "mlstm_chunkwise--triton_max++fwbw",
+        "mlstm_chunkwise--max_triton++fwbw",
         # "mlstm_parallel--triton++fw",
         # "mlstm_parallel--torch_autograd++fw",
         # "flash_attention--triton_flash++fwbw",

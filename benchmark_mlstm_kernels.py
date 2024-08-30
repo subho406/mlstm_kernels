@@ -1,8 +1,8 @@
 import torch
 import triton
-from mlstm_kernels.mlstm.parallel import mlstm_torch_autograd as mlstm_parallel_torch_autograd
-from mlstm_kernels.mlstm.parallel import mlstm_torch_ownbw as mlstm_parallel_torch_ownbw
-from mlstm_kernels.mlstm.parallel import mlstm_triton as mlstm_parallel_triton
+from mlstm_kernels.mlstm.parallel import mlstm_parallel_torch_autograd as mlstm_parallel_torch_autograd
+from mlstm_kernels.mlstm.parallel import mlstm_parallel_torch_ownbw as mlstm_parallel_torch_ownbw
+from mlstm_kernels.mlstm.parallel import mlstm_parallel_triton as mlstm_parallel_triton
 
 BATCH, N_HEADS = 1, 8
 
