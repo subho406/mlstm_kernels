@@ -50,8 +50,8 @@ def recurrent_sequence_fw(
     matQ: torch.Tensor,  # (B, NH, S, DHQK)
     matK: torch.Tensor,  # (B, NH, S, DHQK)
     matV: torch.Tensor,  # (B, NH, S, DHV)
-    vecI: torch.Tensor,  # (B, NH, S, 1)
-    vecF: torch.Tensor,  # (B, NH, S, 1)
+    vecI: torch.Tensor,  # (B, NH, S)
+    vecF: torch.Tensor,  # (B, NH, S)
     matC_initial: torch.Tensor = None,  # (B, NH, DHQK, DHV)
     vecN_initial: torch.Tensor = None,  # (B, NH, DHQK)
     scaM_initial: torch.Tensor = None,  # (B, NH)
@@ -103,7 +103,7 @@ def recurrent_sequence_fw(
     vecM_list.append(vecM_state)
     for t in range(S):
         # gates
-        vecF_t, vecI_t = vecF[:, :, t], vecI[:, :, t]  # (B, NH, 1)
+        vecF_t, vecI_t = vecF[:, :, t, None], vecI[:, :, t, None]  # (B, NH, 1)
 
         # projections
         vecQ_t, vecK_t, vecV_t = (
@@ -151,6 +151,8 @@ def recurrent_sequence_fw(
 
     return ret_tuple
 
+
+# TODO mbeck: change shape of scaM_old, scaI, scaF to (B, NH)
 
 def recurrent_step_fw(
     matC_old: torch.Tensor,  # (B, NH, DHQK, DHV)
