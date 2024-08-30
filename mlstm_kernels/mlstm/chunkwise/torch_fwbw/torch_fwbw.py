@@ -1,9 +1,7 @@
 # Copyright JKU Linz 2024
 # Author: Maximilian Beck
 import torch
-from einops import rearrange
-import torch.nn.functional as F
-from typing import Optional, Callable
+from typing import Callable
 from torch.amp import custom_fwd, custom_bwd
 
 from ....kernel_utils import contiguous
@@ -211,7 +209,7 @@ def mlstm_chunkwise_fwbw(
     torch.Tensor | tuple[torch.Tensor, tuple[torch.Tensor, torch.Tensor, torch.Tensor]]
 ):
     _mlstm_chunkwise_fwbw = _get_chunkwise_fwbw_kernel(autocast_kernel_dtype)
-    matH, matC_last, vecN_last, scaM_last = _mlstm_chunkwise_fwbw.apply(
+    matH_out, matC_last, vecN_last, scaM_last = _mlstm_chunkwise_fwbw.apply(
         matQ,
         matK,
         matV,
@@ -227,9 +225,9 @@ def mlstm_chunkwise_fwbw(
         EPS,
     )
     if return_last_states:
-        return matH, (matC_last, vecN_last, scaM_last)
+        return matH_out, (matC_last, vecN_last, scaM_last)
     else:
-        return matH
+        return matH_out
 
 
 def mlstm_chunkwise_torch_autograd(

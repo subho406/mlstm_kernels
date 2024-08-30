@@ -1,6 +1,6 @@
 from .torch_fwbw import mlstm_chunkwise_torch_autograd 
 from .torch_fwbw import mlstm_chunkwise_torch_ownbw
-from .max_triton_fwbw.triton_fwbw import mlstm_chunkwise_fwbw as mlstm_chunkwise_max_triton
+from .max_triton_fwbw import mlstm_chunkwise_max_triton
 from .triton_fwbw import mlstm_fwbw as mlstm_chunkwise_triton
 
 registry = {
