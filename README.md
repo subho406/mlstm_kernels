@@ -16,6 +16,8 @@ def mlstm_interface(
     m_initial: torch.Tensor = None, # (B, NH)
     return_last_states: bool = False,
     eps: float = 1e-6,
+    autocast_kernel_dtype: torch.dtype = torch.float16,
+    chunk_size: int = 64,
     **kwargs,
 ) -> torch.Tensor | tuple[torch.Tensor, tuple[torch.Tensor, torch.Tensor, torch.Tensor]]:
     # (B, NH, S, DHV) | ((B, NH, S, DHV), ((B, NH, DHQK, DHV), (B, NH, DHQK), (B, NH)))

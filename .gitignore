@@ -19,6 +19,7 @@ resources/*.p
 
 *.nsys-rep 
 *.ncu-rep
+nvidia_nsight/
 
 ### DEFAULTS
 # Byte-compiled / optimized / DLL files
