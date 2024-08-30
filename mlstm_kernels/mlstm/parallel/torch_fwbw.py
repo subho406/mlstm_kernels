@@ -26,7 +26,6 @@ def _mlstm_fw(
     vecF: torch.Tensor,
     eps: float = 1e-6,
 ) -> torch.Tensor:
-
     B, NH, S, DHQK = matQ.shape
     assert matK.shape == (B, NH, S, DHQK)
     assert vecI.shape == (B, NH, S)
@@ -143,33 +142,7 @@ def _mlstm_bw(
         vecDeltaF,
     )
 
-
-def mlstm_fw(
-    matQ: torch.Tensor,
-    matK: torch.Tensor,
-    matV: torch.Tensor,
-    vecI: torch.Tensor,
-    vecF: torch.Tensor,
-    eps: float = 1e-6,
-) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
-    matH, _, _ = _mlstm_fw(matQ, matK, matV, vecI, vecF, eps)
-    return matH
-
-
-def mlstm_fwbw(
-    matQ: torch.Tensor,
-    matK: torch.Tensor,
-    matV: torch.Tensor,
-    vecI: torch.Tensor,
-    vecF: torch.Tensor,
-    eps: float = 1e-6,
-) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
-    matH, _, _ = _mlstm_fwbw.apply(matQ, matK, matV, vecI, vecF, eps)
-    return matH
-
-
 class _mlstm_fwbw(torch.autograd.Function):
-
     @staticmethod
     @custom_fwd(device_type="cuda")
     @contiguous
@@ -214,3 +187,55 @@ class _mlstm_fwbw(torch.autograd.Function):
             vecN=vecN,
         )
         return matDeltaQ, matDeltaK, matDeltaV, vecDeltaI, vecDeltaF, None
+
+def mlstm_parallel_torch_autograd(
+    q: torch.Tensor,
+    k: torch.Tensor,
+    v: torch.Tensor,
+    i: torch.Tensor,
+    f: torch.Tensor,
+    c_initial: torch.Tensor = None,
+    n_initial: torch.Tensor = None,
+    m_initial: torch.Tensor = None,
+    return_last_states: bool = False,
+    eps: float = 1e-6,
+    **kwargs,
+) -> torch.Tensor:
+    assert c_initial is None, "c_initial is not supported"
+    assert n_initial is None, "n_initial is not supported"
+    assert m_initial is None, "m_initial is not supported"
+    assert return_last_states is False, "return_last_states is not supported"
+
+    matH, _, _ = _mlstm_fw(
+        matQ=q,
+        matK=k,
+        matV=v,
+        vecI=i,
+        vecF=f,
+        eps=eps,
+    )
+    return matH
+
+def mlstm_parallel_torch_ownbw(
+    q: torch.Tensor,
+    k: torch.Tensor,
+    v: torch.Tensor,
+    i: torch.Tensor,
+    f: torch.Tensor,
+    c_initial: torch.Tensor = None,
+    n_initial: torch.Tensor = None,
+    m_initial: torch.Tensor = None,
+    return_last_states: bool = False,
+    eps: float = 1e-6,
+    **kwargs,
+) -> torch.Tensor:
+    assert c_initial is None, "c_initial is not supported"
+    assert n_initial is None, "n_initial is not supported"
+    assert m_initial is None, "m_initial is not supported"
+    assert return_last_states is False, "return_last_states is not supported"
+
+    matH, _, _ = _mlstm_fwbw.apply(q, k, v, i, f, eps)
+    return matH
+
+
+

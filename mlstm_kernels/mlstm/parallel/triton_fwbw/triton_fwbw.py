@@ -5,19 +5,7 @@ from ._triton_fw import mlstm_fw
 
 from torch.amp import custom_fwd, custom_bwd
 
-from ...kernel_utils import contiguous
-
-def mlstm_fwbw(
-    matQ: torch.Tensor,
-    matK: torch.Tensor,
-    matV: torch.Tensor,
-    vecI: torch.Tensor,
-    vecF: torch.Tensor,
-    eps: float = 1e-6,
-) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
-    matH, _, _ = _mlstm_fwbw.apply(matQ, matK, matV, vecI, vecF, eps)
-    return matH
-
+from ....kernel_utils import contiguous
 
 class _mlstm_fwbw(torch.autograd.Function):
 
@@ -65,3 +53,24 @@ class _mlstm_fwbw(torch.autograd.Function):
             vecN=vecN,
         )
         return matDeltaQ, matDeltaK, matDeltaV, vecDeltaI, vecDeltaF, None
+
+def mlstm_parallel_triton(
+    q: torch.Tensor,
+    k: torch.Tensor,
+    v: torch.Tensor,
+    i: torch.Tensor,
+    f: torch.Tensor,
+    c_initial: torch.Tensor = None,
+    n_initial: torch.Tensor = None,
+    m_initial: torch.Tensor = None,
+    return_last_states: bool = False,
+    eps: float = 1e-6,
+    **kwargs,
+) -> torch.Tensor:
+    assert c_initial is None, "c_initial is not supported"
+    assert n_initial is None, "n_initial is not supported"
+    assert m_initial is None, "m_initial is not supported"
+    assert return_last_states is False, "return_last_states is not supported"
+
+    matH, _, _ = _mlstm_fwbw.apply(q, k, v, i, f, eps)
+    return matH

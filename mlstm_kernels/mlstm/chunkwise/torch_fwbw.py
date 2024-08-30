@@ -703,77 +703,6 @@ def _mlstm_chunkwise_bw(
     )
 
 
-def mlstm_chunkwise_fw(
-    matQ: torch.Tensor,  # (B, NH, S, DHQK)
-    matK: torch.Tensor,  # (B, NH, S, DHQK)
-    matV: torch.Tensor,  # (B, NH, S, DHV)
-    vecI: torch.Tensor,  # (B, NH, S)
-    vecF: torch.Tensor,  # (B, NH, S)
-    matC_initial: torch.Tensor = None,  # (B, NH, DHQK, DHV)
-    vecN_initial: torch.Tensor = None,  # (B, NH, DHQK)
-    scaM_initial: torch.Tensor = None,  # (B, NH)
-    qk_scale: float = None,
-    return_last_states: bool = False,
-    CHUNK_SIZE: int = 64,
-    EPS: float = 1e-6,
-) -> torch.Tensor | tuple[torch.Tensor, tuple[torch.Tensor, torch.Tensor]]:
-    matH_out, _, _, last_states, _ = _mlstm_chunkwise_fw(
-        matQ=matQ,
-        matK=matK,
-        matV=matV,
-        vecI=vecI,
-        vecF=vecF,
-        matC_initial=matC_initial,
-        vecN_initial=vecN_initial,
-        scaM_initial=scaM_initial,
-        qk_scale=qk_scale,
-        return_last_states=return_last_states,
-        return_all_states=False,
-        EPS=EPS,
-        CHUNK_SIZE=CHUNK_SIZE,
-    )
-    if return_last_states:
-        return matH_out, last_states
-    else:
-        return matH_out
-
-
-def mlstm_chunkwise_fwbw(
-    matQ: torch.Tensor,  # (B, NH, S, DHQK)
-    matK: torch.Tensor,  # (B, NH, S, DHQK)
-    matV: torch.Tensor,  # (B, NH, S, DHV)
-    vecI: torch.Tensor,  # (B, NH, S)
-    vecF: torch.Tensor,  # (B, NH, S)
-    matC_initial: torch.Tensor = None,  # (B, NH, DHQK, DHV)
-    vecN_initial: torch.Tensor = None,  # (B, NH, DHQK)
-    scaM_initial: torch.Tensor = None,  # (B, NH)
-    qk_scale: float = None,
-    return_last_states: bool = False,
-    RECOMPUTE_STATES_IN_BW: bool = True,
-    CHUNK_SIZE: int = 64,
-    EPS: float = 1e-6,
-):
-    matH, matC_last, vecN_last, scaM_last = _mlstm_chunkwise_fwbw.apply(
-        matQ,
-        matK,
-        matV,
-        vecI,
-        vecF,
-        matC_initial,
-        vecN_initial,
-        scaM_initial,
-        qk_scale,
-        return_last_states,
-        RECOMPUTE_STATES_IN_BW,
-        CHUNK_SIZE,
-        EPS,
-    )
-    if return_last_states:
-        return matH, (matC_last, vecN_last, scaM_last)
-    else:
-        return matH
-
-
 ## PyTorch Autograd Function - Boilerplate
 class _mlstm_chunkwise_fwbw(torch.autograd.Function):
     @staticmethod
@@ -914,3 +843,147 @@ class _mlstm_chunkwise_fwbw(torch.autograd.Function):
             None,
             None,
         )
+
+
+def mlstm_chunkwise_fw(
+    matQ: torch.Tensor,  # (B, NH, S, DHQK)
+    matK: torch.Tensor,  # (B, NH, S, DHQK)
+    matV: torch.Tensor,  # (B, NH, S, DHV)
+    vecI: torch.Tensor,  # (B, NH, S)
+    vecF: torch.Tensor,  # (B, NH, S)
+    matC_initial: torch.Tensor = None,  # (B, NH, DHQK, DHV)
+    vecN_initial: torch.Tensor = None,  # (B, NH, DHQK)
+    scaM_initial: torch.Tensor = None,  # (B, NH)
+    qk_scale: float = None,
+    return_last_states: bool = False,
+    CHUNK_SIZE: int = 64,
+    EPS: float = 1e-6,
+) -> (
+    torch.Tensor | tuple[torch.Tensor, tuple[torch.Tensor, torch.Tensor, torch.Tensor]]
+):
+    matH_out, _, _, last_states, _ = _mlstm_chunkwise_fw(
+        matQ=matQ,
+        matK=matK,
+        matV=matV,
+        vecI=vecI,
+        vecF=vecF,
+        matC_initial=matC_initial,
+        vecN_initial=vecN_initial,
+        scaM_initial=scaM_initial,
+        qk_scale=qk_scale,
+        return_last_states=return_last_states,
+        return_all_states=False,
+        EPS=EPS,
+        CHUNK_SIZE=CHUNK_SIZE,
+    )
+    if return_last_states:
+        return matH_out, last_states
+    else:
+        return matH_out
+
+
+def mlstm_chunkwise_fwbw(
+    matQ: torch.Tensor,  # (B, NH, S, DHQK)
+    matK: torch.Tensor,  # (B, NH, S, DHQK)
+    matV: torch.Tensor,  # (B, NH, S, DHV)
+    vecI: torch.Tensor,  # (B, NH, S)
+    vecF: torch.Tensor,  # (B, NH, S)
+    matC_initial: torch.Tensor = None,  # (B, NH, DHQK, DHV)
+    vecN_initial: torch.Tensor = None,  # (B, NH, DHQK)
+    scaM_initial: torch.Tensor = None,  # (B, NH)
+    qk_scale: float = None,
+    return_last_states: bool = False,
+    RECOMPUTE_STATES_IN_BW: bool = True,
+    CHUNK_SIZE: int = 64,
+    EPS: float = 1e-6,
+) -> (
+    torch.Tensor | tuple[torch.Tensor, tuple[torch.Tensor, torch.Tensor, torch.Tensor]]
+):
+    matH, matC_last, vecN_last, scaM_last = _mlstm_chunkwise_fwbw.apply(
+        matQ,
+        matK,
+        matV,
+        vecI,
+        vecF,
+        matC_initial,
+        vecN_initial,
+        scaM_initial,
+        qk_scale,
+        return_last_states,
+        RECOMPUTE_STATES_IN_BW,
+        CHUNK_SIZE,
+        EPS,
+    )
+    if return_last_states:
+        return matH, (matC_last, vecN_last, scaM_last)
+    else:
+        return matH
+
+
+def mlstm_chunkwise_torch_autograd(
+    q: torch.Tensor,
+    k: torch.Tensor,
+    v: torch.Tensor,
+    i: torch.Tensor,
+    f: torch.Tensor,
+    c_initial: torch.Tensor = None,
+    n_initial: torch.Tensor = None,
+    m_initial: torch.Tensor = None,
+    return_last_states: bool = False,
+    eps: float = 1e-6,
+    chunk_size: int = 64,
+) -> (
+    torch.Tensor | tuple[torch.Tensor, tuple[torch.Tensor, torch.Tensor, torch.Tensor]]
+):
+    matH_out, _, _, last_states, _ = _mlstm_chunkwise_fw(
+        matQ=q,
+        matK=k,
+        matV=v,
+        vecI=i,
+        vecF=f,
+        matC_initial=c_initial,
+        vecN_initial=n_initial,
+        scaM_initial=m_initial,
+        return_last_states=return_last_states,
+        return_all_states=False,
+        EPS=eps,
+        CHUNK_SIZE=chunk_size,
+    )
+    if return_last_states:
+        return matH_out, last_states
+    else:
+        return matH_out
+
+def mlstm_chunkwise_torch_ownbw(
+    q: torch.Tensor,
+    k: torch.Tensor,
+    v: torch.Tensor,
+    i: torch.Tensor,
+    f: torch.Tensor,
+    c_initial: torch.Tensor = None,
+    n_initial: torch.Tensor = None,
+    m_initial: torch.Tensor = None,
+    return_last_states: bool = False,
+    eps: float = 1e-6,
+    chunk_size: int = 64,
+) -> (
+    torch.Tensor | tuple[torch.Tensor, tuple[torch.Tensor, torch.Tensor, torch.Tensor]]
+):
+    matH_out, matC_last, vecN_last, scaM_last = _mlstm_chunkwise_fwbw.apply(
+        matQ=q,
+        matK=k,
+        matV=v,
+        vecI=i,
+        vecF=f,
+        matC_initial=c_initial,
+        vecN_initial=n_initial,
+        scaM_initial=m_initial,
+        return_last_states=return_last_states,
+        return_all_states=False,
+        EPS=eps,
+        CHUNK_SIZE=chunk_size,
+    )
+    if return_last_states:
+        return matH_out, (matC_last, vecN_last, scaM_last)
+    else:
+        return matH_out

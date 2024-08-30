@@ -12,25 +12,63 @@ This module contains the recurrent implementation of the mLSTM.
 """
 
 
+def mlstm_recurrent_sequence_torch_autograd(
+    q: torch.Tensor,
+    k: torch.Tensor,
+    v: torch.Tensor,
+    i: torch.Tensor,
+    f: torch.Tensor,
+    c_initial: torch.Tensor = None,
+    n_initial: torch.Tensor = None,
+    m_initial: torch.Tensor = None,
+    return_last_states: bool = False,
+    eps: float = 1e-6,
+    **kwargs,
+) -> (
+    torch.Tensor | tuple[torch.Tensor, tuple[torch.Tensor, torch.Tensor, torch.Tensor]]
+):
+    ret_tuple = recurrent_sequence_fw(
+        matQ=q,
+        matK=k,
+        matV=v,
+        vecI=i,
+        vecF=f,
+        matC_initial=c_initial,
+        vecN_initial=n_initial,
+        scaM_initial=m_initial,
+        return_last_states=return_last_states,
+        EPS=eps,
+        return_all_states=False,
+    )
+    if return_last_states:
+        return ret_tuple[0], ret_tuple[3]
+    else:
+        return ret_tuple[0]
+
+
 def recurrent_sequence_fw(
-    matQ: torch.Tensor, # (B, NH, S, DHQK)
-    matK: torch.Tensor, # (B, NH, S, DHQK)
-    matV: torch.Tensor, # (B, NH, S, DHV)
-    vecI: torch.Tensor, # (B, NH, S, 1)
-    vecF: torch.Tensor, # (B, NH, S, 1)
-    matC_initial: torch.Tensor = None, # (B, NH, DHQK, DHV)
-    vecN_initial: torch.Tensor = None, # (B, NH, DHQK)
-    scaM_initial: torch.Tensor = None, # (B, NH)
+    matQ: torch.Tensor,  # (B, NH, S, DHQK)
+    matK: torch.Tensor,  # (B, NH, S, DHQK)
+    matV: torch.Tensor,  # (B, NH, S, DHV)
+    vecI: torch.Tensor,  # (B, NH, S, 1)
+    vecF: torch.Tensor,  # (B, NH, S, 1)
+    matC_initial: torch.Tensor = None,  # (B, NH, DHQK, DHV)
+    vecN_initial: torch.Tensor = None,  # (B, NH, DHQK)
+    scaM_initial: torch.Tensor = None,  # (B, NH)
     return_last_states: bool = False,
     return_all_states: bool = False,
     EPS: float = 1e-6,
     **kwargs,
 ) -> tuple[
-    torch.Tensor, # (B, NH, S, DHV)
-    torch.Tensor, # (B, NH, S, DHQK)
-    torch.Tensor, # (B, NH, S)
-    Optional[tuple[torch.Tensor, torch.Tensor, torch.Tensor]], # (matC_state_last (B, NH, DHQK, DHV), vecN_state_last (B, NH, DHQK), vecM_state_last (B, NH, 1))
-    Optional[tuple[torch.Tensor, torch.Tensor, torch.Tensor]], # (matC_states (B, NH, S, DHQK, DHV), vecN_states (B, NH, S, DHQK), vecM_states (B, NH, S))
+    torch.Tensor,  # (B, NH, S, DHV)
+    torch.Tensor,  # (B, NH, S, DHQK)
+    torch.Tensor,  # (B, NH, S)
+    Optional[
+        tuple[torch.Tensor, torch.Tensor, torch.Tensor]
+    ],  # (matC_state_last (B, NH, DHQK, DHV), vecN_state_last (B, NH, DHQK), vecM_state_last (B, NH, 1))
+    Optional[
+        tuple[torch.Tensor, torch.Tensor, torch.Tensor]
+    ],  # (matC_states (B, NH, S, DHQK, DHV), vecN_states (B, NH, S, DHQK), vecM_states (B, NH, S))
 ]:
     B, NH, S, DHQK = matQ.shape
     DHV = matV.shape[-1]
@@ -42,7 +80,11 @@ def recurrent_sequence_fw(
             vecN_initial is not None and scaM_initial is not None
         ), "Initial states must be provided together."
         assert scaM_initial.dim() == 2, "Initial states must be 2D."
-        matC_state, vecN_state, vecM_state = matC_initial, vecN_initial, scaM_initial[:, :, None]
+        matC_state, vecN_state, vecM_state = (
+            matC_initial,
+            vecN_initial,
+            scaM_initial[:, :, None],
+        )
     else:
         # memory state
         matC_state = torch.zeros((B, NH, DHQK, DHV), dtype=dtype, device=device)
@@ -61,7 +103,7 @@ def recurrent_sequence_fw(
     vecM_list.append(vecM_state)
     for t in range(S):
         # gates
-        vecF_t, vecI_t = vecF[:, :, t, None], vecI[:, :, t, None]  # (B, NH, 1)
+        vecF_t, vecI_t = vecF[:, :, t], vecI[:, :, t]  # (B, NH, 1)
 
         # projections
         vecQ_t, vecK_t, vecV_t = (
@@ -92,18 +134,17 @@ def recurrent_sequence_fw(
     matH = torch.stack(vecH_list, dim=-2)  # (B, NH, S, DHV)
     vecN_states = torch.stack(vecN_list, dim=-2)  # (B, NH, S, DHQK)
     vecM_states = torch.cat(vecM_list, dim=-1)  # (B, NH, S)
-    print("vecM_states", vecM_states.shape)
 
     ret_tuple = (matH, vecN_states, vecM_states)
 
     if return_last_states:
-        ret_tuple += ((matC_state, vecN_state, vecM_state.squeeze(-1)),)
+        ret_tuple += ((matC_state, vecN_state, vecM_state),)
     else:
         ret_tuple += (None,)
 
     if return_all_states:
-        matC_states = torch.stack(matC_list, dim=-3) # (B, NH, S, DHQK, DHV)
-        matC_states.retain_grad()  
+        matC_states = torch.stack(matC_list, dim=-3)  # (B, NH, S, DHQK, DHV)
+        matC_states.retain_grad()
         ret_tuple += ((matC_states, vecN_states, vecM_states),)
     else:
         ret_tuple += (None,)
@@ -143,9 +184,7 @@ def recurrent_step_fw(
             (hidden_state [B, NH, DHV], (c_state_new [B, NH, DHQK, DHV], n_state_new [B, NH, DHQK]], m_state_new [B, NH, 1]))
     """
     B, NH, DHQK = vecQ.shape
-    assert scaM_old.shape == (B, NH, 1)
-    assert scaI.shape == (B, NH, 1)
-    assert scaF.shape == (B, NH, 1)
+
     # gates
     scaF_log = torch.nn.functional.logsigmoid(scaF)
 
@@ -158,14 +197,16 @@ def recurrent_step_fw(
     vecQ_scaled = vecQ / math.sqrt(DHQK)  # (B, NH, DHQK)
 
     matC_state_new = scaF_act[:, :, :, None] * matC_old + scaI_act[:, :, :, None] * (
-        (vecK[:, :, :, None] @ vecV[:, :, None, :])
+        vecK[:, :, :, None] @ vecV[:, :, None, :]
     )  # (B, NH, DHQK, DHV)
     vecN_state_new = scaF_act * vecN_old + scaI_act * vecK  # (B, NH, DHQK)
 
     h_num = vecQ_scaled[:, :, None, :] @ matC_state_new  # (B, NH, 1, DHV)
     h_num = h_num.squeeze(2)  # (B, NH, DHV)
 
-    qn_dotproduct = vecQ_scaled[:, :, None, :] @ vecN_state_new[:, :, :, None]  # (B, NH, 1, 1)
+    qn_dotproduct = (
+        vecQ_scaled[:, :, None, :] @ vecN_state_new[:, :, :, None]
+    )  # (B, NH, 1, 1)
     qn_dotproduct = qn_dotproduct.squeeze(2)  # (B, NH, 1)
     max_val = torch.exp(-scaM_state_new)  # (B, NH, 1)
     h_denom = torch.maximum(qn_dotproduct.abs(), max_val) + EPS  # (B, NH, 1)

@@ -1,6 +1,5 @@
 # Copyright JKU Linz 2024
 # Author Korbinian Pöppel
-from typing import Tuple
 import math
 
 import torch
@@ -917,21 +916,22 @@ def mlstm_fwbw(
     v: torch.Tensor,
     i: torch.Tensor,  # input gate
     f: torch.Tensor,  # forget gate
-    initial_C: torch.Tensor = None,
-    initial_n: torch.Tensor = None,
-    initial_m: torch.Tensor = None,
-    output_final_state: bool = False,
-) -> Tuple[torch.Tensor, torch.Tensor]:
-    if initial_C is not None:
-        initial_C = initial_C.detach()
-        initial_n = initial_n.detach()
-        initial_m = initial_m.detach()
+    c_initial: torch.Tensor = None,
+    n_initial: torch.Tensor = None,
+    m_initial: torch.Tensor = None,
+    return_last_state: bool = False,
+    eps: float = 1e-6,
+):
+    if c_initial is not None:
+        c_initial = c_initial.detach()
+        n_initial = n_initial.detach()
+        m_initial = m_initial.detach()
     f = f.float()
     i = i.float()
     h, final_C, final_n, final_m = mLSTMFunction(chunk_size=64).apply(
-        q, k, v, i, f, initial_C, initial_n, initial_m, output_final_state
+        q, k, v, i, f, c_initial, n_initial, m_initial, return_last_state
     )
-    if output_final_state:
+    if return_last_state:
         return h, (final_C, final_n, final_m)
     else:
         return h

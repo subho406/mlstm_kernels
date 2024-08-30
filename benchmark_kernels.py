@@ -17,7 +17,7 @@ compile: apply torch.compile
 #! Parameters
 BENCHMARK_NAME = "kernelbench3"
 BATCH, N_HEADS = 1, 8
-HEAD_DIMS = [64, 128, 256]
+HEAD_DIMS = [64] #[64, 128, 256]
 DTYPE = "float16"
 #! =================
 

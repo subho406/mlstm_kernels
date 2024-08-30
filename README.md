@@ -15,7 +15,15 @@ def mlstm_interface(
     n_initial: torch.Tensor = None,
     m_initial: torch.Tensor = None,
     return_last_states: bool = False,
+    eps: float = 1e-6,
+    **kwargs,
 ) -> torch.Tensor | tuple[torch.Tensor, tuple[torch.Tensor, torch.Tensor, torch.Tensor]]:
+    """
+    Returns:
+        torch.Tensor: matH outputs (no n and m values, no last states)
+        tuple[torch.Tensor, tuple[torch.Tensor, torch.Tensor, torch.Tensor]]: matH, (matC_last, vecN_last, scaM_last)
+    """
+    
     pass
 
 ```
