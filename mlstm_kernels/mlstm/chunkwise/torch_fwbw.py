@@ -377,27 +377,25 @@ def _mlstm_chunkwise__recurrent_bw_dC(
         scaM_inter_kminus1 = scaM_inter[:, :, (k - 1), None]
         scaM_inter_k = scaM_inter[:, :, k, None]
         scaGbar_k = torch.exp(scaG_k + scaM_inter_kminus1 - scaM_inter_k)[:, :, None]
-        # scaGbar_k = torch.ones((B, NH, 1, 1), dtype=_dtype, device=_device)
 
         vecB_k = vecB[:, :, (k - 1), :]  # (B, NH, L)
         vecM_combine_k = vecM_combine[:, :, (k - 1) * L : k * L]  # (B, NH, L)
         vecBbar_k = torch.exp(vecB_k + scaM_inter_kminus1 - vecM_combine_k)[
             :, :, :, None
         ]  # (B, NH, L, 1)
-        # vecBbar_k = torch.ones((B, NH, L, 1), dtype=_dtype, device=_device)  # (B, NH, L, 1)
 
-        print(
-            "bw_dC, k:",
-            k,
-            "vecBbar_k",
-            vecBbar_k,
-        )
-        print(
-            "bw_dC, k:",
-            k,
-            "scaGbar_k",
-            scaGbar_k,
-        )
+        # print(
+        #     "bw_dC, k:",
+        #     k,
+        #     "vecBbar_k",
+        #     vecBbar_k,
+        # )
+        # print(
+        #     "bw_dC, k:",
+        #     k,
+        #     "scaGbar_k",
+        #     scaGbar_k,
+        # )
 
         matQ_k = matQ[:, :, (k - 1) * L : k * L, :]  # (B, NH, L, DHQK)
         matQbar_k = matQ_k * vecBbar_k * qk_scale
@@ -602,7 +600,7 @@ def _mlstm_chunkwise_bw(
         NUM_CHUNKS=NC,
         EPS=EPS,
     )
-    torch.save(inp_dict_bw_dC, "./inputs_bw_dC")
+    # torch.save(inp_dict_bw_dC, "./inputs_bw_dC")
 
     #! recurrent backward: compute the deltaC gradients
     matDeltaC_states = _mlstm_chunkwise__recurrent_bw_dC(
@@ -650,7 +648,7 @@ def _mlstm_chunkwise_bw(
         EPS=EPS,
     )
 
-    torch.save(inp_dict_bw_dQKV, "./inputs_bw_dQKV")
+    # torch.save(inp_dict_bw_dQKV, "./inputs_bw_dQKV")
 
     matDeltaQ, matDeltaK, matDeltaV = _mlstm_chunkwise__parallel_bw_dQKV(
         matQ=matQ,
@@ -682,8 +680,6 @@ def _mlstm_chunkwise_bw(
     # both are equivalent:
     vecDeltaI = (matV * matDeltaV).sum(-1)
     # vecDeltaI = (matK * matDeltaK).sum(-1)
-
-    # vecDeltaI = torch.zeros((B, NH, S), dtype=vecI.dtype, device=vecI.device)
 
     matDeltaC_initial = (
         matDeltaC_states[:, :, :DHQK, :] if matC_initial is not None else None

@@ -508,7 +508,6 @@ def _mlstm_chunkwise__parallel_bw_dQKV_kernel(
         )  # (L, L)
 
         # [inter, intra] matDeltaV = matSbar.transpose() @ matDeltaH + matKbar @ matDeltaC_k
-        print("matKbar", matKbar_val)
         matDeltaV_val = tl.dot(
             tl.trans(matSbar_val),
             (matDeltaH_val / (vecN_out_val[:, None] + EPS)).to(DTYPE),
