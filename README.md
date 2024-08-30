@@ -51,6 +51,11 @@ Not all variants support all features of the interface. Only the chunkwise and r
 ---
 # Working Notes:
 
+## TODOs
+- write unit tests
+- adapt f i m shape of recurrent step kernels
+- run training with different kernels
+
 ## Next steps
 
 - [ ] integrate memory tracker for kernels for measuring GPU memory during speed tests

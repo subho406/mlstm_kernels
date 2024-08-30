@@ -16,7 +16,13 @@ def convert_to_diff_imarray(target: torch.Tensor, baseline: torch.Tensor = None)
     if baseline is None:
         imarr = target.detach().float().abs().squeeze().cpu().numpy()
     else:
-        imarr = (target.detach().float() - baseline.detach().float()).abs().squeeze().cpu().numpy()
+        imarr = (
+            (target.detach().float() - baseline.detach().float())
+            .abs()
+            .squeeze()
+            .cpu()
+            .numpy()
+        )
     if imarr.ndim < 2:
         imarr = imarr[:, None]
     return imarr
@@ -72,7 +78,17 @@ def plot_numerical_diffs_single(
     fig.colorbar(pos1, ax=ax1)
     return fig
 
-def plot_numerical_diffs_per_batchhead(baseline, target=None, title="", vmin=0.0, vmax=1e-2, figsize=(10, 6)):
+
+def plot_numerical_diffs_per_batchhead(
+    baseline,
+    target=None,
+    title="",
+    vmin=0.0,
+    vmax=1e-2,
+    figsize=(10, 6),
+    rtol: float = None,
+    atol: float = None,
+):
     baseline = baseline.reshape(-1, baseline.shape[-2], baseline.shape[-1])
     if target is not None:
         target = target.reshape(-1, target.shape[-2], target.shape[-1])
@@ -81,6 +97,20 @@ def plot_numerical_diffs_per_batchhead(baseline, target=None, title="", vmin=0.0
 
     figs = []
     for i in range(num_batchheads):
-        fig = plot_numerical_diffs_single(baseline=baseline[i,...], target=target[i,...], title=f"BH({i}):{title}", vmin=vmin, vmax=vmax, figsize=figsize)
+        max_diff = (baseline[i, ...] - target[i, ...]).abs().max()
+        title_i = f"BH({i}):{title}|max_diff:{max_diff}"
+        if rtol is not None and atol is not None:
+            allclose = torch.allclose(
+                baseline[i, ...], target[i, ...], rtol=rtol, atol=atol
+            )
+            title_i += f"|allclose(atol={atol},rtol={rtol}):{allclose}"
+        fig = plot_numerical_diffs_single(
+            baseline=baseline[i, ...],
+            target=target[i, ...],
+            title=title_i,
+            vmin=vmin,
+            vmax=vmax,
+            figsize=figsize,
+        )
         figs.append(fig)
     return figs

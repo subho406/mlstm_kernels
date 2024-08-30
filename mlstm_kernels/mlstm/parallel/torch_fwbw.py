@@ -225,7 +225,7 @@ def mlstm_parallel_torch_autograd(
     assert c_initial is None, "c_initial is not supported"
     assert n_initial is None, "n_initial is not supported"
     assert m_initial is None, "m_initial is not supported"
-    assert return_last_states is False, "return_last_states is not supported"
+    assert not return_last_states, "return_last_states is not supported"
 
     matH, _, _ = _mlstm_fw(
         matQ=q,
