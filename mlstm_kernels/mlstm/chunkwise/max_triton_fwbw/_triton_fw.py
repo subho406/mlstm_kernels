@@ -1,3 +1,5 @@
+# Copyright JKU Linz 2024
+# Author: Maximilian Beck
 import torch
 import torch.nn.functional as F
 import triton

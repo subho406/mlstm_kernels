@@ -1,3 +1,5 @@
+# Copyright JKU Linz 2024
+# Author: Maximilian Beck
 import torch
 from torch.amp import custom_fwd, custom_bwd
 from ....kernel_utils import contiguous
