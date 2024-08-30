@@ -1,0 +1,27 @@
+[build-system]
+requires = ["setuptools>=42"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "mlstm_kernels"
+version = "1.0.0"
+authors = [
+  { name="Maximilian Beck", email="beck@ml.jku.at" },
+  { name="Korbinian Poeppel", email="poeppel@ml.jku.at" },
+]
+description = "Kernels for the mLSTM."
+readme = "README.md"
+license = {file="LICENSE"}
+requires-python = ">=3.10"
+classifiers = [
+    "Programming Language :: Python :: 3",
+    "License :: OSI Approved :: GNU Affero General Public License v3",
+    "Operating System :: OS Independent",
+]
+keywords = ["xLSTM", "LSTM", "Transformer", "Machine Learning", "Deep Learning", "State Space Models"]
+
+
+# [tool.setuptools]
+# include_package_data = true
+
+[tool.setuptools.package-data]
