@@ -153,14 +153,17 @@ def bench_flash_mlstm_fwbw(BATCH, H, N_CTX, HEAD_DIM, provider, device="cuda"):
     if use_torch_compile:
         kernel_fn = torch.compile(kernel_fn)
     
-    fw_fn = lambda: kernel_fn(*inputs)
+    def fw_fn():
+        return kernel_fn(*inputs)
 
     # fwbw
     if "fwbw" in fwbw_type:
         if "flash_linear_attention" in kernel_name:
-            fn = lambda: fw_fn()[0].sum().backward()
+            def fn():
+                return fw_fn()[0].sum().backward()
         else:
-            fn = lambda: fw_fn().sum().backward()
+            def fn():
+                return fw_fn().sum().backward()
     else:
         fn = fw_fn
     print(f"Running benchmark for {provider}, with batch size {BATCH}, head size {H}, context size {N_CTX}, head dim {HEAD_DIM}, dtype {DTYPE}")
