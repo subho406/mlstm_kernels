@@ -6,18 +6,19 @@ In this repository we collect clean implementations of the different mLSTM formu
 
 ```python
 def mlstm_interface(
-    q: torch.Tensor,
-    k: torch.Tensor,
-    v: torch.Tensor,
-    i: torch.Tensor,
-    f: torch.Tensor,
-    c_initial: torch.Tensor = None,
-    n_initial: torch.Tensor = None,
-    m_initial: torch.Tensor = None,
+    q: torch.Tensor, # (B, NH, S, DHQK)
+    k: torch.Tensor, # (B, NH, S, DHQK)
+    v: torch.Tensor, # (B, NH, S, DHV)
+    i: torch.Tensor, # (B, NH, S)
+    f: torch.Tensor, # (B, NH, S)
+    c_initial: torch.Tensor = None, # (B, NH, DHQK, DHV)
+    n_initial: torch.Tensor = None, # (B, NH, DHQK)
+    m_initial: torch.Tensor = None, # (B, NH)
     return_last_states: bool = False,
     eps: float = 1e-6,
     **kwargs,
 ) -> torch.Tensor | tuple[torch.Tensor, tuple[torch.Tensor, torch.Tensor, torch.Tensor]]:
+    # (B, NH, S, DHV) | ((B, NH, S, DHV), ((B, NH, DHQK, DHV), (B, NH, DHQK), (B, NH)))
     """
     Returns:
         torch.Tensor: matH outputs (no n and m values, no last states)
