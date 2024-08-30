@@ -143,7 +143,7 @@ def _mlstm_bw(
     )
 
 
-def _mlstm_parallel_fwbw_generator(autocast_kernel_dtype=torch.float16) -> Callable:
+def _mlstm_parallel_fwbw_generator(autocast_kernel_dtype=torch.float32) -> Callable:
     class _mlstm_parallel_fwbw(torch.autograd.Function):
         @staticmethod
         @custom_fwd(device_type="cuda", cast_inputs=autocast_kernel_dtype)
