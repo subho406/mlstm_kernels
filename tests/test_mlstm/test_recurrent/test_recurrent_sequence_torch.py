@@ -4,6 +4,7 @@ import torch
 
 from mlstm_kernels.test_utils import check_correctness, loss_layernorm_offset_quadratic
 
+from ...common import test_session_folder
 
 def template_torch_parallel_vs_toch_recurrent_sequence(
     S: int = 2048,
@@ -135,13 +136,10 @@ combinations_b_nh_s = {
 }
 combinations_list = [values for values in zip(*combinations_b_nh_s.values())]
 
-# TODO pytest create output folder
-
-
 class TestRecurrentVsParallelTorch:
     @pytest.mark.skipif(not torch.cuda.is_available(), reason="No GPU available.")
     @pytest.mark.parametrize(["S", "B", "NH", "DHQK", "DHHV"], combinations_list)
-    def test_recurrent_vs_parallel_fp32(self, S, B, NH, DHQK, DHHV):
+    def test_recurrent_vs_parallel_fp32(self, test_session_folder, S, B, NH, DHQK, DHHV):
         print(f"S{S}B{B}NH{NH}DHQK{DHQK}DHHV{DHHV}")
         template_torch_parallel_vs_toch_recurrent_sequence(
             S=S,
@@ -155,7 +153,7 @@ class TestRecurrentVsParallelTorch:
             atol_fwbw=1e-2,
             rtol_fwbw=1e-2,
             test_folder_name=f"torch_parallel_vs_torch_recurrent_sequence_S{S}B{B}NH{NH}DHQK{DHQK}DHHV{DHHV}",
-            save_dir="."
+            save_dir=str(test_session_folder),
         )
 
     # def test_recurrent_vs_parallel_fp16():

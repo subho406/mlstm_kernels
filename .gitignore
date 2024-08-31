@@ -9,6 +9,7 @@ data/*
 configs
 configs/*
 resources/*.p
+tests_outputs
 
 *.png
 *.csv
