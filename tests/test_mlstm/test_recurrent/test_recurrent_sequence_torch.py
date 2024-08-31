@@ -7,7 +7,7 @@ from mlstm_kernels.test_utils import check_correctness, loss_layernorm_offset_qu
 from ...common import test_session_folder
 
 
-def template_torch_parallel_vs_toch_recurrent_sequence(
+def template_torch_parallel_vs_torch_recurrent_sequence(
     S: int = 2048,
     B: int = 2,
     NH: int = 3,
@@ -153,7 +153,7 @@ class TestRecurrentVsParallelTorch:
         self, test_session_folder, S, B, NH, DHQK, DHHV
     ):
         print(f"S{S}B{B}NH{NH}DHQK{DHQK}DHHV{DHHV}")
-        template_torch_parallel_vs_toch_recurrent_sequence(
+        template_torch_parallel_vs_torch_recurrent_sequence(
             S=S,
             B=B,
             NH=NH,
@@ -174,7 +174,7 @@ class TestRecurrentVsParallelTorch:
         self, test_session_folder, S, B, NH, DHQK, DHHV
     ):
         print(f"S{S}B{B}NH{NH}DHQK{DHQK}DHHV{DHHV}")
-        template_torch_parallel_vs_toch_recurrent_sequence(
+        template_torch_parallel_vs_torch_recurrent_sequence(
             S=S,
             B=B,
             NH=NH,
@@ -195,7 +195,7 @@ class TestRecurrentVsParallelTorch:
         self, test_session_folder, S, B, NH, DHQK, DHHV
     ):
         print(f"S{S}B{B}NH{NH}DHQK{DHQK}DHHV{DHHV}")
-        template_torch_parallel_vs_toch_recurrent_sequence(
+        template_torch_parallel_vs_torch_recurrent_sequence(
             S=S,
             B=B,
             NH=NH,
@@ -216,7 +216,7 @@ class TestRecurrentVsParallelTorch:
         self, test_session_folder, S, B, NH, DHQK, DHHV
     ):
         print(f"S{S}B{B}NH{NH}DHQK{DHQK}DHHV{DHHV}")
-        template_torch_parallel_vs_toch_recurrent_sequence(
+        template_torch_parallel_vs_torch_recurrent_sequence(
             S=S,
             B=B,
             NH=NH,
