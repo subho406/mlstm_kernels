@@ -28,6 +28,7 @@ Variables:
     scaG, g: "go through" gate contribution, contribution of forget gates from C_{k-1} to C_k.
 """
 
+
 ## PyTorch Autograd Function - Boilerplate
 def _mlstm_chunkwise_fwbw_generator(autocast_kernel_dtype=torch.float32) -> Callable:
     class _mlstm_chunkwise_fwbw(torch.autograd.Function):
@@ -283,18 +284,19 @@ def mlstm_chunkwise_torch_ownbw(
 ):
     _mlstm_chunkwise_fwbw = _get_chunkwise_fwbw_kernel(autocast_kernel_dtype)
     matH_out, matC_last, vecN_last, scaM_last = _mlstm_chunkwise_fwbw.apply(
-        matQ=q,
-        matK=k,
-        matV=v,
-        vecI=i,
-        vecF=f,
-        matC_initial=c_initial,
-        vecN_initial=n_initial,
-        scaM_initial=m_initial,
-        return_last_states=return_last_states,
-        return_all_states=False,
-        EPS=eps,
-        CHUNK_SIZE=chunk_size,
+        q,
+        k,
+        v,
+        i,
+        f,
+        c_initial,
+        n_initial,
+        m_initial,
+        None,
+        return_last_states,
+        True,
+        chunk_size,
+        eps,
     )
     if return_last_states:
         return matH_out, (matC_last, vecN_last, scaM_last)
