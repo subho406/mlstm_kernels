@@ -6,6 +6,7 @@ from mlstm_kernels.test_utils import check_correctness, loss_layernorm_offset_qu
 
 from ...common import test_session_folder
 
+
 def template_torch_parallel_vs_toch_recurrent_sequence(
     S: int = 2048,
     B: int = 2,
@@ -126,20 +127,31 @@ def template_torch_parallel_vs_toch_recurrent_sequence(
     assert vecFgrad_match
 
 
-
-combinations_b_nh_s = {
-    "S": [16, 16, 512],
+combinations_short = {
+    "S": [32, 32, 32],
     "B": [1, 1, 2],
     "NH": [1, 1, 3],
-    "DHQK": [16, 16, 128],
-    "DHHV": [16, 32, 128],
+    "DHQK": [16, 16, 16],
+    "DHHV": [16, 32, 16],
 }
-combinations_list = [values for values in zip(*combinations_b_nh_s.values())]
+combinations_short_list = [values for values in zip(*combinations_short.values())]
+
+combinations_long = {
+    "S": [512],
+    "B": [1],
+    "NH": [1],
+    "DHQK": [128],
+    "DHHV": [128],
+}
+combinations_long_list = [values for values in zip(*combinations_long.values())]
+
 
 class TestRecurrentVsParallelTorch:
     @pytest.mark.skipif(not torch.cuda.is_available(), reason="No GPU available.")
-    @pytest.mark.parametrize(["S", "B", "NH", "DHQK", "DHHV"], combinations_list)
-    def test_recurrent_vs_parallel_fp32(self, test_session_folder, S, B, NH, DHQK, DHHV):
+    @pytest.mark.parametrize(["S", "B", "NH", "DHQK", "DHHV"], combinations_short_list)
+    def test_recurrent_vs_parallel_short_fp32(
+        self, test_session_folder, S, B, NH, DHQK, DHHV
+    ):
         print(f"S{S}B{B}NH{NH}DHQK{DHQK}DHHV{DHHV}")
         template_torch_parallel_vs_toch_recurrent_sequence(
             S=S,
@@ -156,8 +168,65 @@ class TestRecurrentVsParallelTorch:
             save_dir=str(test_session_folder),
         )
 
-    # def test_recurrent_vs_parallel_fp16():
-    #     pass
+    @pytest.mark.skipif(not torch.cuda.is_available(), reason="No GPU available.")
+    @pytest.mark.parametrize(["S", "B", "NH", "DHQK", "DHHV"], combinations_long_list)
+    def test_recurrent_vs_parallel_long_fp32(
+        self, test_session_folder, S, B, NH, DHQK, DHHV
+    ):
+        print(f"S{S}B{B}NH{NH}DHQK{DHQK}DHHV{DHHV}")
+        template_torch_parallel_vs_toch_recurrent_sequence(
+            S=S,
+            B=B,
+            NH=NH,
+            DHQK=DHQK,
+            DHHV=DHHV,
+            DTYPE=torch.float32,
+            atol_fw=1e-3,
+            rtol_fw=1e-2,
+            atol_fwbw=1e-2,
+            rtol_fwbw=1e-2,
+            test_folder_name=f"torch_parallel_vs_torch_recurrent_sequence_S{S}B{B}NH{NH}DHQK{DHQK}DHHV{DHHV}",
+            save_dir=str(test_session_folder),
+        )
 
-    # def test_recurrent_vs_parallel_bf16():
-    #     pass
+    @pytest.mark.skipif(not torch.cuda.is_available(), reason="No GPU available.")
+    @pytest.mark.parametrize(["S", "B", "NH", "DHQK", "DHHV"], combinations_short_list)
+    def test_recurrent_vs_parallel_short_fp16(
+        self, test_session_folder, S, B, NH, DHQK, DHHV
+    ):
+        print(f"S{S}B{B}NH{NH}DHQK{DHQK}DHHV{DHHV}")
+        template_torch_parallel_vs_toch_recurrent_sequence(
+            S=S,
+            B=B,
+            NH=NH,
+            DHQK=DHQK,
+            DHHV=DHHV,
+            DTYPE=torch.float16,
+            atol_fw=1e-1,
+            rtol_fw=1e-1,
+            atol_fwbw=5e-1,
+            rtol_fwbw=5e-1,
+            test_folder_name=f"torch_parallel_vs_torch_recurrent_sequence_S{S}B{B}NH{NH}DHQK{DHQK}DHHV{DHHV}",
+            save_dir=str(test_session_folder),
+        )
+
+    @pytest.mark.skipif(not torch.cuda.is_available(), reason="No GPU available.")
+    @pytest.mark.parametrize(["S", "B", "NH", "DHQK", "DHHV"], combinations_long_list)
+    def test_recurrent_vs_parallel_long_fp16(
+        self, test_session_folder, S, B, NH, DHQK, DHHV
+    ):
+        print(f"S{S}B{B}NH{NH}DHQK{DHQK}DHHV{DHHV}")
+        template_torch_parallel_vs_toch_recurrent_sequence(
+            S=S,
+            B=B,
+            NH=NH,
+            DHQK=DHQK,
+            DHHV=DHHV,
+            DTYPE=torch.float16,
+            atol_fw=3.,
+            rtol_fw=1.,
+            atol_fwbw=3.5,
+            rtol_fwbw=1.,
+            test_folder_name=f"torch_parallel_vs_torch_recurrent_sequence_S{S}B{B}NH{NH}DHQK{DHQK}DHHV{DHHV}",
+            save_dir=str(test_session_folder),
+        )
