@@ -17,7 +17,6 @@ def check_correctness(
     test_specifier: str,
     baseline: torch.Tensor,
     target: torch.Tensor,
-    dtype: torch.dtype,
     atol: float = 1e-4,
     rtol: float = 1e-2,
     vmax: float = None,
@@ -28,7 +27,12 @@ def check_correctness(
     assert isinstance(target, torch.Tensor)
 
     assert baseline.shape == target.shape
-    assert baseline.dtype == target.dtype
+
+    dtype = target.dtype
+    
+    # closeness in highest precision
+    baseline = baseline.to(dtype=torch.float64)
+    target = target.to(dtype=torch.float64)
 
     result = torch.allclose(baseline, target, atol=atol, rtol=rtol)
 

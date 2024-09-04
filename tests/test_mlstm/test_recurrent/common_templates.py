@@ -38,7 +38,7 @@ def template_torch_parallel_vs_torch_recurrent_sequence(
     vecI = torch.randn((B, NH, S), dtype=torch.float32, device=DEVICE)
     vecF = torch.randn((B, NH, S), dtype=torch.float32, device=DEVICE)
 
-    baseline_dtype = torch.float32
+    baseline_dtype = torch.float64
     matQ_p_torch_ag = matQ.clone().to(dtype=baseline_dtype).detach().requires_grad_(True)
     matK_p_torch_ag = matK.clone().to(dtype=baseline_dtype).detach().requires_grad_(True)
     matV_p_torch_ag = matV.clone().to(dtype=baseline_dtype).detach().requires_grad_(True)
@@ -91,9 +91,8 @@ def template_torch_parallel_vs_torch_recurrent_sequence(
     # forward checks
     matH_match = check_correctness(
         test_specifier="matH",
-        baseline=matH_p_torch_ag.float(),
-        target=matH_rseq_torch_ag.float(),
-        dtype=matH_rseq_torch_ag.dtype,
+        baseline=matH_p_torch_ag,
+        target=matH_rseq_torch_ag,
         atol=atol_fw,
         rtol=rtol_fw,
         vmax=vmax,
@@ -103,9 +102,8 @@ def template_torch_parallel_vs_torch_recurrent_sequence(
 
     matQgrad_match = check_correctness(
         test_specifier="matQgrad",
-        baseline=matQ_p_torch_ag.grad.float(),
-        target=matQ_rseq_torch_ag.grad.float(),
-        dtype=matQ_rseq_torch_ag.grad.dtype,
+        baseline=matQ_p_torch_ag.grad,
+        target=matQ_rseq_torch_ag.grad,
         atol=atol_fwbw,
         rtol=rtol_fwbw,
         vmax=vmax,
@@ -114,9 +112,8 @@ def template_torch_parallel_vs_torch_recurrent_sequence(
     )
     matKgrad_match = check_correctness(
         test_specifier="matKgrad",
-        baseline=matK_p_torch_ag.grad.float(),
-        target=matK_rseq_torch_ag.grad.float(),
-        dtype=matK_rseq_torch_ag.grad.dtype,
+        baseline=matK_p_torch_ag.grad,
+        target=matK_rseq_torch_ag.grad,
         atol=atol_fwbw,
         rtol=rtol_fwbw,
         vmax=vmax,
@@ -125,9 +122,8 @@ def template_torch_parallel_vs_torch_recurrent_sequence(
     )
     matVgrad_match = check_correctness(
         test_specifier="matVgrad",
-        baseline=matV_p_torch_ag.grad.float(),
-        target=matV_rseq_torch_ag.grad.float(),
-        dtype=matV_rseq_torch_ag.grad.dtype,
+        baseline=matV_p_torch_ag.grad,
+        target=matV_rseq_torch_ag.grad,
         atol=atol_fwbw,
         rtol=rtol_fwbw,
         vmax=vmax,
@@ -136,9 +132,8 @@ def template_torch_parallel_vs_torch_recurrent_sequence(
     )
     vecIgrad_match = check_correctness(
         test_specifier="vecIgrad",
-        baseline=vecI_p_torch_ag.grad.float(),
-        target=vecI_rseq_torch_ag.grad.float(),
-        dtype=vecI_rseq_torch_ag.grad.dtype,
+        baseline=vecI_p_torch_ag.grad,
+        target=vecI_rseq_torch_ag.grad,
         atol=atol_fwbw,
         rtol=rtol_fwbw,
         vmax=vmax,
@@ -146,9 +141,8 @@ def template_torch_parallel_vs_torch_recurrent_sequence(
     )
     vecFgrad_match = check_correctness(
         test_specifier="vecFgrad",
-        baseline=vecF_p_torch_ag.grad.float(),
-        target=vecF_rseq_torch_ag.grad.float(),
-        dtype=vecF_rseq_torch_ag.grad.dtype,
+        baseline=vecF_p_torch_ag.grad,
+        target=vecF_rseq_torch_ag.grad,
         atol=atol_fwbw,
         rtol=rtol_fwbw,
         vmax=vmax,
