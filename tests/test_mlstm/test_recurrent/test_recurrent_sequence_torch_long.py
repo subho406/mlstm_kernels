@@ -4,7 +4,7 @@ import torch
 
 from ...common import test_session_folder
 
-from .common_template import template_torch_parallel_vs_torch_recurrent_sequence
+from .common_templates import template_torch_parallel_vs_torch_recurrent_sequence
 
 
 LOGGER = logging.getLogger(__name__)
