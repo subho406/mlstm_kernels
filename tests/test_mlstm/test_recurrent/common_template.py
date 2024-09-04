@@ -2,6 +2,7 @@ import logging
 import torch
 
 from mlstm_kernels.test_utils import check_correctness, loss_layernorm_offset_quadratic
+from mlstm_kernels.time_utils import Stopwatch
 
 
 LOGGER = logging.getLogger(__name__)
@@ -50,6 +51,8 @@ def template_torch_parallel_vs_torch_recurrent_sequence(
     vecI_rseq_torch_ag = vecI.clone().to(dtype=test_dtype).detach().requires_grad_(True)
     vecF_rseq_torch_ag = vecF.clone().to(dtype=test_dtype).detach().requires_grad_(True)
 
+    sw = Stopwatch()
+    sw.start()
     matH_p_torch_ag = mlstm_parallel_torch_autograd(
         q=matQ_p_torch_ag,
         k=matK_p_torch_ag,
@@ -58,6 +61,15 @@ def template_torch_parallel_vs_torch_recurrent_sequence(
         f=vecF_p_torch_ag,
         eps=EPS,
     )
+    fw_seconds = sw.lap()
+    loss_layernorm_offset_quadratic(matH_p_torch_ag).backward()
+    fwbw_seconds = sw.stop()
+
+    print(f"parallel_torch_ag | fw (ms): {fw_seconds * 1000}, fwbw (ms): {fwbw_seconds * 1000}")
+    LOGGER.info(f"parallel_torch_ag | fw (ms): {fw_seconds * 1000}, fwbw (ms): {fwbw_seconds * 1000}")
+    
+    sw = Stopwatch()
+    sw.start()
     (
         matH_rseq_torch_ag,
         (matC_last_rseq_torch_ag, vecN_last_rseq_torch_ag, scaM_last_rseq_torch_ag),
@@ -70,7 +82,11 @@ def template_torch_parallel_vs_torch_recurrent_sequence(
         return_last_states=True,
         eps=EPS,
     )
-
+    fw_seconds = sw.lap()
+    loss_layernorm_offset_quadratic(matH_rseq_torch_ag).backward()
+    fwbw_seconds = sw.stop()
+    print(f"recurrent_torch_ag | fw (ms): {fw_seconds * 1000}, fwbw (ms): {fwbw_seconds * 1000}")
+    LOGGER.info(f"recurrent_torch_ag | fw (ms): {fw_seconds * 1000}, fwbw (ms): {fwbw_seconds * 1000}")
     # forward checks
     matH_match = check_correctness(
         test_specifier="matH",
@@ -82,9 +98,6 @@ def template_torch_parallel_vs_torch_recurrent_sequence(
         max_num_batchhead_plots=max_num_batchhead_plots,
         savepath=f"{save_dir}/{test_folder_name}",
     )
-
-    loss_layernorm_offset_quadratic(matH_p_torch_ag).backward()
-    loss_layernorm_offset_quadratic(matH_rseq_torch_ag).backward()
 
     matQgrad_match = check_correctness(
         test_specifier="matQgrad",
