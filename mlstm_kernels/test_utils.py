@@ -1,9 +1,12 @@
 from pathlib import Path
 import torch
+import logging
 
 from .plot_utils import plot_numerical_diffs_per_batchhead
 from .components.ln import MultiHeadLayerNorm
 import matplotlib.pyplot as plt
+
+LOGGER = logging.getLogger(__name__)
 
 def check_correctness(
     test_specifier: str,
@@ -34,8 +37,9 @@ def check_correctness(
     else:
         raise ValueError(f"Unsupported dtype: {dtype}")
 
-    title = f"{test_specifier}|{dtype_str}| max diff: {(baseline - target).abs().max()} | allclose(atol={atol},rtol={rtol}): {result}"
+    title = f"{test_specifier:>20}|{dtype_str:>6}| max diff: {(baseline - target).abs().max():>25}| mean diff: {(baseline - target).abs().mean():25} | allclose(atol={atol},rtol={rtol}): {result}"
     print(title)
+    LOGGER.info(title)
     if savepath is not None:
         if vmax is None:
             vmax = atol       
