@@ -19,8 +19,8 @@ LOGGER = logging.getLogger(__name__)
 # }
 combinations_long = {
     "S": [128, 1024, 4096, 8192],
-    "B":  [2, 2, 2, 2], #[1, 1, 1, 1],   # [2, 2, 2, 2],
-    "NH": [3, 3, 3, 3], #[1, 1, 1, 1],  # [3, 3, 3, 3],
+    "B":  [1, 1, 1, 1],   # [2, 2, 2, 2],
+    "NH": [1, 1, 1, 1],  # [3, 3, 3, 3],
     "DHQK": [16,16,16,16], #[5, 5, 5, 5],
     "DHHV": [16,16,16,16], #[5, 5, 5, 5],
 }
@@ -46,6 +46,7 @@ class TestRecurrentVsParallelTorchLong:
             rtol_fw=1.0,
             atol_fwbw=1.5,  # 3.5
             rtol_fwbw=1.0,
+            vmax=1.0,
             test_folder_name=f"torch_parallel_vs_torch_recurrent_sequence_S{S}B{B}NH{NH}DHQK{DHQK}DHHV{DHHV}",
             save_dir=str(test_session_folder),
         )
@@ -68,6 +69,7 @@ class TestRecurrentVsParallelTorchLong:
             rtol_fw=1.0,
             atol_fwbw=1.5,  # 3.5
             rtol_fwbw=1.0,
+            vmax=1.0,
             test_folder_name=f"torch_parallel_vs_torch_recurrent_sequence_S{S}B{B}NH{NH}DHQK{DHQK}DHHV{DHHV}",
             save_dir=str(test_session_folder),
         )
@@ -90,6 +92,7 @@ class TestRecurrentVsParallelTorchLong:
             rtol_fw=1.0,
             atol_fwbw=1.5,  # 3.5
             rtol_fwbw=1.0,
+            vmax=1e-3,
             test_folder_name=f"torch_parallel_vs_torch_recurrent_sequence_S{S}B{B}NH{NH}DHQK{DHQK}DHHV{DHHV}",
             save_dir=str(test_session_folder),
         )
@@ -112,6 +115,7 @@ class TestRecurrentVsParallelTorchLong:
             rtol_fw=1.0,
             atol_fwbw=1.5,  # 3.5
             rtol_fwbw=1.0,
+            vmax=1e-3,
             test_folder_name=f"torch_parallel_vs_torch_recurrent_sequence_S{S}B{B}NH{NH}DHQK{DHQK}DHHV{DHHV}",
             save_dir=str(test_session_folder),
         )

@@ -15,6 +15,7 @@ def check_correctness(
     atol: float = 1e-4,
     rtol: float = 1e-2,
     vmax: float = None,
+    max_num_batchhead_plots: int = -1,
     savepath: str = None,
 ) -> bool:
     assert isinstance(baseline, torch.Tensor)
@@ -50,7 +51,8 @@ def check_correctness(
             vmin=0,
             vmax=vmax,
             rtol=rtol, 
-            atol=atol
+            atol=atol,
+            max_num_batchhead_plots=max_num_batchhead_plots,
         )
         savepath = Path(savepath) / f"{test_specifier}--{dtype_str}"
         savepath.mkdir(parents=True, exist_ok=True)

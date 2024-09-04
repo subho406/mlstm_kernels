@@ -88,12 +88,16 @@ def plot_numerical_diffs_per_batchhead(
     figsize=(10, 6),
     rtol: float = None,
     atol: float = None,
+    max_num_batchhead_plots: int = -1, # -1 means all
 ):
     baseline = baseline.reshape(-1, baseline.shape[-2], baseline.shape[-1])
     if target is not None:
         target = target.reshape(-1, target.shape[-2], target.shape[-1])
 
-    num_batchheads = baseline.shape[0]
+    if max_num_batchhead_plots > 0:
+        num_batchheads = min(max_num_batchhead_plots, baseline.shape[0])
+    else:
+        num_batchheads = baseline.shape[0]
 
     figs = []
     for i in range(num_batchheads):

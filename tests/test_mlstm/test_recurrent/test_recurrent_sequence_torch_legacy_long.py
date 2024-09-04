@@ -29,6 +29,8 @@ def template_torch_parallel_vs_torch_recurrent_sequence(
     atol_fwbw: float = 1e-2,
     rtol_fwbw: float = 1e-2,
     seed: int = 0,
+    vmax: float = None,
+    max_num_batchhead_plots: int = 1, # -1 means all
     test_folder_name: str = "torch_parallel_vs_torch_recurrent_sequence",
     save_dir: str = ".",
 ) -> bool:
@@ -87,6 +89,8 @@ def template_torch_parallel_vs_torch_recurrent_sequence(
         target=matH_rseq_torch_ag,
         atol=atol_fw,
         rtol=rtol_fw,
+        vmax=vmax,
+        max_num_batchhead_plots=max_num_batchhead_plots,
         savepath=f"{save_dir}/{test_folder_name}",
     )
 
@@ -99,6 +103,8 @@ def template_torch_parallel_vs_torch_recurrent_sequence(
         target=matQ_rseq_torch_ag.grad,
         atol=atol_fwbw,
         rtol=rtol_fwbw,
+        vmax=vmax,
+        max_num_batchhead_plots=max_num_batchhead_plots,
         savepath=f"{save_dir}/{test_folder_name}",
     )
     matKgrad_match = check_correctness(
@@ -107,6 +113,8 @@ def template_torch_parallel_vs_torch_recurrent_sequence(
         target=matK_rseq_torch_ag.grad,
         atol=atol_fwbw,
         rtol=rtol_fwbw,
+        vmax=vmax,
+        max_num_batchhead_plots=max_num_batchhead_plots,
         savepath=f"{save_dir}/{test_folder_name}",
     )
     matVgrad_match = check_correctness(
@@ -115,6 +123,7 @@ def template_torch_parallel_vs_torch_recurrent_sequence(
         target=matV_rseq_torch_ag.grad,
         atol=atol_fwbw,
         rtol=rtol_fwbw,
+        max_num_batchhead_plots=max_num_batchhead_plots,
         savepath=f"{save_dir}/{test_folder_name}",
     )
     vecIgrad_match = check_correctness(
@@ -123,6 +132,8 @@ def template_torch_parallel_vs_torch_recurrent_sequence(
         target=vecI_rseq_torch_ag.grad,
         atol=atol_fwbw,
         rtol=rtol_fwbw,
+        vmax=vmax,
+        max_num_batchhead_plots=max_num_batchhead_plots,
         savepath=f"{save_dir}/{test_folder_name}",
     )
     vecFgrad_match = check_correctness(
@@ -131,6 +142,8 @@ def template_torch_parallel_vs_torch_recurrent_sequence(
         target=vecF_rseq_torch_ag.grad,
         atol=atol_fwbw,
         rtol=rtol_fwbw,
+        vmax=vmax,
+        max_num_batchhead_plots=max_num_batchhead_plots,
         savepath=f"{save_dir}/{test_folder_name}",
     )
     assert matH_match
@@ -177,6 +190,7 @@ class TestRecurrentVsParallelTorchLong:
             rtol_fw=1.0,
             atol_fwbw=1.5,  # 3.5
             rtol_fwbw=1.0,
+            vmax=1.0,
             test_folder_name=f"torch_parallel_vs_torch_recurrent_sequence_S{S}B{B}NH{NH}DHQK{DHQK}DHHV{DHHV}",
             save_dir=str(test_session_folder),
         )
@@ -199,6 +213,7 @@ class TestRecurrentVsParallelTorchLong:
             rtol_fw=1.0,
             atol_fwbw=1.5,  # 3.5
             rtol_fwbw=1.0,
+            vmax=1.0,
             test_folder_name=f"torch_parallel_vs_torch_recurrent_sequence_S{S}B{B}NH{NH}DHQK{DHQK}DHHV{DHHV}",
             save_dir=str(test_session_folder),
         )
@@ -221,6 +236,7 @@ class TestRecurrentVsParallelTorchLong:
             rtol_fw=1.0,
             atol_fwbw=1.5,  # 3.5
             rtol_fwbw=1.0,
+            vmax=1e-3,
             test_folder_name=f"torch_parallel_vs_torch_recurrent_sequence_S{S}B{B}NH{NH}DHQK{DHQK}DHHV{DHHV}",
             save_dir=str(test_session_folder),
         )
@@ -243,6 +259,7 @@ class TestRecurrentVsParallelTorchLong:
             rtol_fw=1.0,
             atol_fwbw=1.5,  # 3.5
             rtol_fwbw=1.0,
+            vmax=1e-3,
             test_folder_name=f"torch_parallel_vs_torch_recurrent_sequence_S{S}B{B}NH{NH}DHQK{DHQK}DHHV{DHHV}",
             save_dir=str(test_session_folder),
         )
