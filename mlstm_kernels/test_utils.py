@@ -16,7 +16,8 @@ LOGGER = logging.getLogger(__name__)
 def check_correctness(
     test_specifier: str,
     baseline: torch.Tensor,
-    target=torch.Tensor,
+    target: torch.Tensor,
+    dtype: torch.dtype,
     atol: float = 1e-4,
     rtol: float = 1e-2,
     vmax: float = None,
@@ -30,7 +31,6 @@ def check_correctness(
     assert baseline.dtype == target.dtype
 
     result = torch.allclose(baseline, target, atol=atol, rtol=rtol)
-    dtype = baseline.dtype
 
     if dtype == torch.float32:
         dtype_str = "fp32"
