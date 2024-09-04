@@ -19,7 +19,6 @@ def convert_to_diff_imarray(target: torch.Tensor, baseline: torch.Tensor = None)
         imarr = (
             (target.detach().float() - baseline.detach().float())
             .abs()
-            .squeeze()
             .cpu()
             .numpy()
         )
@@ -70,7 +69,7 @@ def plot_numerical_diffs_single(
 ):
     fig, ax1 = plt.subplots(figsize=figsize)
     pos1 = ax1.imshow(
-        convert_to_diff_imarray(baseline, baseline=target),
+        convert_to_diff_imarray(baseline=baseline, target=target),
         vmin=vmin,
         vmax=vmax,
     )
