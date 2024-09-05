@@ -1,13 +1,13 @@
 # Copyright JKU Linz 2024
 # Author: Maximilian Beck
-import torch
 from typing import Callable
-from torch.amp import custom_fwd, custom_bwd
+
+import torch
+from torch.amp import custom_bwd, custom_fwd
 
 from ....kernel_utils import contiguous
-
-from ._triton_fw import _mlstm_chunkwise_fw
 from ._triton_bw import _mlstm_chunkwise_bw
+from ._triton_fw import _mlstm_chunkwise_fw
 
 """Triton.
 
@@ -27,6 +27,7 @@ Variables:
     vecB, b: backward gate contribution, contribution of forget and input gates up to next chunk state C_k (form current timestep t)
     scaG, g: "go through" gate contribution, contribution of forget gates from C_{k-1} to C_k.
 """
+
 
 ## PyTorch Autograd Function - Boilerplate
 def _mlstm_chunkwise_fwbw_generator(autocast_kernel_dtype=torch.float16) -> Callable:
@@ -173,9 +174,15 @@ def _mlstm_chunkwise_fwbw_generator(autocast_kernel_dtype=torch.float16) -> Call
     return _mlstm_chunkwise_fwbw
 
 
-_mlstm_chunkwise_fwbw_float32 = _mlstm_chunkwise_fwbw_generator(autocast_kernel_dtype=torch.float32)
-_mlstm_chunkwise_fwbw_float16 = _mlstm_chunkwise_fwbw_generator(autocast_kernel_dtype=torch.float16)
-_mlstm_chunkwise_fwbw_bfloat16 = _mlstm_chunkwise_fwbw_generator(autocast_kernel_dtype=torch.bfloat16)
+_mlstm_chunkwise_fwbw_float32 = _mlstm_chunkwise_fwbw_generator(
+    autocast_kernel_dtype=torch.float32
+)
+_mlstm_chunkwise_fwbw_float16 = _mlstm_chunkwise_fwbw_generator(
+    autocast_kernel_dtype=torch.float16
+)
+_mlstm_chunkwise_fwbw_bfloat16 = _mlstm_chunkwise_fwbw_generator(
+    autocast_kernel_dtype=torch.bfloat16
+)
 
 
 def _get_chunkwise_fwbw_kernel(autocast_kernel_dtype: torch.dtype) -> Callable:
@@ -248,18 +255,19 @@ def mlstm_chunkwise_max_triton(
 ):
     _mlstm_chunkwise_fwbw = _get_chunkwise_fwbw_kernel(autocast_kernel_dtype)
     matH_out, matC_last, vecN_last, scaM_last = _mlstm_chunkwise_fwbw.apply(
-        matQ=q,
-        matK=k,
-        matV=v,
-        vecI=i,
-        vecF=f,
-        matC_initial=c_initial,
-        vecN_initial=n_initial,
-        scaM_initial=m_initial,
-        return_last_states=return_last_states,
-        return_all_states=False,
-        EPS=eps,
-        CHUNK_SIZE=chunk_size,
+        q,
+        k,
+        v,
+        i,
+        f,
+        c_initial,
+        n_initial,
+        m_initial,
+        None,
+        return_last_states,
+        True,
+        chunk_size,
+        eps,
     )
     if return_last_states:
         return matH_out, (matC_last, vecN_last, scaM_last)
