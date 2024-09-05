@@ -20,8 +20,8 @@ repos:
   - id: mixed-line-ending
   - id: pretty-format-json
     args: [ --autofix, --no-sort-keys ]
-  - id: name-tests-test
-    args: [ --pytest-test-first ]
+  # - id: name-tests-test
+    # args: [ --pytest-test-first ]
   - id: no-commit-to-branch
   - id: trailing-whitespace
 - repo: https://github.com/asottile/setup-cfg-fmt
