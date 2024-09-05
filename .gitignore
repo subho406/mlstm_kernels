@@ -18,9 +18,11 @@ tests_outputs
 
 <**
 
-*.nsys-rep 
+*.nsys-rep
 *.ncu-rep
 nvidia_nsight/
+
+.ruff_cache
 
 ### DEFAULTS
 # Byte-compiled / optimized / DLL files
