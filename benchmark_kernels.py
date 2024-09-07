@@ -15,10 +15,10 @@ compile: apply torch.compile
 """
 
 #! Parameters
-BENCHMARK_NAME = "kernelbench3"
-BATCH, N_HEADS = 1, 8
-HEAD_DIMS = [64] #[64, 128, 256]
-DTYPE = "float16"
+BENCHMARK_NAME = "kernelspeedbench"
+BATCH, N_HEADS = 1, 4
+HEAD_DIMS = [64, 128, 256, 512]
+DTYPE = "bfloat16"
 #! =================
 
 colors = [
@@ -41,9 +41,7 @@ def create_kernel2style_mapping(kernel_names: list[str]) -> list[tuple[str, str]
     raw_kernel_names = [kernel_name.split("++")[0] for kernel_name in kernel_names]
     raw_kernel_names = list(set(raw_kernel_names))
     # map kernel name to color
-    kernel2color = {
-        kernel_name: color for kernel_name, color in zip(raw_kernel_names, colors)
-    }
+    kernel2color = {kernel_name: color for kernel_name, color in zip(raw_kernel_names, colors)}
     # map kernel name to style
     kernel_names2style = []
     for kernel_name in kernel_names:
@@ -67,7 +65,7 @@ for HEAD_DIM in HEAD_DIMS:
     #     "flash_attention--triton_tutorial++fw",
     # ]
     kernels_to_benchmark = [
-        # "mlstm_parallel--torch_autograd++fwbw++compile",
+        "mlstm_parallel--torch_autograd++fwbw++compile",
         "mlstm_parallel--triton++fwbw",
         "mlstm_chunkwise--triton++fwbw",
         "mlstm_chunkwise--max_triton++fwbw",
@@ -88,7 +86,7 @@ for HEAD_DIM in HEAD_DIMS:
     configs.append(
         triton.testing.Benchmark(
             x_names=["N_CTX"],
-            x_vals=[256, 512, 1024, 2048, 4096],  # [2**i for i in range(10, 15)],
+            x_vals=[256, 512, 1024, 2048, 4096, 8192, 16384],  # [2**i for i in range(10, 15)],
             line_arg="provider",
             line_vals=kernels_to_benchmark,
             line_names=kernels_to_benchmark,
@@ -108,21 +106,15 @@ for HEAD_DIM in HEAD_DIMS:
 def bench_flash_mlstm_fwbw(BATCH, H, N_CTX, HEAD_DIM, provider, device="cuda"):
     warmup = 25
     rep = 100
-    dtype = getattr(torch,DTYPE)
+    dtype = getattr(torch, DTYPE)
 
     # create input tensors
-    q = torch.randn(
-        (BATCH, H, N_CTX, HEAD_DIM), dtype=dtype, device=device, requires_grad=True
-    )
-    k = torch.randn(
-        (BATCH, H, N_CTX, HEAD_DIM), dtype=dtype, device=device, requires_grad=True
-    )
-    v = torch.randn(
-        (BATCH, H, N_CTX, HEAD_DIM), dtype=dtype, device=device, requires_grad=True
-    )
+    q = torch.randn((BATCH, H, N_CTX, HEAD_DIM), dtype=dtype, device=device, requires_grad=True)
+    k = torch.randn((BATCH, H, N_CTX, HEAD_DIM), dtype=dtype, device=device, requires_grad=True)
+    v = torch.randn((BATCH, H, N_CTX, HEAD_DIM), dtype=dtype, device=device, requires_grad=True)
     ig = torch.randn((BATCH, H, N_CTX), dtype=dtype, device=device, requires_grad=True)
     fg = torch.randn((BATCH, H, N_CTX), dtype=dtype, device=device, requires_grad=True)
-    
+
     # only for flash linear attention
     gs = torch.randn((BATCH, H, N_CTX, HEAD_DIM), dtype=dtype, device=device, requires_grad=True)
 
@@ -152,22 +144,26 @@ def bench_flash_mlstm_fwbw(BATCH, H, N_CTX, HEAD_DIM, provider, device="cuda"):
 
     if use_torch_compile:
         kernel_fn = torch.compile(kernel_fn)
-    
+
     def fw_fn():
         return kernel_fn(*inputs)
 
     # fwbw
     if "fwbw" in fwbw_type:
         if "flash_linear_attention" in kernel_name:
+
             def fn():
                 return fw_fn()[0].sum().backward()
         else:
+
             def fn():
                 return fw_fn().sum().backward()
     else:
         fn = fw_fn
-    print(f"Running benchmark for {provider}, with batch size {BATCH}, head size {H}, context size {N_CTX}, head dim {HEAD_DIM}, dtype {DTYPE}")
-    try: 
+    print(
+        f"Running benchmark for {provider}, with batch size {BATCH}, head size {H}, context size {N_CTX}, head dim {HEAD_DIM}, dtype {DTYPE}"
+    )
+    try:
         ms = triton.testing.do_bench(fn, warmup=warmup, rep=rep)
     except Exception as e:
         print(f"Error: {e}")
@@ -176,6 +172,4 @@ def bench_flash_mlstm_fwbw(BATCH, H, N_CTX, HEAD_DIM, provider, device="cuda"):
 
 
 if __name__ == "__main__":
-    bench_flash_mlstm_fwbw.run(
-        save_path=f"./outputs/{BENCHMARK_NAME}", print_data=True
-    )
+    bench_flash_mlstm_fwbw.run(save_path=f"./outputs/{BENCHMARK_NAME}", print_data=True)
