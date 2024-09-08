@@ -8,7 +8,7 @@ repos:
   - id: check-case-conflict
   - id: check-docstring-first
   - id: check-executables-have-shebangs
-  - id: check-json
+  # - id: check-json # TODO want to allow comments in vscode launch.json
   - id: check-shebang-scripts-are-executable
   - id: check-merge-conflict
   - id: check-symlinks
@@ -18,9 +18,9 @@ repos:
   - id: detect-private-key
   - id: end-of-file-fixer
   - id: mixed-line-ending
-  - id: pretty-format-json
-    args: [ --autofix, --no-sort-keys ]
-  # - id: name-tests-test
+  # - id: pretty-format-json
+  #   args: [ --autofix, --no-sort-keys ]
+  # - id: name-tests-test # TODO this odes not allow for other files in tests/ folder
     # args: [ --pytest-test-first ]
   - id: no-commit-to-branch
   - id: trailing-whitespace
@@ -36,8 +36,8 @@ repos:
 - repo: https://github.com/astral-sh/ruff-pre-commit
   rev: v0.6.1
   hooks:
-  - id: ruff
-    types_or: [ python, pyi, jupyter ]
-    args: [ --fix ]
+  # - id: ruff # TODO this does not allow fixtures in pytest
+  #   types_or: [ python, pyi, jupyter ]
+  #   args: [ --fix ]
   - id: ruff-format
     types_or: [ python, pyi, jupyter ]
