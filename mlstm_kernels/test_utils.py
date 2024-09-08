@@ -13,6 +13,19 @@ import matplotlib.pyplot as plt
 LOGGER = logging.getLogger(__name__)
 
 
+def dtype2str(dtype: torch.dtype) -> str:
+    if dtype == torch.float32:
+        return "fp32"
+    elif dtype == torch.float16:
+        return "fp16"
+    elif dtype == torch.float64:
+        return "fp64"
+    elif dtype == torch.bfloat16:
+        return "bf16"
+    else:
+        raise ValueError(f"Unsupported dtype: {dtype}")
+
+
 def check_correctness(
     test_specifier: str,
     baseline: torch.Tensor,
@@ -29,23 +42,14 @@ def check_correctness(
     assert baseline.shape == target.shape
 
     dtype = target.dtype
-    
+
     # closeness in highest precision
     baseline = baseline.to(dtype=torch.float64)
     target = target.to(dtype=torch.float64)
 
     result = torch.allclose(baseline, target, atol=atol, rtol=rtol)
 
-    if dtype == torch.float32:
-        dtype_str = "fp32"
-    elif dtype == torch.float16:
-        dtype_str = "fp16"
-    elif dtype == torch.float64:
-        dtype_str = "fp64"
-    elif dtype == torch.bfloat16:
-        dtype_str = "bf16"
-    else:
-        raise ValueError(f"Unsupported dtype: {dtype}")
+    dtype_str = dtype2str(dtype)
 
     title = f"{test_specifier:>20}|{dtype_str:>6}| max diff: {(baseline - target).abs().max():>25}| mean diff: {(baseline - target).abs().mean():25} | allclose(atol={atol},rtol={rtol}): {result}"
     print(title)
@@ -73,10 +77,10 @@ def check_correctness(
         figs = plot_error_statistics_over_time_per_batchhead(
             errors=compute_errors_per_batchhead(baseline=baseline, target=target),
             percentiles=[50, 90, 100],
-            add_mean=True, 
+            add_mean=True,
             title=f"{test_specifier}|{dtype_str}",
             ema_alpha=0.02,
-            max_num_batchhead_plots=max_num_batchhead_plots
+            max_num_batchhead_plots=max_num_batchhead_plots,
         )
 
         for i, fig in enumerate(figs):

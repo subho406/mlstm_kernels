@@ -4,6 +4,7 @@ import torch
 from itertools import product
 
 from ..common_templates import template_test_parallel_interface
+from ...common import test_session_folder  # noqa
 
 from mlstm_kernels.mlstm.parallel import (
     mlstm_parallel_torch_autograd,
@@ -50,7 +51,7 @@ class TestParallelStableTorchVsParallelTorchLong:
     @pytest.mark.parametrize(
         ["S", "B", "NH", "DHQK", "DHHV", "target_dtype"], final_combinations
     )
-    def test_torch_parallel_stable_vs_unstable_fp64baseline(
+    def test_torch_parallel_stable_vs_unstable(
         self, test_session_folder, S, B, NH, DHQK, DHHV, target_dtype
     ):
         print(f"S{S}B{B}NH{NH}DHQK{DHQK}DHHV{DHHV}")
@@ -65,42 +66,12 @@ class TestParallelStableTorchVsParallelTorchLong:
             DHQK=DHQK,
             DHHV=DHHV,
             dtype=getattr(torch, target_dtype),
-            baseline_dtype=torch.float64,
             atol_fw=1.0,  # 3.0
             rtol_fw=1.0,
             atol_fwbw=1.5,  # 3.5
             rtol_fwbw=1.0,
             vmax=1.0,
-            test_folder_name_prefix="fp64bl_parallel-torch",
+            test_folder_name_prefix="parallel-torch",
             save_dir=str(test_session_folder),
-        )
-
-    @pytest.mark.skipif(not torch.cuda.is_available(), reason="No GPU available.")
-    @pytest.mark.xfail(reason="Fails due to numerical instability")
-    @pytest.mark.parametrize(
-        ["S", "B", "NH", "DHQK", "DHHV", "target_dtype"], final_combinations
-    )
-    def test_torch_parallel_stable_vs_unstable_samedtype(
-        self, test_session_folder, S, B, NH, DHQK, DHHV, target_dtype
-    ):
-        print(f"S{S}B{B}NH{NH}DHQK{DHQK}DHHV{DHHV}")
-        template_test_parallel_interface(
-            baseline_fn=mlstm_parallel_stable_torch_autograd,
-            target_fn=mlstm_parallel_torch_autograd,
-            baseline_name="stable_ag",
-            target_name="unstable_ag",
-            S=S,
-            B=B,
-            NH=NH,
-            DHQK=DHQK,
-            DHHV=DHHV,
-            dtype=getattr(torch, target_dtype),
-            baseline_dtype=None,
-            atol_fw=1.0,  # 3.0
-            rtol_fw=1.0,
-            atol_fwbw=1.5,  # 3.5
-            rtol_fwbw=1.0,
-            vmax=1.0,
-            test_folder_name_prefix="samedtype_parallel-torch",
-            save_dir=str(test_session_folder),
+            add_fp64_baseline=True,
         )

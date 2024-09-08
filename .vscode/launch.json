@@ -17,7 +17,7 @@
             "justMyCode": false,
             "args": [
                 // "-cn",
-                "${workspaceFolder}/tests/test_mlstm/test_recurrent/test_recurrent_sequence_torch_legacy_long.py",
+                "${workspaceFolder}/tests/test_mlstm/test_parallel/test_parallel_torch.py",
             ],
             "env": {
                 "CUDA_VISIBLE_DEVICES": "0",
