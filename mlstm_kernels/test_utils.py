@@ -1,6 +1,7 @@
 from pathlib import Path
 import torch
 import logging
+import numpy as np
 
 from .plot_utils import (
     plot_numerical_diffs_per_batchhead,
@@ -34,6 +35,7 @@ def check_correctness(
     rtol: float = 1e-2,
     vmax: float = None,
     max_num_batchhead_plots: int = -1,
+    percentiles: list = [50, 90, 100],
     savepath: str = None,
 ) -> bool:
     assert isinstance(baseline, torch.Tensor)
@@ -51,7 +53,22 @@ def check_correctness(
 
     dtype_str = dtype2str(dtype)
 
-    title = f"{test_specifier:>20}|{dtype_str:>6}| max diff: {(baseline - target).abs().max():>25}| mean diff: {(baseline - target).abs().mean():25} | allclose(atol={atol},rtol={rtol}): {result}"
+    errors = (baseline.detach() - target.detach()).abs()
+    errors_np = errors.cpu().numpy()
+
+    error_percentiles = np.percentile(errors_np, percentiles)
+
+    def make_percentile_str(error_percentiles: np.ndarray, percentiles: int) -> str:
+        percentile_str = ""
+        for i, percentile in enumerate(percentiles):
+            percentile_str += f"p{percentile:<3}: {error_percentiles[i]:>5.5e}"
+            if i < len(percentiles) - 1:
+                percentile_str += "|"
+        return percentile_str
+
+    # title = f"{test_specifier:>20}|{dtype_str:>6}| max diff: {(baseline - target).abs().max():>25}| mean diff: {(baseline - target).abs().mean():25} | allclose(atol={atol},rtol={rtol}): {result}"
+    title = f"{test_specifier:>20}|{dtype_str:>6}| diff: {make_percentile_str(error_percentiles, percentiles):>55} | mean diff: {errors.mean():25} | allclose(atol={atol},rtol={rtol}): {result} | max abs bl: {baseline.abs().max():7.6f} | max abs tg: {target.abs().max():.5}"
+
     print(title)
     LOGGER.info(title)
     if savepath is not None:
