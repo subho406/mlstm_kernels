@@ -4,6 +4,7 @@ from datetime import datetime
 import logging
 import sys
 
+
 @pytest.fixture(scope="session")
 def test_session_folder() -> Path:
     timestamp = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
@@ -16,9 +17,9 @@ def test_session_folder() -> Path:
     stdout_handler = logging.StreamHandler(sys.stdout)
     logging.basicConfig(
         handlers=[file_handler],
-        format='%(asctime)s %(levelname)s %(message)s',
+        format="%(asctime)s %(levelname)s %(message)s",
         level=logging.INFO,
-        force=True
+        force=True,
     )
     LOGGER = logging.getLogger(__name__)
     LOGGER.info(f"Logging to {logfile}")

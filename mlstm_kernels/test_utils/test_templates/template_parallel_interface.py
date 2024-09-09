@@ -1,11 +1,9 @@
 import logging
 import torch
 from collections.abc import Callable
-from mlstm_kernels.test_utils import (
-    check_correctness,
-    loss_layernorm_offset_quadratic,
-    dtype2str,
-)
+from ..checks import check_correctness
+from ...torch_utils import dtype2str
+from ..test_losses import loss_layernorm_offset_quadratic
 from mlstm_kernels.time_utils import Stopwatch
 
 

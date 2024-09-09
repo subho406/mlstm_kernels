@@ -3,28 +3,16 @@ import torch
 import logging
 import numpy as np
 
-from .plot_utils import (
+from ..plot_utils import (
     plot_numerical_diffs_per_batchhead,
     plot_error_statistics_over_time_per_batchhead,
     compute_errors_per_batchhead,
 )
-from .components.ln import MultiHeadLayerNorm
 import matplotlib.pyplot as plt
 
+from ..torch_utils import dtype2str
+
 LOGGER = logging.getLogger(__name__)
-
-
-def dtype2str(dtype: torch.dtype) -> str:
-    if dtype == torch.float32:
-        return "fp32"
-    elif dtype == torch.float16:
-        return "fp16"
-    elif dtype == torch.float64:
-        return "fp64"
-    elif dtype == torch.bfloat16:
-        return "bf16"
-    else:
-        raise ValueError(f"Unsupported dtype: {dtype}")
 
 
 def check_correctness(
@@ -105,17 +93,3 @@ def check_correctness(
             plt.close()
 
     return result
-
-
-def loss_layernorm_offset_quadratic(
-    input_tensor: torch.Tensor, seed: int = 0, eps: float = 1e-6
-) -> torch.Tensor:
-    torch.manual_seed(seed)
-    offset = torch.randn_like(input_tensor)
-    assert len(input_tensor.shape) == 4
-    ndim = input_tensor.shape[1] * input_tensor.shape[-1]  # NH * DHV
-    mh_layernorm = MultiHeadLayerNorm(ndim=ndim, eps=eps).to(input_tensor.device)
-    input_tensor_scaled = mh_layernorm(input_tensor)
-
-    loss = ((input_tensor_scaled + offset) ** 2).sum()
-    return loss
