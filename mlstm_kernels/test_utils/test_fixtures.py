@@ -4,10 +4,18 @@ from datetime import datetime
 import logging
 import sys
 
+# We declare this here globally to enforca that there is only one timestamp per test session
+TIMESTAMP = None
+
 
 @pytest.fixture(scope="session")
 def test_session_folder() -> Path:
-    timestamp = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
+    global TIMESTAMP
+    if TIMESTAMP is None:
+        TIMESTAMP = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
+
+    timestamp = TIMESTAMP
+
     test_output_folder = Path(__file__).parents[2] / "tests_outputs" / timestamp
 
     test_output_folder.mkdir(parents=True, exist_ok=True)
