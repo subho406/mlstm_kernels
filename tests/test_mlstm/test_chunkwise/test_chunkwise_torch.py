@@ -25,7 +25,7 @@ class TestChunkwiseTorchAgVsStableTorchLong:
     @pytest.mark.parametrize(
         ["S", "B", "NH", "DHQK", "DHHV", "target_dtype"], final_combinations
     )
-    def test_torch_parallel_triton_vs_stable_torch(
+    def test_chunkwise_torch_vs_stable_torch(
         self, test_session_folder, S, B, NH, DHQK, DHHV, target_dtype
     ):
         print(f"S{S}B{B}NH{NH}DHQK{DHQK}DHHV{DHHV}")
@@ -57,7 +57,7 @@ class TestChunkwiseTorchAgVsUnstableTorchLong:
     @pytest.mark.parametrize(
         ["S", "B", "NH", "DHQK", "DHHV", "target_dtype"], final_combinations
     )
-    def test_torch_parallel_triton_vs_unstable_torch(
+    def test_chunkwise_torch_vs_unstable_torch(
         self, test_session_folder, S, B, NH, DHQK, DHHV, target_dtype
     ):
         print(f"S{S}B{B}NH{NH}DHQK{DHQK}DHHV{DHHV}")
