@@ -1,5 +1,6 @@
 import logging
 import torch
+from typing import Optional
 from collections.abc import Callable
 from ..checks import check_correctness
 from ...torch_utils import dtype2str
@@ -33,7 +34,8 @@ def template_test_parallel_interface(
     test_folder_name_prefix: str = "torch_parallel_vs_torch_recurrent_sequence",
     save_dir: str = ".",
     add_fp64_baseline: bool = True,  # whether to check against a fp64 baseline too
-) -> bool:
+    return_output_tensors: bool = False,
+) -> tuple[torch.Tensor, ...] | None:
     """This is a generic test function that tests the parallel interface of the mLSTM.
     It tests the outputs and gradients.
     """
@@ -293,3 +295,21 @@ def template_test_parallel_interface(
         assert matVgrad_match_bl_fp64
         assert vecIgrad_match_bl_fp64
         assert vecFgrad_match_bl_fp64
+
+    if return_output_tensors:
+        return (
+            matH_baseline,
+            matQ_baseline.grad,
+            matK_baseline.grad,
+            matV_baseline.grad,
+            vecI_baseline.grad,
+            vecF_baseline.grad,
+            matH_target,
+            matQ_target.grad,
+            matK_target.grad,
+            matV_target.grad,
+            vecI_target.grad,
+            vecF_target.grad,
+        )
+    else:
+        return None
