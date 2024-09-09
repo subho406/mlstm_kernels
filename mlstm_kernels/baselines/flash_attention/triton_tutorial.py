@@ -13,16 +13,20 @@ Extra Credits:
 
 """
 
+import functools
+import math
+
 import pytest
 import torch
 import triton
 import triton.language as tl
-import functools
-import math
 
 
 def is_hip():
-    return triton.runtime.driver.active.get_current_target().backend == "hip"
+    try:
+        return triton.runtime.driver.active.get_current_target().backend == "hip"
+    except:
+        return False
 
 
 @triton.jit
@@ -250,7 +254,14 @@ def _attn_fwd(
 
 @triton.jit
 def _attn_bwd_preprocess(
-    O, DO, Delta, Z, H, N_CTX, BLOCK_M: tl.constexpr, HEAD_DIM: tl.constexpr  #  #  #  #
+    O,
+    DO,
+    Delta,
+    Z,
+    H,
+    N_CTX,
+    BLOCK_M: tl.constexpr,
+    HEAD_DIM: tl.constexpr,  #  #  #  #
 ):
     off_m = tl.program_id(0) * BLOCK_M + tl.arange(0, BLOCK_M)
     off_hz = tl.program_id(1)
@@ -581,7 +592,6 @@ def _attn_bwd(
 
 
 class _attention(torch.autograd.Function):
-
     @staticmethod
     def forward(ctx, q, k, v, causal, scale):
         # shape constraints
@@ -709,6 +719,7 @@ class _attention(torch.autograd.Function):
 
 
 attention = _attention.apply
+
 
 def attention_causal(q, k, v, scale=None):
     return attention(q, k, v, True, scale)
