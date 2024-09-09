@@ -23,7 +23,7 @@ def check_correctness(
     rtol: float = 1e-2,
     vmax: float = None,
     max_num_batchhead_plots: int = -1,
-    percentiles: list = [50, 90, 100],
+    percentiles: list = [50, 90],
     savepath: str = None,
 ) -> bool:
     assert isinstance(baseline, torch.Tensor)
@@ -55,7 +55,7 @@ def check_correctness(
         return percentile_str
 
     # title = f"{test_specifier:>20}|{dtype_str:>6}| max diff: {(baseline - target).abs().max():>25}| mean diff: {(baseline - target).abs().mean():25} | allclose(atol={atol},rtol={rtol}): {result}"
-    title = f"{test_specifier:>20}|{dtype_str:>6}| diff: {make_percentile_str(error_percentiles, percentiles):>55} | mean diff: {errors.mean():25} | allclose(atol={atol},rtol={rtol}): {result} | max abs bl: {baseline.abs().max():7.6f} | max abs tg: {target.abs().max():.5}"
+    title = f"{test_specifier:>20}|{dtype_str:>6}| diff: {make_percentile_str(error_percentiles, percentiles):>35} | maxdiff: {errors.max():25} | meandiff: {errors.mean():25} | allclose(atol={atol},rtol={rtol}): {result} | max abs bl: {baseline.abs().max():7.6f} | max abs tg: {target.abs().max():.5}"
 
     print(title)
     LOGGER.info(title)
