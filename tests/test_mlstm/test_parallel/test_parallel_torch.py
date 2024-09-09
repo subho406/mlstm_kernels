@@ -17,6 +17,9 @@ from ..test_params import final_combinations
 LOGGER = logging.getLogger(__name__)
 
 
+TEST_FOLDER_NAME_PREFIX = "parallel-torch"
+
+
 class TestParallelStableTorchVsParallelTorchLong:
     @pytest.mark.skipif(not torch.cuda.is_available(), reason="No GPU available.")
     @pytest.mark.xfail(reason="Fails due to numerical instability")
@@ -43,7 +46,7 @@ class TestParallelStableTorchVsParallelTorchLong:
             atol_fwbw=1.5,  # 3.5
             rtol_fwbw=1.0,
             vmax=1.0,
-            test_folder_name_prefix="parallel-torch",
+            test_folder_name_prefix=TEST_FOLDER_NAME_PREFIX,
             save_dir=str(test_session_folder),
             add_fp64_baseline=True,
         )

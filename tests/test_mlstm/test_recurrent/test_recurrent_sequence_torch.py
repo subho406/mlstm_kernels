@@ -17,6 +17,8 @@ from ..test_params import final_combinations
 
 LOGGER = logging.getLogger(__name__)
 
+TEST_FOLDER_NAME_PREFIX = "recurrent_seq-torch"
+
 
 class TestRecurrentSequenceTorchVsStableTorchLong:
     @pytest.mark.skipif(not torch.cuda.is_available(), reason="No GPU available.")
@@ -44,7 +46,7 @@ class TestRecurrentSequenceTorchVsStableTorchLong:
             atol_fwbw=1.5,  # 3.5
             rtol_fwbw=1.0,
             vmax=1.0,
-            test_folder_name_prefix="recurrent_sequence-torch",
+            test_folder_name_prefix=TEST_FOLDER_NAME_PREFIX,
             save_dir=str(test_session_folder),
             add_fp64_baseline=True,
         )
@@ -76,7 +78,7 @@ class TestRecurrentSequenceTorchTritonVsUnstableTorchLong:
             atol_fwbw=1.5,  # 3.5
             rtol_fwbw=1.0,
             vmax=1.0,
-            test_folder_name_prefix="recurrent_sequence",
+            test_folder_name_prefix=TEST_FOLDER_NAME_PREFIX,
             save_dir=str(test_session_folder),
             add_fp64_baseline=True,
         )
