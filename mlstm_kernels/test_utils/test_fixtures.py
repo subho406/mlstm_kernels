@@ -8,7 +8,7 @@ import sys
 @pytest.fixture(scope="session")
 def test_session_folder() -> Path:
     timestamp = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
-    test_output_folder = Path(__file__).parents[1] / "tests_outputs" / timestamp
+    test_output_folder = Path(__file__).parents[2] / "tests_outputs" / timestamp
 
     test_output_folder.mkdir(parents=True, exist_ok=True)
 
