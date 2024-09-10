@@ -8,8 +8,8 @@ from .triton_fwbw import mlstm_fwbw as mlstm_chunkwise_triton
 registry = {
     "torch_autograd": mlstm_chunkwise_torch_autograd,
     "torch_ownbw": mlstm_chunkwise_torch_ownbw,
-    "max_triton": mlstm_chunkwise_max_triton,
-    "max_triton_v1": mlstm_chunkwise_max_triton_v1,
-    "max_triton_v2": mlstm_chunkwise_max_triton_v2,
+    "max_triton": mlstm_chunkwise_max_triton,  # fgate cumsum in dtype, intermediate states in dtype (kernel_dtype, e.g. float16, bfloat16)
+    "max_triton_v1": mlstm_chunkwise_max_triton_v1,  # fgate cumsum in float32, intermediate states in float32
+    "max_triton_v2": mlstm_chunkwise_max_triton_v2,  # fgate cumsum in float32, intermediate states in dtype (kernel_dtype, e.g. float16, bfloat16)
     "triton": mlstm_chunkwise_triton,  # TODO integrate newest version
 }
