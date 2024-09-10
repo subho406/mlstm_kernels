@@ -416,9 +416,7 @@ def _mlstm_chunkwise__parallel_bw_dQKV_kernel(
     )  # (L, siz_b_DHQK)
 
     vecN_out_ptr = vecN_out + idx_b_BNH * S + idx_b_NC * L + tl.arange(0, L)
-    vecN_out_val = tl.load(vecN_out_ptr).to(
-        tl.float32
-    )  # (L,) # TODO from here on keep this in higher precision
+    vecN_out_val = tl.load(vecN_out_ptr).to(tl.float32)  # (L,)
     matDeltaQ_inter_val = tl.zeros((L, siz_b_DHQK), dtype=tl.float32)
     matDeltaK_inter_val = tl.zeros((L, siz_b_DHQK), dtype=tl.float32)
     matDeltaSbar_val = tl.zeros((L, L), dtype=tl.float32)
@@ -517,7 +515,6 @@ def _mlstm_chunkwise__parallel_bw_dQKV_kernel(
             matDeltaV_val.to(matDeltaV_ptr.dtype.element_ty),
             boundary_check=(0, 1),
         )
-    # TODO from here: divide by n in the loop above
     matDeltaQ_inter_val = (
         matDeltaQ_inter_val * vecBbar_val[:, None] / (vecN_out_val[:, None] + EPS)
     )
@@ -746,7 +743,7 @@ def _mlstm_chunkwise_bw(
         EPS=EPS,
     )  # (B, NH, NC * DHQK, DHV)
 
-    print("matDeltaC_states", matDeltaC_states.shape, matDeltaC_states.dtype)
+    # print("matDeltaC_states", matDeltaC_states.shape, matDeltaC_states.dtype)
 
     #! parallel backward: compute the deltaQ, deltaK, deltaV, deltaI gradients
     matC_k_states = matC_all[:, :, :-DHQK, :]  # take the first NC states
