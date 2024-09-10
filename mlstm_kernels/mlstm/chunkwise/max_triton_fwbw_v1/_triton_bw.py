@@ -136,7 +136,7 @@ def _mlstm_chunkwise__recurrent_bw_dC_kernel(
 
         # * store matDeltaC_k_val from previous iteration in HBM
         tl.store(
-            matDeltaCstates_k_ptr, matDeltaC_k_val.to(DTYPE), boundary_check=(0, 1)
+            matDeltaCstates_k_ptr, matDeltaC_k_val.to(tl.float32), boundary_check=(0, 1)
         )
 
         # * compute matDeltaC_km1_val
@@ -196,7 +196,9 @@ def _mlstm_chunkwise__recurrent_bw_dC_kernel(
         block_shape=(siz_b_DHQK, siz_b_DHHV),
         order=(1, 0),
     )
-    tl.store(matDeltaCstates_0_ptr, matDeltaC_k_val.to(DTYPE), boundary_check=(0, 1))
+    tl.store(
+        matDeltaCstates_0_ptr, matDeltaC_k_val.to(tl.float32), boundary_check=(0, 1)
+    )
 
 
 @contiguous_noctx
@@ -230,7 +232,7 @@ def _mlstm_chunkwise__recurrent_bw_dC(
     USE_LAST_STATE = matDeltaC_last is not None
 
     matDeltaC_states = torch.zeros(
-        (B, NH, (NC + 1) * DHQK, DHHV), dtype=_dtype, device=_device
+        (B, NH, (NC + 1) * DHQK, DHHV), dtype=torch.float32, device=_device
     )
 
     siz_b_DHQK = min(64, triton.next_power_of_2(DHQK))
@@ -414,7 +416,9 @@ def _mlstm_chunkwise__parallel_bw_dQKV_kernel(
     )  # (L, siz_b_DHQK)
 
     vecN_out_ptr = vecN_out + idx_b_BNH * S + idx_b_NC * L + tl.arange(0, L)
-    vecN_out_val = tl.load(vecN_out_ptr).to(tl.float32)  # (L,)
+    vecN_out_val = tl.load(vecN_out_ptr).to(
+        tl.float32
+    )  # (L,) # TODO from here on keep this in higher precision
     matDeltaQ_inter_val = tl.zeros((L, siz_b_DHQK), dtype=tl.float32)
     matDeltaK_inter_val = tl.zeros((L, siz_b_DHQK), dtype=tl.float32)
     matDeltaSbar_val = tl.zeros((L, L), dtype=tl.float32)
@@ -489,12 +493,12 @@ def _mlstm_chunkwise__parallel_bw_dQKV_kernel(
         )  # (L, siz_b_DHQK)
 
         # [inter] matDeltaQ += matDeltaH @ matC_km1.transpose() * vecBbar
-        matC_km1_val = tl.load(
-            matC_km1_ptr, boundary_check=(0, 1)
+        matC_km1_val = tl.load(matC_km1_ptr, boundary_check=(0, 1)).to(
+            DTYPE
         )  # (siz_b_DHHV, siz_b_DHQK)
         matDeltaQ_inter_val += (
             tl.dot((matDeltaH_val).to(DTYPE), matC_km1_val) * qk_scale
-        ).to(DTYPE)  # (L, siz_b_DHQK)
+        )  # (L, siz_b_DHQK)
 
         # [intra] matDeltaS += (matDeltaH @ matV.transpose()) * matDbar
         matDeltaSbar_val += tl.dot(
@@ -513,7 +517,7 @@ def _mlstm_chunkwise__parallel_bw_dQKV_kernel(
             matDeltaV_val.to(matDeltaV_ptr.dtype.element_ty),
             boundary_check=(0, 1),
         )
-
+    # TODO from here: divide by n in the loop above
     matDeltaQ_inter_val = (
         matDeltaQ_inter_val * vecBbar_val[:, None] / (vecN_out_val[:, None] + EPS)
     )
@@ -703,7 +707,7 @@ def _mlstm_chunkwise_bw(
         qk_scale = DHQK**-0.5
 
     vecI = rearrange(vecI, "b nh (nc l) -> b nh nc l", l=CHUNK_SIZE)
-    vecF = rearrange(vecF, "b nh (nc l) -> b nh nc l", l=CHUNK_SIZE)
+    vecF = rearrange(vecF, "b nh (nc l) -> b nh nc l", l=CHUNK_SIZE).to(torch.float32)
 
     # compute the gates, the g and the a and b vectors
     vecF_logsig = F.logsigmoid(vecF)
@@ -742,6 +746,8 @@ def _mlstm_chunkwise_bw(
         EPS=EPS,
     )  # (B, NH, NC * DHQK, DHV)
 
+    print("matDeltaC_states", matDeltaC_states.shape, matDeltaC_states.dtype)
+
     #! parallel backward: compute the deltaQ, deltaK, deltaV, deltaI gradients
     matC_k_states = matC_all[:, :, :-DHQK, :]  # take the first NC states
 
@@ -770,7 +776,7 @@ def _mlstm_chunkwise_bw(
     vecF = rearrange(vecF, "b nh nc l -> b nh (nc l)")
     # compute the vecDeltaFbar values with dfbar = rev_cumsum((q*dq - k*dk).sum(-1))
     vecDeltaFbar_acc = (matQ * matDeltaQ - matK * matDeltaK).sum(-1)
-    vecDeltaFbar = vecDeltaFbar_acc.flip(-1).cumsum(-1).flip(-1)
+    vecDeltaFbar = vecDeltaFbar_acc.flip(-1).to(torch.float32).cumsum(-1).flip(-1)
     vecDeltaF = vecDeltaFbar * torch.sigmoid(-vecF)
     ## ? end postprocessing
     # compute deltaI
