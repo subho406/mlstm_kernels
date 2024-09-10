@@ -726,6 +726,8 @@ def _mlstm_chunkwise_bw(
             NUM_CHUNKS=NC,
         )
 
+    # print("matC_all", matC_all.shape, matC_all.dtype)
+
     #! recurrent backward: compute the deltaC gradients
     matDeltaC_states = _mlstm_chunkwise__recurrent_bw_dC(
         matQ=matQ,  # (B, NH, S, DHQK)
@@ -740,6 +742,8 @@ def _mlstm_chunkwise_bw(
         NUM_CHUNKS=NC,
         EPS=EPS,
     )  # (B, NH, NC * DHQK, DHV)
+
+    # print("matDeltaC_states", matDeltaC_states.shape, matDeltaC_states.dtype)
 
     #! parallel backward: compute the deltaQ, deltaK, deltaV, deltaI gradients
     matC_k_states = matC_all[:, :, :-DHQK, :]  # take the first NC states

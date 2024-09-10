@@ -30,7 +30,6 @@ from ._triton_fw import _mlstm_chunkwise__recurrent_fw_C
 #     vecB, b: backward gate contribution, contribution of forget and input gates up to next chunk state C_k (form current timestep t)
 #     scaG, g: "go through" gate contribution, contribution of forget gates from C_{k-1} to C_k.
 #     matD, D: gating matrix for the parallel form.
-#
 
 
 @triton.jit
@@ -727,6 +726,8 @@ def _mlstm_chunkwise_bw(
             CHUNK_SIZE=CHUNK_SIZE,
             NUM_CHUNKS=NC,
         )
+
+    # print("matC_all", matC_all.shape, matC_all.dtype)
 
     #! recurrent backward: compute the deltaC gradients
     matDeltaC_states = _mlstm_chunkwise__recurrent_bw_dC(

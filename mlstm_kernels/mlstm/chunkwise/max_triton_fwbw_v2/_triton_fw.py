@@ -698,6 +698,7 @@ def _mlstm_chunkwise_fw(
         CHUNK_SIZE=CHUNK_SIZE,
         NUM_CHUNKS=NC,
     )
+    # print("matC_k_states - fw_C", matC_k_states.shape, matC_k_states.dtype)
 
     #! compute the outputs within each chunk
     matH_out, vecN_out, vecM_out = _mlstm_chunkwise__parallel_fw_H(

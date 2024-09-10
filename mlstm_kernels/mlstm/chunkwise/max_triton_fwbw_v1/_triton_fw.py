@@ -187,13 +187,13 @@ def _mlstm_chunkwise__recurrent_fw_C_kernel(
 
         # load matK_k, matV_k
         matK_k_val = tl.load(matK_k_ptr, boundary_check=(0, 1)).to(tl.float32)
-        matV_k_val = tl.load(matV_k_ptr, boundary_check=(0, 1)).to(tl.float32)
+        matV_k_val = tl.load(matV_k_ptr, boundary_check=(0, 1)).to(DTYPE)
 
         # matC_k update
         vecAbar_k_val = tl.exp(vecA_k_val - scaMinter_next_val)
         scaGbar_k_val = tl.exp(scaG_k_val + scaMinter_k_val - scaMinter_next_val)
 
-        matKbar_k_val = (matK_k_val * vecAbar_k_val[None, :]).to(tl.float32)
+        matKbar_k_val = (matK_k_val * vecAbar_k_val[None, :]).to(DTYPE)
 
         matC_k_val = scaGbar_k_val * matC_k_val + tl.dot(matKbar_k_val, matV_k_val)
 
@@ -477,7 +477,7 @@ def _mlstm_chunkwise_parallel_fw_H_kernel(
         matK_val = tl.load(matK_ptr, boundary_check=(0, 1)).to(DTYPE)
 
         # accumulate matS (L, L)
-        matS_val += tl.dot(matQ_val, matK_val).to(tl.float32) * qk_scale
+        matS_val += tl.dot(matQ_val, matK_val) * qk_scale
 
         # compute matQbar (L, siz_b_DHQK)
         # tl.static_print("matQ_val", matQ_val)
@@ -701,7 +701,7 @@ def _mlstm_chunkwise_fw(
         CHUNK_SIZE=CHUNK_SIZE,
         NUM_CHUNKS=NC,
     )
-    print("matC_k_states - fw_C", matC_k_states.shape, matC_k_states.dtype)
+    # print("matC_k_states - fw_C", matC_k_states.shape, matC_k_states.dtype)
 
     #! compute the outputs within each chunk
     matH_out, vecN_out, vecM_out = _mlstm_chunkwise__parallel_fw_H(
