@@ -135,7 +135,7 @@ def _mlstm_chunkwise__recurrent_bw_dC_kernel(
 
         # * store matDeltaC_k_val from previous iteration in HBM
         tl.store(
-            matDeltaCstates_k_ptr, matDeltaC_k_val.to(DTYPE), boundary_check=(0, 1)
+            matDeltaCstates_k_ptr, matDeltaC_k_val.to(tl.float32), boundary_check=(0, 1)
         )
 
         # * compute matDeltaC_km1_val
@@ -195,7 +195,9 @@ def _mlstm_chunkwise__recurrent_bw_dC_kernel(
         block_shape=(siz_b_DHQK, siz_b_DHHV),
         order=(1, 0),
     )
-    tl.store(matDeltaCstates_0_ptr, matDeltaC_k_val.to(DTYPE), boundary_check=(0, 1))
+    tl.store(
+        matDeltaCstates_0_ptr, matDeltaC_k_val.to(tl.float32), boundary_check=(0, 1)
+    )
 
 
 @contiguous_noctx
@@ -229,7 +231,7 @@ def _mlstm_chunkwise__recurrent_bw_dC(
     USE_LAST_STATE = matDeltaC_last is not None
 
     matDeltaC_states = torch.zeros(
-        (B, NH, (NC + 1) * DHQK, DHHV), dtype=_dtype, device=_device
+        (B, NH, (NC + 1) * DHQK, DHHV), dtype=torch.float32, device=_device
     )
 
     siz_b_DHQK = min(64, triton.next_power_of_2(DHQK))
@@ -488,12 +490,12 @@ def _mlstm_chunkwise__parallel_bw_dQKV_kernel(
         )  # (L, siz_b_DHQK)
 
         # [inter] matDeltaQ += matDeltaH @ matC_km1.transpose() * vecBbar
-        matC_km1_val = tl.load(
-            matC_km1_ptr, boundary_check=(0, 1)
+        matC_km1_val = tl.load(matC_km1_ptr, boundary_check=(0, 1)).to(
+            DTYPE
         )  # (siz_b_DHHV, siz_b_DHQK)
         matDeltaQ_inter_val += (
             tl.dot((matDeltaH_val).to(DTYPE), matC_km1_val) * qk_scale
-        ).to(DTYPE)  # (L, siz_b_DHQK)
+        )  # (L, siz_b_DHQK)
 
         # [intra] matDeltaS += (matDeltaH @ matV.transpose()) * matDbar
         matDeltaSbar_val += tl.dot(
@@ -512,7 +514,6 @@ def _mlstm_chunkwise__parallel_bw_dQKV_kernel(
             matDeltaV_val.to(matDeltaV_ptr.dtype.element_ty),
             boundary_check=(0, 1),
         )
-
     matDeltaQ_inter_val = (
         matDeltaQ_inter_val * vecBbar_val[:, None] / (vecN_out_val[:, None] + EPS)
     )
