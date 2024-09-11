@@ -773,7 +773,11 @@ def _mlstm_chunkwise_bw(
     ## ? postprocessing
     vecF = rearrange(vecF, "b nh nc l -> b nh (nc l)")
     # compute the vecDeltaFbar values with dfbar = rev_cumsum((q*dq - k*dk).sum(-1))
-    vecDeltaFbar_acc = (matQ * matDeltaQ - matK * matDeltaK).sum(-1)
+    matQ = matQ.to(torch.float32)
+    matK = matK.to(torch.float32)
+    matDeltaQ = matDeltaQ.to(torch.float32)
+    matDeltaK = matDeltaK.to(torch.float32)
+    vecDeltaFbar_acc = ((matQ * matDeltaQ) - (matK * matDeltaK)).sum(-1)
     vecDeltaFbar = vecDeltaFbar_acc.flip(-1).to(torch.float32).cumsum(-1).flip(-1)
     vecDeltaF = vecDeltaFbar * torch.sigmoid(-vecF)
     ## ? end postprocessing
