@@ -111,16 +111,21 @@ def chunk_mlstm_fwd_kernel_C(
         # [BT, BV]
         b_v = tl.load(p_v, boundary_check=(0, 1))
         # [BK, BV]
-        b_f_last = tl.load(f + i_bC * T + i_t * BT + BT - 1)
-        b_f = tl.load(f + i_bC * T + i_t * BT + tl.arange(0, BT))
-        b_i = tl.load(i + i_bC * T + i_t * BT + tl.arange(0, BT))
-        b_g = b_i + b_f_last - b_f
+
+        idx_t = tl.arange(0, BT)
+        b_f = tl.load(
+            f + i_bC * T + i_t * BT + idx_t + 1, mask=idx_t < BT - 1, other=0.0
+        )
+        b_f_first = tl.load(f + i_bC * T + i_t * BT)
+        b_i = tl.load(i + i_bC * T + i_t * BT + idx_t)
+        b_g = b_i + tl.flip(tl.cumsum(tl.flip(b_f), axis=0))
+
+        b_f_all = tl.sum(b_f) + b_f_first
 
         b_m_next, _ = tl.max(b_g)
-        b_m_next = tl.maximum(b_f_last + b_m, b_m_next)
-
-        b_C *= tl.math.exp2(b_f_last - b_m_next + b_m).to(b_C.dtype)
-        b_n *= tl.math.exp2(b_f_last - b_m_next + b_m).to(b_n.dtype)
+        b_m_next = tl.maximum(b_f_all + b_m, b_m_next)
+        b_C *= tl.math.exp2(b_f_all - b_m_next + b_m).to(b_C.dtype)
+        b_n *= tl.math.exp2(b_f_all - b_m_next + b_m).to(b_n.dtype)
         b_C += tl.dot(
             b_k,
             b_v * (tl.math.exp2(b_g - b_m_next)[:, None]).to(b_k.dtype),
@@ -177,14 +182,16 @@ def chunk_mlstm_fwd_kernel_h(
     K: tl.constexpr,
     V: tl.constexpr,
     BT: tl.constexpr,
+    BS: tl.constexpr,
     BK: tl.constexpr,
     BV: tl.constexpr,
     NT: tl.constexpr,
 ):
     i_v, i_t, i_bC = tl.program_id(0), tl.program_id(1), tl.program_id(2)
 
-    h_i = tl.arange(0, BT)
-    m_s = h_i[:, None] >= h_i[None, :]
+    h_i_t = tl.arange(0, BT)[:, None]
+    h_i_s = tl.arange(0, BS)[None, :]
+    m_s = h_i_t >= h_i_s
 
     b_h = tl.zeros([BT, BV], dtype=tl.load(q).dtype)
     b_s = tl.zeros([BT, BT], dtype=b_h.dtype)
@@ -237,27 +244,30 @@ def chunk_mlstm_fwd_kernel_h(
         b_n2 = tl.dot(b_q, b_n, allow_tf32=False).to(b_norm.dtype)
         b_norm += b_n2
 
-    p_f = f + i_bC * T + i_t * BT + tl.arange(0, BT)
+    p_f = f + i_bC * T + i_t * BT + h_i_t
     b_f = tl.load(p_f)
-    p_i = i + i_bC * T + i_t * BT + tl.arange(0, BT)
+    b_f_c = tl.cumsum(b_f, axis=0)
+
+    p_i = i + i_bC * T + i_t * BT + h_i_s
     b_i = tl.load(p_i)
     b_m = tl.load(m + i_bC * (NT + 1) + i_t)
 
-    # TODO revise this to the stabilized version
-    b_logD = b_i[None, :] + b_f[:, None] - b_f[None, :]
-    b_logD = tl.where(m_s, b_logD, -float("inf"))
+    b_f_bottom_cum = tl.cumsum(tl.where(h_i_t > h_i_s, b_f.broadcast_to(BT, BS), 0.0))
+    b_logD = b_i + b_f_bottom_cum
+    b_logD = tl.where(m_s, b_i + b_f_bottom_cum, -float("inf"))
+
     b_mlogD = tl.max(b_logD, axis=1)
 
-    b_m_total = tl.maximum(b_f + b_m, b_mlogD)
+    b_m_total = tl.maximum(tl.max(b_f, axis=1) + b_m, b_mlogD)
     p_m_total = tl.make_block_ptr(
         m_total + T * i_bC, (T,), (1,), (i_t * BT,), (BT,), (0,)
     )
     tl.store(p_m_total, b_m_total.to(p_m_total.dtype.element_ty), boundary_check=(0,))
 
     b_D = tl.math.exp2(b_logD - b_m_total[:, None])
-    b_h = b_h * tl.math.exp2(b_f + b_m - b_m_total)[:, None] * scale
+    b_h = b_h * tl.math.exp2(b_f_c + b_m - b_m_total[:, None]) * scale
     b_s = b_s * b_D * scale
-    b_norm = b_norm * tl.math.exp2(b_f + b_m - b_m_total)[:, None] * scale
+    b_norm = b_norm * tl.math.exp2(b_f_c + b_m - b_m_total[:, None]) * scale
 
     b_s = tl.where(m_s, b_s, 0)
     b_norm += tl.sum(b_s, axis=1)[:, None]
@@ -359,22 +369,23 @@ def chunk_mlstm_bwd_kernel_dC(
         )
 
         tl.store(p_dC, b_dC.to(p_dC.dtype.element_ty), boundary_check=(0, 1))
-        b_f_last = tl.load(f + i_bC * T + i_t * BT + BT - 1)
         b_f = tl.load(f + i_bC * T + i_t * BT + tl.arange(0, BT))
+        b_f_all = tl.sum(b_f)
+
         b_m_p = tl.load(m + i_bC * (NT + 1) + i_t)
         b_m_total = tl.load(m_total + i_bC * T + i_t * BT + tl.arange(0, BT))
         b_norm = tl.load(norm + i_bC * T + i_t * BT + tl.arange(0, BT))
 
         # [BK, BT]
         b_q = tl.load(p_q, boundary_check=(0, 1))
-        b_q = (b_q * scale * tl.math.exp2(b_f + b_m_p - b_m_total)[None, :]).to(
-            b_q.dtype
-        )
+        b_q = (
+            b_q * scale * tl.math.exp2(tl.cumsum(b_f) + b_m_p - b_m_total)[None, :]
+        ).to(b_q.dtype)
         # [BT, V]
         b_dh = tl.load(p_dh, boundary_check=(0, 1))
         b_dh /= b_norm[:, None]
         # [BK, BV]
-        b_dC *= tl.math.exp2(b_f_last + b_m_p - b_m).to(b_dC.dtype)
+        b_dC *= tl.math.exp2(b_f_all + b_m_p - b_m).to(b_dC.dtype)
         b_dC += tl.dot(b_q, b_dh.to(b_q.dtype), allow_tf32=False).to(b_dC.dtype)
         b_m = b_m_p
 
@@ -409,6 +420,10 @@ def chunk_mlstm_bwd_kernel_dqkvif(
     dq,
     dk,
     dv,
+    di,
+    dfq,
+    dfk,
+    dfc,
     s_qk_h,
     s_qk_t,
     s_qk_d,
@@ -424,6 +439,7 @@ def chunk_mlstm_bwd_kernel_dqkvif(
     K: tl.constexpr,
     V: tl.constexpr,
     BT: tl.constexpr,
+    BS: tl.constexpr,
     BK: tl.constexpr,
     BV: tl.constexpr,
     NT: tl.constexpr,
@@ -431,7 +447,9 @@ def chunk_mlstm_bwd_kernel_dqkvif(
     i_k, i_t, i_bC = tl.program_id(0), tl.program_id(1), tl.program_id(2)
     n_bh = tl.num_programs(2)
     o_i = tl.arange(0, BT)
-
+    # o_i_t = o_i[None, :]
+    # o_i_s = o_i[:, None]
+    
     p_q = tl.make_block_ptr(
         q + i_bC * s_qk_h,
         (K, T),
@@ -452,26 +470,50 @@ def chunk_mlstm_bwd_kernel_dqkvif(
     b_q = tl.load(p_q, boundary_check=(0, 1))
     b_k = tl.load(p_k, boundary_check=(0, 1))
     b_s = tl.dot(b_k, b_q, allow_tf32=False)
-    p_f = f + i_bC * T + i_t * BT + tl.arange(0, BT)
-    p_i = i + i_bC * T + i_t * BT + tl.arange(0, BT)
+    p_f = f + i_bC * T + i_t * BT + o_i
+    p_i = i + i_bC * T + i_t * BT + o_i
     b_f = tl.load(p_f)
-    b_f_last = tl.load(f + i_bC * T + i_t * BT + BT - 1)
+    b_f_c = tl.cumsum(b_f, axis=0)
+    b_f_all = tl.sum(b_f, axis=0)
     b_m = tl.load(m + i_bC * (NT + 1) + i_t)
-    b_m_total = tl.load(m_total + i_bC * T + i_t * BT + tl.arange(0, BT))
-    b_norm = tl.load(norm + i_bC * T + i_t * BT + tl.arange(0, BT))
+    b_m_total = tl.load(m_total + i_bC * T + i_t * BT + o_i)
     b_i = tl.load(p_i)
+
+    m_s = o_i[None, :] >= o_i[:, None]
+    b_f_right_cum = tl.cumsum(tl.where(o_i[None, :] > o_i[:, None], b_f[None, :].broadcast_to(BS, BT), 0.0), axis=1)
+    b_logDT = b_i[:, None] + b_f_right_cum - b_m_total[None, :]
+    b_DT = tl.where(m_s, tl.math.exp2(b_logDT) * scale, 0.0)
+    b_s = b_s * b_DT 
     
-    # TODO: update to stable version of Mamba2
-    mask_f = b_f[None, :] - b_f[:, None]
-    b_logDT = b_i[:, None] + mask_f - b_m_total[None, :]
-    mask = tl.where(o_i[:, None] <= o_i[None, :], tl.math.exp2(b_logDT) * scale, 0)
-    b_s = b_s * mask
+    b_frev = tl.load(f + i_bC * T + i_t * BT + o_i + 1, mask=o_i < BT - 1, other=0.0)
+    b_frc = tl.flip(tl.cumsum(tl.flip(b_frev), axis=0))
+    b_f_ac = tl.load(f + i_bC * T + i_t * BT + o_i)
+    b_f_c = tl.cumsum(b_f_ac, axis=0)
+    b_i_g = tl.load(i + i_bC * T + i_t * BT + o_i)
+    b_g = b_i_g + b_frc
+    b_norm = tl.load(norm + i_bC * T + i_t * BT + o_i)
+
+    # if i_t == NT - 1:
+    #     b_m_next = tl.load(final_m)
+    # else:
 
     b_m_next = tl.load(m + i_bC * (NT + 1) + i_t + 1)
 
     b_dq = tl.zeros([BT, BK], dtype=b_q.dtype)
     b_dk = tl.zeros([BT, BK], dtype=b_q.dtype)
     b_ds = tl.zeros([BT, BT], dtype=b_q.dtype)
+    b_di = tl.zeros([BT], dtype=b_i_g.dtype)
+
+    p_di = tl.make_block_ptr(
+            di + (i_k * n_bh + i_bC) * T,
+            (T,),
+            (1,),
+            (i_t * BT,),
+            (BT,),
+            (0,)) 
+    p_dfc = dfc + (i_k * n_bh + i_bC) * NT + i_t
+    b_dfc = 0.
+
     for i_v in range(tl.cdiv(V, BV)):
         p_v = tl.make_block_ptr(
             v + i_bC * s_vh_h,
@@ -527,25 +569,42 @@ def chunk_mlstm_bwd_kernel_dqkvif(
         b_dk += tl.dot(b_v, tl.trans(b_dC), allow_tf32=False).to(b_dk.dtype)
         # [BT, BV]
         b_dv = tl.dot(b_k, b_dC, allow_tf32=False).to(b_q.dtype) * tl.math.exp2(
-            b_i - b_f + b_f_last - b_m_next
-        )[:, None].to(b_q.dtype)
+            b_g - b_m_next
+        ).to(b_q.dtype)[:, None]
         b_dv += tl.dot(
             (b_s / b_norm[None, :]).to(b_q.dtype), b_dh.to(b_q.dtype), allow_tf32=False
         ).to(b_q.dtype)
-
+        b_di += tl.sum(b_dv * b_v, axis=1).to(tl.float32)
+        
+        b_dfc += tl.sum(tl.sum(tl.trans(b_C) * b_dC, axis=0).to(tl.float32), axis=0)
         tl.store(p_dv, b_dv.to(p_dv.dtype.element_ty), boundary_check=(0, 1))
 
-    b_dq = b_dq * tl.math.exp2(b_f + b_m - b_m_total)[:, None] / b_norm[:, None]
-    b_dk = b_dk * tl.math.exp2(b_i - b_f + b_f_last - b_m_next)[:, None]
+    tl.store(p_di, b_di.to(p_di.dtype.element_ty), boundary_check=(0,))
+    tl.store(p_dfc, b_dfc * tl.math.exp2(b_f_all + b_m - b_m_next))
     
-    b_ds = b_ds * tl.trans(mask)
+    b_dq = b_dq * tl.math.exp2(b_f_c + b_m - b_m_total)[:, None] / b_norm[:, None]
+    b_dfq1 = tl.flip(tl.cumsum(tl.flip(tl.sum(tl.trans(b_q)*b_dq, axis=1)), axis=0))
+    b_dk = b_dk * tl.math.exp2(b_g - b_m_next)[:, None]
+    b_dfk = tl.cumsum(tl.sum(b_dk * b_k, axis=1))
+    
+    b_ds = tl.trans(b_DT) * b_ds
     b_ds = b_ds.to(b_k.dtype)
+    
     # [BT, BK]
-    b_dq += tl.dot(b_ds, b_k, allow_tf32=False) / b_norm[:, None]
-    b_dk += tl.trans(
+    b_dq_p = tl.dot(b_ds, b_k, allow_tf32=False) / b_norm[:, None]
+    b_dq += b_dq_p
+    b_dk_p = tl.trans(
         tl.dot((b_q / b_norm[None, :]).to(b_q.dtype), b_ds, allow_tf32=False)
     )
-
+    b_dk += b_dk_p
+    b_dg = tl.trans(b_ds) * tl.dot(b_k, b_q / b_norm[None, :].to(b_q.dtype))
+    
+    mask = o_i[:, None] < o_i[None, :]
+    b_dg = tl.where(mask, b_dg, 0.)
+    b_dfg = tl.sum(tl.where(mask, tl.flip(tl.cumsum(tl.flip(b_dg), axis=1)), 0.0), axis=0)
+    
+    b_dfq = b_dfq1 + b_dfg
+    
     p_dq = tl.make_block_ptr(
         dq + i_bC * s_qk_h,
         (T, K),
@@ -562,8 +621,28 @@ def chunk_mlstm_bwd_kernel_dqkvif(
         (BT, BK),
         (1, 0),
     )
+    p_dfq = tl.make_block_ptr(
+        dfq + (i_k * n_bh + i_bC) * T,
+        (T,),
+        (1,),
+        (i_t * BT,),
+        (BT,),
+        (0,)
+    )
+    p_dfk = tl.make_block_ptr(
+        dfk + (i_k * n_bh + i_bC) * (T+1) + 1,
+        (T+1,),
+        (1,),
+        (i_t * BT,),
+        (BT,),
+        (0,)
+    )
+    b_dfk = tl.where(o_i < BT - 1, b_dfk, 0.0)
     tl.store(p_dq, b_dq.to(p_dq.dtype.element_ty), boundary_check=(0, 1))
     tl.store(p_dk, b_dk.to(p_dk.dtype.element_ty), boundary_check=(0, 1))
+
+    tl.store(p_dfq, b_dfq.to(p_dk.dtype.element_ty), boundary_check=(0,))
+    tl.store(p_dfk, b_dfk.to(p_dk.dtype.element_ty), boundary_check=(0,))
 
 
 class mLSTMKernelC(torch.autograd.Function):
@@ -848,11 +927,6 @@ class mLSTMKerneldqkv(torch.autograd.Function):
 
         dv[:] = dv_internal.sum(0)
 
-        def rev_cumsum(x):
-            cumsum_x = x.cumsum(-1)
-            rev_cumsum_x = cumsum_x[..., -1, None] - cumsum_x
-            return rev_cumsum_x + x
-
     @staticmethod
     @custom_bwd(device_type="cuda")
     @contiguous
@@ -883,7 +957,7 @@ def mLSTMFunctionGenerator(chunk_size: int = 64, keep_states: bool = False):
             f_orig = f
             f = torch.nn.functional.logsigmoid(f)
             f = f.reshape(B, H, -1, BT)
-            f = f.cumsum(-1) * 1.44269504
+            f = f * 1.44269504
             f = f.reshape(B, H, -1)
             i = i.reshape(B, H, -1) * 1.44269504
 
@@ -965,6 +1039,7 @@ def mLSTMFunctionGenerator(chunk_size: int = 64, keep_states: bool = False):
                 K=K,
                 V=V,
                 BT=BT,
+                BS=BT,
                 BK=BK,
                 BV=BV,
                 NT=NT,
@@ -1090,7 +1165,7 @@ def mLSTMFunctionGenerator(chunk_size: int = 64, keep_states: bool = False):
 
             initial_dC = q.new_empty(B, H, K, V, requires_grad=False)
             initial_m = q.new_empty(B, H, requires_grad=False)
-
+            
             if final_dC is None:
                 final_dC = q.new_full(initial_dC.shape, 0.0)
                 final_m = q.new_full(initial_m.shape, 0.0)
@@ -1132,6 +1207,10 @@ def mLSTMFunctionGenerator(chunk_size: int = 64, keep_states: bool = False):
             dq = torch.empty_like(q)
             dk = torch.empty_like(k)
             dv = v.new_empty(NK, *v.shape)
+            di = i.new_empty(NK, *i.shape)
+            dfq = f.new_zeros(NK, B*H, T)
+            dfk = f.new_zeros(NK, B*H, T+1)
+            dfc = f.new_zeros(NK, B*H, NT)
             num_stages = 1
             num_warps = 4 if BK == 64 else 2
             chunk_mlstm_bwd_kernel_dqkvif[grid](
@@ -1150,6 +1229,10 @@ def mLSTMFunctionGenerator(chunk_size: int = 64, keep_states: bool = False):
                 dq,
                 dk,
                 dv,
+                di,
+                dfq,
+                dfk,
+                dfc,
                 q.stride(1),
                 q.stride(2),
                 q.stride(3),
@@ -1165,23 +1248,26 @@ def mLSTMFunctionGenerator(chunk_size: int = 64, keep_states: bool = False):
                 K=K,
                 V=V,
                 BT=BT,
+                BS=BT,
                 BK=BK,
                 BV=BV,
                 NT=NT,
                 num_warps=num_warps,
                 num_stages=num_stages,
             )
-            def rev_cumsum(x):
-                return x.flip(dims=(-1,)).cumsum(-1).flip(dims=(-1,))
-
             dv = dv.sum(0)
-            df = (dq * q - dk * k).sum(-1)
-            di = (dv * v).sum(-1)
-
+            # baselines
+            # df = (dq * q - dk * k).sum(-1)
+            # di = (dv * v).sum(-1)
             
-            df = rev_cumsum(df)
-            df = df * torch.nn.functional.sigmoid(-f_orig)
-
+            # stabilized version without differences
+            di = di.sum(0)
+            df = dfq.sum(0)
+            df += dfk[:, :, :-1].sum(0)
+            dfc = dfc.sum(0)
+            
+            df = df.view(B*H, NT, BT) + dfc.view(B*H, NT, 1)
+            df = df.view(f_orig.shape) * torch.nn.functional.sigmoid(-f_orig)
             return (
                 dq.to(q.dtype),
                 dk.to(k.dtype),
@@ -1195,7 +1281,6 @@ def mLSTMFunctionGenerator(chunk_size: int = 64, keep_states: bool = False):
             )
 
     return mLSTMFunction
-
 
 
 mLSTMFunction = {}
