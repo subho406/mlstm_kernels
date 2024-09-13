@@ -1342,12 +1342,15 @@ def mlstm_fwbw(
     keep_states: bool = False,
     eps: float = 1e-6,  # is ignored
     dtype_states: Literal["float32", "bfloat16", "float16"] = "float32",
+    autocast_kernel_dtype: Optional[torch.dtype] = torch.float32,
     dtype_gates: Literal["float32", "bfloat16", "float16"] = "float32",
     **kwargs,  # are ignored
 ) -> tuple[torch.Tensor, torch.Tensor]:
     # actually dtype_gates is not really supported yet
     f = f.float()
     i = i.float()
+    if autocast_kernel_dtype is not None:
+        dtype_states = str(autocast_kernel_dtype).split(".")[1]
     if (chunk_size, keep_states, dtype_states, dtype_gates) not in mLSTMFunction:
         mLSTMFunction[(chunk_size, keep_states, dtype_states, dtype_gates)] = (
             mLSTMFunctionGenerator(
