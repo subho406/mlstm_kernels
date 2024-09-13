@@ -883,7 +883,7 @@ def mLSTMFunctionGenerator(
         @custom_fwd(device_type="cuda")
         @contiguous
         def forward(
-            ctx, q, k, v, i, f, c_initial, n_initial, m_initial, output_final_state
+            ctx, q, k, v, i, f, c_initial, n_initial, m_initial, return_last_states
         ):
             B, H, T, K, V = *q.shape, v.shape[-1]
             BT = chunk_size
@@ -914,7 +914,7 @@ def mLSTMFunctionGenerator(
             i = (i.reshape(B, H, -1) * 1.44269504).to(dtype_gates)
 
             final_C, final_n, final_m = None, None, None
-            if output_final_state:
+            if return_last_states:
                 final_C = q.new_empty(B, H, K, V, requires_grad=False)
                 final_n = q.new_empty(B, H, K, requires_grad=False)
                 final_m = q.new_empty(B, H, requires_grad=False)
@@ -957,7 +957,7 @@ def mLSTMFunctionGenerator(
                 BV=BV,
                 NT=NT,
                 USE_INITIAL_STATE=c_initial is not None,
-                STORE_FINAL_STATE=output_final_state,
+                STORE_FINAL_STATE=return_last_states,
                 num_warps=num_warps,
                 num_stages=num_stages,
             )
@@ -1261,7 +1261,7 @@ def mlstm_fwbw(
     c_initial: torch.Tensor = None,
     n_initial: torch.Tensor = None,
     m_initial: torch.Tensor = None,
-    output_final_state: bool = False,
+    return_last_states: bool = False,
     chunk_size: int = 64,
     keep_states: bool = False,
     dtype_states: Literal["float32", "bfloat16", "float16"] = "float32",
@@ -1281,9 +1281,9 @@ def mlstm_fwbw(
         )
     mLSTMFunc = mLSTMFunction[(chunk_size, keep_states, dtype_states, dtype_gates)]
     h, final_C, final_n, final_m = mLSTMFunc.apply(
-        q, k, v, i, f, c_initial, n_initial, m_initial, output_final_state
+        q, k, v, i, f, c_initial, n_initial, m_initial, return_last_states
     )
-    if output_final_state:
+    if return_last_states:
         return h, (final_C, final_n, final_m)
     else:
         return h
@@ -1322,12 +1322,12 @@ class mLSTMBackendTriton(torch.nn.Module):
         c_initial=None,
         n_initial=None,
         m_initial=None,
-        output_final_state: bool = False,
+        return_last_states: bool = False,
     ):
         h, final_C, final_n, final_m = self._func.apply(
-            q, k, v, i, f, c_initial, n_initial, m_initial, output_final_state
+            q, k, v, i, f, c_initial, n_initial, m_initial, return_last_states
         )
-        if output_final_state:
+        if return_last_states:
             return h, (final_C, final_n, final_m)
         else:
             return h
