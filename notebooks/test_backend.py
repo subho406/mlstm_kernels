@@ -5,14 +5,13 @@ from mlstm_kernels.test_utils.test_fwbw import test_forward, test_backward
 # from mlstm_kernels.mlstm.chunkwise.triton_fwbw_debug import chunk_mlstm
 from mlstm_kernels.mlstm.chunkwise import mlstm_chunkwise_triton as mlstm_fwbw_chunk
 from mlstm_kernels.mlstm.chunkwise import (
-    mlstm_chunkwise_triton_stable as mlstm_fwbw_chunkstab,
+    mlstm_chunkwise_stable_triton as mlstm_fwbw_chunkstab,
 )
 
 # from mlstm_kernels.mlstm.parallel import mlstm
 import matplotlib.pyplot as plt
 from math import sqrt
 import os
-import time
 
 
 def shape_to_rect(shape):

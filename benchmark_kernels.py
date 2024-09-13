@@ -41,13 +41,17 @@ def create_kernel2style_mapping(kernel_names: list[str]) -> list[tuple[str, str]
     raw_kernel_names = [kernel_name.split("++")[0] for kernel_name in kernel_names]
     raw_kernel_names = list(set(raw_kernel_names))
     # map kernel name to color
-    kernel2color = {kernel_name: color for kernel_name, color in zip(raw_kernel_names, colors)}
+    kernel2color = {
+        kernel_name: color for kernel_name, color in zip(raw_kernel_names, colors)
+    }
     # map kernel name to style
     kernel_names2style = []
     for kernel_name in kernel_names:
         raw_kernel_name = kernel_name.split("++")[0]
         fwbw_type = kernel_name.split("++")[1]
-        kernel_names2style.append((kernel2color[raw_kernel_name], linestyle_mapping[fwbw_type]))
+        kernel_names2style.append(
+            (kernel2color[raw_kernel_name], linestyle_mapping[fwbw_type])
+        )
     return kernel_names2style
 
 
@@ -68,6 +72,7 @@ for HEAD_DIM in HEAD_DIMS:
         "mlstm_parallel--torch_autograd++fwbw++compile",
         "mlstm_parallel--triton++fwbw",
         "mlstm_chunkwise--triton++fwbw",
+        "mlstm_chunkwise--stable_triton++fwbw",
         "mlstm_chunkwise--max_triton++fwbw",
         # "mlstm_parallel--triton++fw",
         # "mlstm_parallel--torch_autograd++fw",
@@ -86,7 +91,15 @@ for HEAD_DIM in HEAD_DIMS:
     configs.append(
         triton.testing.Benchmark(
             x_names=["N_CTX"],
-            x_vals=[256, 512, 1024, 2048, 4096, 8192, 16384],  # [2**i for i in range(10, 15)],
+            x_vals=[
+                256,
+                512,
+                1024,
+                2048,
+                4096,
+                8192,
+                16384,
+            ],  # [2**i for i in range(10, 15)],
             line_arg="provider",
             line_vals=kernels_to_benchmark,
             line_names=kernels_to_benchmark,
@@ -109,14 +122,22 @@ def bench_flash_mlstm_fwbw(BATCH, H, N_CTX, HEAD_DIM, provider, device="cuda"):
     dtype = getattr(torch, DTYPE)
 
     # create input tensors
-    q = torch.randn((BATCH, H, N_CTX, HEAD_DIM), dtype=dtype, device=device, requires_grad=True)
-    k = torch.randn((BATCH, H, N_CTX, HEAD_DIM), dtype=dtype, device=device, requires_grad=True)
-    v = torch.randn((BATCH, H, N_CTX, HEAD_DIM), dtype=dtype, device=device, requires_grad=True)
+    q = torch.randn(
+        (BATCH, H, N_CTX, HEAD_DIM), dtype=dtype, device=device, requires_grad=True
+    )
+    k = torch.randn(
+        (BATCH, H, N_CTX, HEAD_DIM), dtype=dtype, device=device, requires_grad=True
+    )
+    v = torch.randn(
+        (BATCH, H, N_CTX, HEAD_DIM), dtype=dtype, device=device, requires_grad=True
+    )
     ig = torch.randn((BATCH, H, N_CTX), dtype=dtype, device=device, requires_grad=True)
     fg = torch.randn((BATCH, H, N_CTX), dtype=dtype, device=device, requires_grad=True)
 
     # only for flash linear attention
-    gs = torch.randn((BATCH, H, N_CTX, HEAD_DIM), dtype=dtype, device=device, requires_grad=True)
+    gs = torch.randn(
+        (BATCH, H, N_CTX, HEAD_DIM), dtype=dtype, device=device, requires_grad=True
+    )
 
     # select kernel
     provider_split = provider.split("++")
