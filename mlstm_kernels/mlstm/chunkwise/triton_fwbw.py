@@ -19,9 +19,9 @@ def chunk_mlstm_fwd_kernel_C(
     m,
     i,  # log igates
     f,  # accumulated log fgate
-    initial_C,  # initial state of the chunk [B, H, D_head_K, D_head_V]
-    initial_n,
-    initial_m,
+    c_initial,  # initial state of the chunk [B, H, D_head_K, D_head_V]
+    n_initial,
+    m_initial,
     final_C,  # final state of the chunk [B, H, D_head_K, D_head_V]
     final_n,
     final_m,
@@ -49,7 +49,7 @@ def chunk_mlstm_fwd_kernel_C(
 
     if USE_INITIAL_STATE:
         p_C0 = tl.make_block_ptr(
-            initial_C + i_bC * K * V,
+            c_initial + i_bC * K * V,
             (K, V),
             (V, 1),
             (i_k * BK, i_v * BV),
@@ -57,14 +57,14 @@ def chunk_mlstm_fwd_kernel_C(
             (1, 0),
         )
         p_n0 = tl.make_block_ptr(
-            initial_n + i_bC * K,
+            n_initial + i_bC * K,
             (K,),
             (1,),
             (i_k * BK,),
             (BK,),
             (0,),
         )
-        p_m0 = initial_m + i_bC
+        p_m0 = m_initial + i_bC
 
         b_C = tl.load(p_C0, boundary_check=(0, 1))
         b_n = tl.load(p_n0, boundary_check=(0,))
@@ -302,7 +302,7 @@ def chunk_mlstm_bwd_kernel_dC(
     final_dC,
     final_m,
     initial_dC,
-    initial_m,
+    m_initial,
     s_qk_h,
     s_qk_t,
     s_qk_d,
@@ -391,7 +391,7 @@ def chunk_mlstm_bwd_kernel_dC(
     tl.store(
         p_initial_dC, b_dC.to(p_initial_dC.dtype.element_ty), boundary_check=(0, 1)
     )
-    tl.store(initial_m + i_bC, b_m)
+    tl.store(m_initial + i_bC, b_m)
 
 
 @triton.jit
@@ -591,9 +591,9 @@ class mLSTMKernelC(torch.autograd.Function):
         m,
         i,
         f,
-        initial_C,
-        initial_n,
-        initial_m,
+        c_initial,
+        n_initial,
+        m_initial,
         final_C,
         final_n,
         final_m,
@@ -615,9 +615,9 @@ class mLSTMKernelC(torch.autograd.Function):
             m,
             i,
             f,
-            initial_C,
-            initial_n,
-            initial_m,
+            c_initial,
+            n_initial,
+            m_initial,
             final_C,
             final_n,
             final_m,
@@ -638,7 +638,7 @@ class mLSTMKernelC(torch.autograd.Function):
             BK=BK,
             BV=BV,
             NT=NT,
-            USE_INITIAL_STATE=initial_C is not None,
+            USE_INITIAL_STATE=c_initial is not None,
             STORE_FINAL_STATE=True,
             num_warps=num_warps,
             num_stages=num_stages,
@@ -734,7 +734,7 @@ class mLSTMKerneldC(torch.autograd.Function):
         final_dC,
         final_m,
         initial_dC,
-        initial_m,
+        m_initial,
     ):
         B, H, NT, BT, K, V = *q.shape, dh.shape[-1]
         T = BT * NT
@@ -756,7 +756,7 @@ class mLSTMKerneldC(torch.autograd.Function):
             final_dC,
             final_m,
             initial_dC,
-            initial_m,
+            m_initial,
             q.stride(2),
             q.stride(3),
             q.stride(4),
@@ -883,7 +883,7 @@ def mLSTMFunctionGenerator(
         @custom_fwd(device_type="cuda")
         @contiguous
         def forward(
-            ctx, q, k, v, i, f, initial_C, initial_n, initial_m, output_final_state
+            ctx, q, k, v, i, f, c_initial, n_initial, m_initial, output_final_state
         ):
             B, H, T, K, V = *q.shape, v.shape[-1]
             BT = chunk_size
@@ -933,9 +933,9 @@ def mLSTMFunctionGenerator(
                 m,
                 i,
                 f,
-                initial_C,
-                initial_n,
-                initial_m,
+                c_initial,
+                n_initial,
+                m_initial,
                 final_C,
                 final_n,
                 final_m,
@@ -956,7 +956,7 @@ def mLSTMFunctionGenerator(
                 BK=BK,
                 BV=BV,
                 NT=NT,
-                USE_INITIAL_STATE=initial_C is not None,
+                USE_INITIAL_STATE=c_initial is not None,
                 STORE_FINAL_STATE=output_final_state,
                 num_warps=num_warps,
                 num_stages=num_stages,
@@ -1009,9 +1009,9 @@ def mLSTMFunctionGenerator(
                     m_total,
                     norm,
                     final_m,
-                    initial_C,
-                    initial_n,
-                    initial_m,
+                    c_initial,
+                    n_initial,
+                    m_initial,
                     f_orig,
                 )
             else:
@@ -1026,9 +1026,9 @@ def mLSTMFunctionGenerator(
                     m_total,
                     norm,
                     final_m,
-                    initial_C,
-                    initial_n,
-                    initial_m,
+                    c_initial,
+                    n_initial,
+                    m_initial,
                     f_orig,
                 )
             return h.to(q.dtype), final_C, final_n, final_m
@@ -1048,9 +1048,9 @@ def mLSTMFunctionGenerator(
                 m_total,
                 norm,
                 final_m,
-                initial_C,
-                initial_n,
-                initial_m,
+                c_initial,
+                n_initial,
+                m_initial,
                 f_orig,
             ) = ctx.saved_tensors
 
@@ -1085,9 +1085,9 @@ def mLSTMFunctionGenerator(
                     m,
                     i,
                     f,
-                    initial_C,
-                    initial_n,
-                    initial_m,
+                    c_initial,
+                    n_initial,
+                    m_initial,
                     final_C,
                     final_n,
                     final_m,
@@ -1108,7 +1108,7 @@ def mLSTMFunctionGenerator(
                     BK=BK,
                     BV=BV,
                     NT=NT,
-                    USE_INITIAL_STATE=initial_C is not None,
+                    USE_INITIAL_STATE=c_initial is not None,
                     STORE_FINAL_STATE=False,
                     num_warps=num_warps,
                     num_stages=num_stages,
@@ -1122,11 +1122,11 @@ def mLSTMFunctionGenerator(
             initial_dC = q.new_empty(
                 B, H, K, V, requires_grad=False, dtype=dtype_states
             )
-            initial_m = q.new_empty(B, H, requires_grad=False, dtype=dtype_states)
+            m_initial = q.new_empty(B, H, requires_grad=False, dtype=dtype_states)
 
             if final_dC is None:
                 final_dC = q.new_full(initial_dC.shape, 0.0, dtype=dtype_states)
-                final_m = q.new_full(initial_m.shape, 0.0, dtype=dtype_states)
+                final_m = q.new_full(m_initial.shape, 0.0, dtype=dtype_states)
             else:
                 final_dC = final_dC.to(dtype_states)
                 final_m = final_m.to(dtype_states)
@@ -1143,7 +1143,7 @@ def mLSTMFunctionGenerator(
                 final_dC,
                 final_m,
                 initial_dC,
-                initial_m,
+                m_initial,
                 q.stride(1),
                 q.stride(2),
                 q.stride(3),
@@ -1224,7 +1224,7 @@ def mLSTMFunctionGenerator(
                 dv.to(v.dtype),
                 di.to(f_orig.dtype),
                 df.to(f_orig.dtype).view(f.shape),
-                initial_dC.to(initial_C.dtype) if initial_C is not None else None,
+                initial_dC.to(c_initial.dtype) if c_initial is not None else None,
                 None,
                 None,
                 None,
@@ -1258,9 +1258,9 @@ def mlstm_fwbw(
     v: torch.Tensor,
     i: torch.Tensor,  # input gate
     f: torch.Tensor,  # forget gate
-    initial_C: torch.Tensor = None,
-    initial_n: torch.Tensor = None,
-    initial_m: torch.Tensor = None,
+    c_initial: torch.Tensor = None,
+    n_initial: torch.Tensor = None,
+    m_initial: torch.Tensor = None,
     output_final_state: bool = False,
     chunk_size: int = 64,
     keep_states: bool = False,
@@ -1281,7 +1281,7 @@ def mlstm_fwbw(
         )
     mLSTMFunc = mLSTMFunction[(chunk_size, keep_states, dtype_states, dtype_gates)]
     h, final_C, final_n, final_m = mLSTMFunc.apply(
-        q, k, v, i, f, initial_C, initial_n, initial_m, output_final_state
+        q, k, v, i, f, c_initial, n_initial, m_initial, output_final_state
     )
     if output_final_state:
         return h, (final_C, final_n, final_m)
@@ -1319,13 +1319,13 @@ class mLSTMBackendTriton(torch.nn.Module):
         v,
         i,
         f,
-        initial_C=None,
-        initial_n=None,
-        initial_m=None,
+        c_initial=None,
+        n_initial=None,
+        m_initial=None,
         output_final_state: bool = False,
     ):
         h, final_C, final_n, final_m = self._func.apply(
-            q, k, v, i, f, initial_C, initial_n, initial_m, output_final_state
+            q, k, v, i, f, c_initial, n_initial, m_initial, output_final_state
         )
         if output_final_state:
             return h, (final_C, final_n, final_m)
