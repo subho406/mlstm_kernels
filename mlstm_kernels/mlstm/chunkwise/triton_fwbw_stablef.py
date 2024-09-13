@@ -1,5 +1,5 @@
 # Author Korbinian Poeppel
-from typing import Tuple
+from typing import Optional, Literal
 
 import torch
 import triton
@@ -70,7 +70,7 @@ def chunk_mlstm_fwd_kernel_C(
         b_n = tl.load(p_n0, boundary_check=(0,))
         b_m = tl.load(p_m0)
     else:
-        b_C = tl.zeros([BK, BV], dtype=tl.load(k).dtype)
+        b_C = tl.zeros([BK, BV], dtype=tl.load(C).dtype)
         b_n = tl.zeros([BK], dtype=b_C.dtype)
         b_m = 0.0
 
@@ -239,7 +239,7 @@ def chunk_mlstm_fwd_kernel_h(
         # [BK, BV]
         b_C = tl.load(p_C, boundary_check=(0, 1))
         b_n = tl.load(p_n, boundary_check=(0,))
-        b_h += tl.dot(b_q, b_C, allow_tf32=False).to(b_h.dtype)
+        b_h += tl.dot(b_q, b_C.to(b_q.dtype), allow_tf32=False).to(b_h.dtype)
         b_s += tl.dot(b_q, b_k, allow_tf32=False).to(b_s.dtype)
         b_n2 = tl.dot(b_q, b_n, allow_tf32=False).to(b_norm.dtype)
         b_norm += b_n2
@@ -449,7 +449,7 @@ def chunk_mlstm_bwd_kernel_dqkvif(
     o_i = tl.arange(0, BT)
     # o_i_t = o_i[None, :]
     # o_i_s = o_i[:, None]
-    
+
     p_q = tl.make_block_ptr(
         q + i_bC * s_qk_h,
         (K, T),
@@ -480,11 +480,14 @@ def chunk_mlstm_bwd_kernel_dqkvif(
     b_i = tl.load(p_i)
 
     m_s = o_i[None, :] >= o_i[:, None]
-    b_f_right_cum = tl.cumsum(tl.where(o_i[None, :] > o_i[:, None], b_f[None, :].broadcast_to(BS, BT), 0.0), axis=1)
+    b_f_right_cum = tl.cumsum(
+        tl.where(o_i[None, :] > o_i[:, None], b_f[None, :].broadcast_to(BS, BT), 0.0),
+        axis=1,
+    )
     b_logDT = b_i[:, None] + b_f_right_cum - b_m_total[None, :]
     b_DT = tl.where(m_s, tl.math.exp2(b_logDT) * scale, 0.0)
-    b_s = b_s * b_DT 
-    
+    b_s = b_s * b_DT
+
     b_frev = tl.load(f + i_bC * T + i_t * BT + o_i + 1, mask=o_i < BT - 1, other=0.0)
     b_frc = tl.flip(tl.cumsum(tl.flip(b_frev), axis=0))
     b_f_ac = tl.load(f + i_bC * T + i_t * BT + o_i)
@@ -505,14 +508,10 @@ def chunk_mlstm_bwd_kernel_dqkvif(
     b_di = tl.zeros([BT], dtype=b_i_g.dtype)
 
     p_di = tl.make_block_ptr(
-            di + (i_k * n_bh + i_bC) * T,
-            (T,),
-            (1,),
-            (i_t * BT,),
-            (BT,),
-            (0,)) 
+        di + (i_k * n_bh + i_bC) * T, (T,), (1,), (i_t * BT,), (BT,), (0,)
+    )
     p_dfc = dfc + (i_k * n_bh + i_bC) * NT + i_t
-    b_dfc = 0.
+    b_dfc = 0.0
 
     for i_v in range(tl.cdiv(V, BV)):
         p_v = tl.make_block_ptr(
@@ -565,46 +564,57 @@ def chunk_mlstm_bwd_kernel_dqkvif(
         # [BT, BT]
         b_ds += tl.dot(b_dh, tl.trans(b_v), allow_tf32=False).to(b_ds.dtype)
         # [BT, BK]
-        b_dq += (tl.dot(b_dh, b_C, allow_tf32=False) * scale).to(b_dq.dtype)
-        b_dk += tl.dot(b_v, tl.trans(b_dC), allow_tf32=False).to(b_dk.dtype)
+        b_dq += (tl.dot(b_dh, b_C.to(b_dh.dtype), allow_tf32=False) * scale).to(
+            b_dq.dtype
+        )
+        b_dk += tl.dot(b_v, tl.trans(b_dC.to(b_v.dtype)), allow_tf32=False).to(
+            b_dk.dtype
+        )
         # [BT, BV]
-        b_dv = tl.dot(b_k, b_dC, allow_tf32=False).to(b_q.dtype) * tl.math.exp2(
-            b_g - b_m_next
-        ).to(b_q.dtype)[:, None]
+        b_dv = (
+            tl.dot(b_k, b_dC.to(b_k.dtype), allow_tf32=False).to(b_q.dtype)
+            * tl.math.exp2(b_g - b_m_next).to(b_q.dtype)[:, None]
+        )
         b_dv += tl.dot(
             (b_s / b_norm[None, :]).to(b_q.dtype), b_dh.to(b_q.dtype), allow_tf32=False
         ).to(b_q.dtype)
         b_di += tl.sum(b_dv * b_v, axis=1).to(tl.float32)
-        
+
         b_dfc += tl.sum(tl.sum(tl.trans(b_C) * b_dC, axis=0).to(tl.float32), axis=0)
         tl.store(p_dv, b_dv.to(p_dv.dtype.element_ty), boundary_check=(0, 1))
 
     tl.store(p_di, b_di.to(p_di.dtype.element_ty), boundary_check=(0,))
     tl.store(p_dfc, b_dfc * tl.math.exp2(b_f_all + b_m - b_m_next))
-    
-    b_dq = b_dq * tl.math.exp2(b_f_c + b_m - b_m_total)[:, None] / b_norm[:, None]
-    b_dfq1 = tl.flip(tl.cumsum(tl.flip(tl.sum(tl.trans(b_q)*b_dq, axis=1)), axis=0))
+
+    b_dq *= (tl.math.exp2(b_f_c + b_m - b_m_total)[:, None] / b_norm[:, None]).to(
+        b_dq.dtype
+    )
+    b_dfq1 = tl.flip(
+        tl.cumsum(tl.flip(tl.sum((tl.trans(b_q) * b_dq).to(f.dtype), axis=1)), axis=0)
+    )
     b_dk = b_dk * tl.math.exp2(b_g - b_m_next)[:, None]
-    b_dfk = tl.cumsum(tl.sum(b_dk * b_k, axis=1))
-    
+    b_dfk = tl.cumsum(tl.sum((b_dk * b_k).to(b_f.dtype), axis=1))
+
     b_ds = tl.trans(b_DT) * b_ds
     b_ds = b_ds.to(b_k.dtype)
-    
+
     # [BT, BK]
-    b_dq_p = tl.dot(b_ds, b_k, allow_tf32=False) / b_norm[:, None]
+    b_dq_p = tl.dot(b_ds, b_k, allow_tf32=False) / b_norm[:, None].to(b_dq.dtype)
     b_dq += b_dq_p
     b_dk_p = tl.trans(
         tl.dot((b_q / b_norm[None, :]).to(b_q.dtype), b_ds, allow_tf32=False)
     )
     b_dk += b_dk_p
     b_dg = tl.trans(b_ds) * tl.dot(b_k, b_q / b_norm[None, :].to(b_q.dtype))
-    
+
     mask = o_i[:, None] < o_i[None, :]
-    b_dg = tl.where(mask, b_dg, 0.)
-    b_dfg = tl.sum(tl.where(mask, tl.flip(tl.cumsum(tl.flip(b_dg), axis=1)), 0.0), axis=0)
-    
+    b_dg = tl.where(mask, b_dg, 0.0)
+    b_dfg = tl.sum(
+        tl.where(mask, tl.flip(tl.cumsum(tl.flip(b_dg), axis=1)), 0.0), axis=0
+    )
+
     b_dfq = b_dfq1 + b_dfg
-    
+
     p_dq = tl.make_block_ptr(
         dq + i_bC * s_qk_h,
         (T, K),
@@ -622,20 +632,15 @@ def chunk_mlstm_bwd_kernel_dqkvif(
         (1, 0),
     )
     p_dfq = tl.make_block_ptr(
-        dfq + (i_k * n_bh + i_bC) * T,
-        (T,),
-        (1,),
-        (i_t * BT,),
-        (BT,),
-        (0,)
+        dfq + (i_k * n_bh + i_bC) * T, (T,), (1,), (i_t * BT,), (BT,), (0,)
     )
     p_dfk = tl.make_block_ptr(
-        dfk + (i_k * n_bh + i_bC) * (T+1) + 1,
-        (T+1,),
+        dfk + (i_k * n_bh + i_bC) * (T + 1) + 1,
+        (T + 1,),
         (1,),
         (i_t * BT,),
         (BT,),
-        (0,)
+        (0,),
     )
     b_dfk = tl.where(o_i < BT - 1, b_dfk, 0.0)
     tl.store(p_dq, b_dq.to(p_dq.dtype.element_ty), boundary_check=(0, 1))
@@ -934,7 +939,12 @@ class mLSTMKerneldqkv(torch.autograd.Function):
         pass
 
 
-def mLSTMFunctionGenerator(chunk_size: int = 64, keep_states: bool = False):
+def mLSTMFunctionGenerator(
+    chunk_size: int = 64,
+    keep_states: bool = False,
+    dtype_state: Optional[torch.dtype] = torch.float32,
+    dtype_gate: Optional[torch.dtype] = torch.float32,
+):
     class mLSTMFunction(torch.autograd.Function):
         @staticmethod
         @custom_fwd(device_type="cuda")
@@ -952,26 +962,35 @@ def mLSTMFunctionGenerator(chunk_size: int = 64, keep_states: bool = False):
             num_stages = 1
             num_warps = 4 if BK == 64 else 2
             scale = K**-0.5
-
+            if dtype_state is None:
+                dtype_states = q.dtype
+            else:
+                dtype_states = dtype_state
+            if dtype_gate is None:
+                dtype_gates = q.dtype
+            else:
+                dtype_gates = dtype_gate
             assert T % BT == 0, "sequence length must be divisible by BT"
             f_orig = f
-            f = torch.nn.functional.logsigmoid(f)
+            f = torch.nn.functional.logsigmoid(f.to(dtype_gates))
             f = f.reshape(B, H, -1, BT)
             f = f * 1.44269504
             f = f.reshape(B, H, -1)
-            i = i.reshape(B, H, -1) * 1.44269504
+            i = (i.reshape(B, H, -1) * 1.44269504).to(dtype_gates)
 
             final_C, final_n, final_m = None, None, None
             if output_final_state:
-                final_C = q.new_empty(B, H, K, V, requires_grad=False)
-                final_n = q.new_empty(B, H, K, requires_grad=False)
-                final_m = q.new_empty(B, H, requires_grad=False)
+                final_C = q.new_empty(
+                    B, H, K, V, requires_grad=False, dtype=dtype_states
+                )
+                final_n = q.new_empty(B, H, K, requires_grad=False, dtype=dtype_states)
+                final_m = q.new_empty(B, H, requires_grad=False, dtype=dtype_states)
 
-            C = q.new_empty(B, H, NT * K, V)
-            n = q.new_empty(B, H, NT, K)
-            m = q.new_full((B, H, NT + 1), float("nan"))
-            m_total = q.new_empty(B, H, NT, BT)
-            norm = q.new_empty(B, H, NT, BT)
+            C = q.new_empty(B, H, NT * K, V, dtype=dtype_states)
+            n = q.new_empty(B, H, NT, K, dtype=dtype_states)
+            m = q.new_full((B, H, NT + 1), float("nan"), dtype=dtype_states)
+            m_total = q.new_empty(B, H, NT, BT, dtype=dtype_states)
+            norm = q.new_empty(B, H, NT, BT, dtype=dtype_states)
             grid = (NK, NV, B * H)
             chunk_mlstm_fwd_kernel_C[grid](
                 k,
@@ -1111,13 +1130,18 @@ def mLSTMFunctionGenerator(chunk_size: int = 64, keep_states: bool = False):
             )
             NT, NK, NV = triton.cdiv(T, BT), triton.cdiv(K, BK), triton.cdiv(V, BV)
 
+            if dtype_state is None:
+                dtype_states = q.dtype
+            else:
+                dtype_states = dtype_state
+
             if C is None:
                 num_stages = 1
                 num_warps = 4 if BK == 64 else 2
                 scale = K**-0.5
 
-                C = q.new_empty(B, H, NT * K, V)
-                n = q.new_empty(B, H, NT, K)
+                C = q.new_empty(B, H, NT * K, V, dtype=dtype_states)
+                n = q.new_empty(B, H, NT, K, dtype=dtype_states)
                 grid = (NK, NV, B * H)
                 final_C, final_n, final_m = None, None, None
 
@@ -1161,14 +1185,16 @@ def mLSTMFunctionGenerator(chunk_size: int = 64, keep_states: bool = False):
             num_stages = 1
             num_warps = 4 if BK == 64 else 2
             scale = K**-0.5
-            dC = q.new_empty(B, H, NT * K, V)
+            dC = q.new_empty(B, H, NT * K, V, dtype=dtype_states)
 
-            initial_dC = q.new_empty(B, H, K, V, requires_grad=False)
-            initial_m = q.new_empty(B, H, requires_grad=False)
-            
+            initial_dC = q.new_empty(
+                B, H, K, V, requires_grad=False, dtype=dtype_states
+            )
+            initial_m = q.new_empty(B, H, requires_grad=False, dtype=dtype_states)
+
             if final_dC is None:
-                final_dC = q.new_full(initial_dC.shape, 0.0)
-                final_m = q.new_full(initial_m.shape, 0.0)
+                final_dC = q.new_full(initial_dC.shape, 0.0, dtype=dtype_states)
+                final_m = q.new_full(initial_m.shape, 0.0, dtype=dtype_states)
 
             grid = (NK, NV, B * H)
             chunk_mlstm_bwd_kernel_dC[grid](
@@ -1208,9 +1234,9 @@ def mLSTMFunctionGenerator(chunk_size: int = 64, keep_states: bool = False):
             dk = torch.empty_like(k)
             dv = v.new_empty(NK, *v.shape)
             di = i.new_empty(NK, *i.shape)
-            dfq = f.new_zeros(NK, B*H, T)
-            dfk = f.new_zeros(NK, B*H, T+1)
-            dfc = f.new_zeros(NK, B*H, NT)
+            dfq = f.new_zeros(NK, B * H, T)
+            dfk = f.new_zeros(NK, B * H, T + 1)
+            dfc = f.new_zeros(NK, B * H, NT)
             num_stages = 1
             num_warps = 4 if BK == 64 else 2
             chunk_mlstm_bwd_kernel_dqkvif[grid](
@@ -1259,22 +1285,22 @@ def mLSTMFunctionGenerator(chunk_size: int = 64, keep_states: bool = False):
             # baselines
             # df = (dq * q - dk * k).sum(-1)
             # di = (dv * v).sum(-1)
-            
+
             # stabilized version without differences
             di = di.sum(0)
             df = dfq.sum(0)
             df += dfk[:, :, :-1].sum(0)
             dfc = dfc.sum(0)
-            
-            df = df.view(B*H, NT, BT) + dfc.view(B*H, NT, 1)
+
+            df = df.view(B * H, NT, BT) + dfc.view(B * H, NT, 1)
             df = df.view(f_orig.shape) * torch.nn.functional.sigmoid(-f_orig)
             return (
                 dq.to(q.dtype),
                 dk.to(k.dtype),
                 dv.to(v.dtype),
-                di.to(i.dtype),
-                df.to(f.dtype).view(f.shape),
-                initial_dC if initial_C is not None else None,
+                di.to(f_orig.dtype),
+                df.to(f_orig.dtype).view(f.shape),
+                initial_dC.to(initial_C.dtype) if initial_C is not None else None,
                 None,
                 None,
                 None,
@@ -1284,8 +1310,22 @@ def mLSTMFunctionGenerator(chunk_size: int = 64, keep_states: bool = False):
 
 
 mLSTMFunction = {}
-mLSTMFunction[(64, False)] = mLSTMFunctionGenerator(chunk_size=64, keep_states=False)
-mLSTMFunction[(16, False)] = mLSTMFunctionGenerator(chunk_size=16, keep_states=False)
+# registry with (chunk_size, keep_state, dtype_states, dtype_gates)
+mLSTMFunction[(64, False, "float32", "float32")] = mLSTMFunctionGenerator(
+    chunk_size=64, keep_states=False
+)
+mLSTMFunction[(64, False, "bfloat16", "float32")] = mLSTMFunctionGenerator(
+    chunk_size=64, keep_states=False
+)
+mLSTMFunction[(64, False, "float16", "float32")] = mLSTMFunctionGenerator(
+    chunk_size=64, keep_states=False
+)
+
+DTYPESTR_TO_DTYPE = {
+    "float32": torch.float32,
+    "bfloat16": torch.bfloat16,
+    "float16": torch.float16,
+}
 
 
 def mlstm_fwbw(
@@ -1299,13 +1339,23 @@ def mlstm_fwbw(
     initial_m: torch.Tensor = None,
     output_final_state: bool = False,
     chunk_size: int = 64,
-    keep_states: bool = False
-) -> Tuple[torch.Tensor, torch.Tensor]:
+    keep_states: bool = False,
+    dtype_states: Literal["float32", "bfloat16", "float16"] = "float32",
+    dtype_gates: Literal["float32", "bfloat16", "float16"] = "float32",
+) -> tuple[torch.Tensor, torch.Tensor]:
+    # actually dtype_gates is not really supported yet
     f = f.float()
     i = i.float()
-    if (chunk_size, keep_states) not in mLSTMFunction:
-        mLSTMFunction[(chunk_size, keep_states)] = mLSTMFunctionGenerator(chunk_size=chunk_size, keep_states=keep_states)
-    mLSTMFunc = mLSTMFunction[(chunk_size, keep_states)]
+    if (chunk_size, keep_states, dtype_states, dtype_gates) not in mLSTMFunction:
+        mLSTMFunction[(chunk_size, keep_states, dtype_states, dtype_gates)] = (
+            mLSTMFunctionGenerator(
+                chunk_size=chunk_size,
+                keep_states=keep_states,
+                dtype_states=DTYPESTR_TO_DTYPE[dtype_states],
+                dtype_gates=DTYPESTR_TO_DTYPE[dtype_gates],
+            )
+        )
+    mLSTMFunc = mLSTMFunction[(chunk_size, keep_states, dtype_states, dtype_gates)]
     h, final_C, final_n, final_m = mLSTMFunc.apply(
         q, k, v, i, f, initial_C, initial_n, initial_m, output_final_state
     )
@@ -1319,6 +1369,8 @@ def mlstm_fwbw(
 class mLSTMBackendTritonConfig:
     chunk_size: int = 64
     save_states: bool = False
+    dtype_states: Literal["float32", "bfloat16", "float16"] = "float32"
+    dtype_gates: Literal["float32", "bfloat16", "float16"] = "float32"
 
     def assign_model_config_params(self, model_config, *args, **kwargs):
         pass
@@ -1329,7 +1381,12 @@ class mLSTMBackendTriton(torch.nn.Module):
 
     def __init__(self, config: mLSTMBackendTritonConfig):
         super().__init__(config)
-        self._func = mLSTMFunctionGenerator(config.chunk_size, config.save_states)
+        self._func = mLSTMFunctionGenerator(
+            config.chunk_size,
+            config.save_states,
+            dtype_state=config.dtype_states,
+            dtype_gate=config.dtype_gates,
+        )
 
     def forward(
         self,

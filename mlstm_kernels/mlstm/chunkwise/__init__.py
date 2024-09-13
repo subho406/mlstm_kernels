@@ -15,4 +15,5 @@ registry = {
     "max_triton_v2": mlstm_chunkwise_max_triton_v2,  # fgate cumsum in float32, intermediate states in dtype (kernel_dtype, e.g. float16, bfloat16)
     "max_triton_v3": mlstm_chunkwise_max_triton_v3,  # complete fgate grad in float32, intermediate states in float32
     "triton": mlstm_chunkwise_triton,  # TODO integrate newest version
+    "triton_stable": mlstm_chunkwise_triton_stable,
 }
