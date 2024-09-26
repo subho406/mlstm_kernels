@@ -26,7 +26,7 @@ def mlstm_interface(
         torch.Tensor: matH outputs (no n and m values, no last states)
         tuple[torch.Tensor, tuple[torch.Tensor, torch.Tensor, torch.Tensor]]: matH, (matC_last, vecN_last, scaM_last)
     """
-    
+
     pass
 
 ```
@@ -38,13 +38,33 @@ The mLSTM repo contains the following kernel variants:
 - `parallel`: parallel kernels like flash attention (quadratic)
 - `recurrent`: recurrent kernels (mostly for inference) (linear)
 
-Not all variants support all features of the interface. Only the chunkwise and recurrent support passing the initial states and returning the last states. 
+Not all variants support all features of the interface. Only the chunkwise and recurrent support passing the initial states and returning the last states.
 
 ### Kernel naming
 
 #### External names of kernel functions in chunkwise, parallel and recurrent modules:
 - Python function: `mlstm_[recurrent|parallel|chunkwise]_[specifier]_[triton|torch]_[[autograd|ownbw]]`
 - Registry name (within module): `[specifier]_[triton|torch]_[[autograd|ownbw]]`
+
+
+## Running the unit tests
+
+The unit tests cross-check the different kernel implementations on numerical deviations for different dtypes.
+You can run all of them with the following command:
+```bash
+pytest -s tests/test_mlstm/
+```
+
+The `-s` disables the log capturing so you see the results directly on the command line.
+Each test will log the outputs to a new folder with the timestamp as name in the `test_outputs/` directory.
+
+Example:
+Each test starts with the line
+`Test chunkwise-triton target=max_triton_v3 vs. baseline=parallel_stable_ag with S=4096, B=1, NH=1, DHQK=16, DHHV=16, DTYPE=torch.float32`.
+
+This test tests the chunkwise triton kernel `max_triton_v3` against the `parallel_stable_ag` baseline and runs the `max_triton_v3` in dtype float32. It will compare the errors against the baseline in the same dtype (i.e. float32 here) and in float64.
+
+
 
 ---
 ---
@@ -64,5 +84,5 @@ Not all variants support all features of the interface. Only the chunkwise and r
 
 ## Questions about Nsight Systems & Nsight Compute
 
-- How can I organize the workflow efficiently in project. 
+- How can I organize the workflow efficiently in project.
 - How can I compare to baselines efficiently.

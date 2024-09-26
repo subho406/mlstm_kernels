@@ -22,7 +22,7 @@ repos:
   #   args: [ --autofix, --no-sort-keys ]
   # - id: name-tests-test # TODO this odes not allow for other files in tests/ folder
     # args: [ --pytest-test-first ]
-  - id: no-commit-to-branch
+  # - id: no-commit-to-branch
   - id: trailing-whitespace
 - repo: https://github.com/asottile/setup-cfg-fmt
   rev: v2.5.0
