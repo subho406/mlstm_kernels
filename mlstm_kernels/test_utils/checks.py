@@ -42,6 +42,9 @@ def check_correctness(
     dtype_str = dtype2str(dtype)
 
     errors = (baseline.detach() - target.detach()).abs()
+    rel_errors = (baseline.detach() - target.detach()).abs() / (
+        (baseline.detach()).abs() + 1e-6
+    )
     errors_np = errors.cpu().numpy()
 
     error_percentiles = np.percentile(errors_np, percentiles)
@@ -55,7 +58,7 @@ def check_correctness(
         return percentile_str
 
     # title = f"{test_specifier:>20}|{dtype_str:>6}| max diff: {(baseline - target).abs().max():>25}| mean diff: {(baseline - target).abs().mean():25} | allclose(atol={atol},rtol={rtol}): {result}"
-    title = f"{test_specifier:>20}|{dtype_str:>6}| diff: {make_percentile_str(error_percentiles, percentiles):>35} | maxdiff: {errors.max():25} | meandiff: {errors.mean():25} | allclose(atol={atol},rtol={rtol}): {result} | max abs bl: {baseline.abs().max():7.6f} | max abs tg: {target.abs().max():.5}"
+    title = f"{test_specifier:>20}|{dtype_str:>6}| diff: {make_percentile_str(error_percentiles, percentiles):>35} | maxreldiff: {rel_errors.max():25} | maxdiff: {errors.max():25} | meandiff: {errors.mean():25} | allclose(atol={atol},rtol={rtol}): {result} | max abs bl: {baseline.abs().max():7.6f} | max abs tg: {target.abs().max():.5}"
 
     print(title)
     LOGGER.info(title)
