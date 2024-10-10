@@ -20,11 +20,16 @@ def wrap_pad_inputs(backend, padded_chunk_size: Optional[int] = 64):
             S_padded = ((S - 1) // padded_chunk_size + 1) * padded_chunk_size
             S_unpadded = S
             S = S_padded
-            q_pad = q.new_empty(B, N, S, q.shape[3])
-            k_pad = k.new_empty(B, N, S, k.shape[3])
-            v_pad = v.new_empty(B, N, S, v.shape[3])
-            i_pad = i.new_empty(B, N, S)
-            f_pad = f.new_empty(B, N, S)
+            # actually these should not give NaNs as the model is causal. 
+            q_pad = q.new_zeros(B, N, S, q.shape[3])
+            k_pad = k.new_zeros(B, N, S, k.shape[3])
+            v_pad = (
+                v.new_zeros(B, N, S, v.shape[3])
+                + torch.arange(v.shape[3], dtype=v.dtype, device=v.device)[None, None, None, :]
+            )
+            # causality might have a problem here regarding NaNs? (D_matrix normalization)
+            i_pad = i.new_zeros(B, N, S)
+            f_pad = f.new_zeros(B, N, S)
             q_pad[:, :, :S_unpadded] = q
             k_pad[:, :, :S_unpadded] = k
             v_pad[:, :, :S_unpadded] = v
@@ -82,7 +87,7 @@ def get_kernel(name: str, padded_chunk_size: Optional[int] = 64) -> Callable:
             f"Unknown backend name: {backend_name}. Available backend names: {list(module_backend_registry[module_name].keys())}"
         )
 
-    LOGGER.info(f"Calling backend: {module_name} {backend_name} with {padded_chunk_size}")
+    # LOGGER.info(f"Calling backend: {module_name} {backend_name} with {padded_chunk_size}")
     backend = module_backend_registry[module_name][backend_name]
     return wrap_pad_inputs(backend, padded_chunk_size=padded_chunk_size)
 
