@@ -1,5 +1,5 @@
 import torch
-from typing import Callable
+from collections.abc import Callable
 
 
 def mlstm_interface(
