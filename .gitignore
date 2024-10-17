@@ -7,10 +7,10 @@ data/*
 # !.vscode/settings.json
 # !.vscode/launch.json
 outputs_kernel_benchmarks
+outputs_tests
 configs
 configs/*
 resources/*.p
-tests_outputs
 
 *.png
 *.csv

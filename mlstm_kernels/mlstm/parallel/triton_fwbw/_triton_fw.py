@@ -23,17 +23,17 @@ if ENABLE_AUTOTUNING:
         triton.Config({"BLOCK_Q": BQ, "BLOCK_KV": BKV}, num_stages=s, num_warps=w)
         for BQ, BKV in [
             (128, 128),
-            (128, 64),
-            (128, 32),
-            (128, 16),
+            # (128, 64),
+            # (128, 32),
+            # (128, 16),
             (64, 64),
-            (64, 32),
-            (64, 16),
+            # (64, 32),
+            # (64, 16),
             (32, 32),
-            (32, 16),
+            # (32, 16),
             (16, 16),
         ]
-        for s in [3, 4, 7]
+        for s in [4]
         for w in [4, 8]
     ]
 else:
@@ -116,9 +116,7 @@ def _mlstm_fwd(
     off_z = off_hz // H
     off_h = off_hz % H
     qkv_offset = off_z.to(tl.int64) * stride_qz + off_h.to(tl.int64) * stride_qh
-    ifmn_offset = (
-        off_z.to(tl.int64) * stride_ifmn_z + off_h.to(tl.int64) * stride_ifmn_h
-    )
+    ifmn_offset = off_z.to(tl.int64) * stride_ifmn_z + off_h.to(tl.int64) * stride_ifmn_h
 
     # block pointers
     # Note on order argument:
@@ -272,6 +270,7 @@ def _mlstm_fwd(
     tl.store(vecN_ptr, n_old.to(vecN.type.element_ty))
 
 
+# TODO: enable different head dimensions for qk and v
 def mlstm_fw(
     matQ: torch.Tensor,
     matK: torch.Tensor,
@@ -291,7 +290,7 @@ def mlstm_fw(
     HEAD_DIM_Q, HEAD_DIM_K = matQ.shape[-1], matK.shape[-1]
     # when v is in float8_e5m2 it is transposed.
     HEAD_DIM_V = matV.shape[-1]
-    assert HEAD_DIM_Q == HEAD_DIM_K and HEAD_DIM_K == HEAD_DIM_V
+    assert HEAD_DIM_Q == HEAD_DIM_K and HEAD_DIM_K == HEAD_DIM_V, f"Q, K, V must have the same head dimension"
     assert HEAD_DIM_K in {
         16,
         32,

@@ -26,14 +26,14 @@ if ENABLE_AUTOTUNING:
         triton.Config({"BLOCK_Q": BQ, "BLOCK_KV": BKV}, num_stages=s, num_warps=w)
         for BQ, BKV in [
             (128, 128),
-            (128, 64),
-            (128, 32),
-            (128, 16),
+            # (128, 64),
+            # (128, 32),
+            # (128, 16),
             (64, 64),
-            (64, 32),
-            (64, 16),
+            # (64, 32),
+            # (64, 16),
             (32, 32),
-            (32, 16),
+            # (32, 16),
             (16, 16),
         ]
         for s in [3, 4, 7]
@@ -127,12 +127,8 @@ def _mlstm_bwd_dkdv(
     off_z = off_hz // H
     off_h = off_hz % H
 
-    qkvh_batchhead_offset = (
-        off_z.to(tl.int64) * stride_qz + off_h.to(tl.int64) * stride_qh
-    )
-    ifmn_batchhead_offset = (
-        off_z.to(tl.int64) * stride_ifmn_z + off_h.to(tl.int64) * stride_ifmn_h
-    )
+    qkvh_batchhead_offset = off_z.to(tl.int64) * stride_qz + off_h.to(tl.int64) * stride_qh
+    ifmn_batchhead_offset = off_z.to(tl.int64) * stride_ifmn_z + off_h.to(tl.int64) * stride_ifmn_h
 
     # input block pointers
     # Note: the order argument specifies the memory traversal order within a block
@@ -205,18 +201,14 @@ def _mlstm_bwd_dkdv(
     matDeltaV_tile = tl.zeros([BLOCK_KV, HEAD_DIM], dtype=tl.float32)
 
     # load vecI_chunk
-    vecI_chunk_KV_ptr = (
-        vecI + ifmn_batchhead_offset + kv_offset + tl.arange(0, BLOCK_KV)
-    )
+    vecI_chunk_KV_ptr = vecI + ifmn_batchhead_offset + kv_offset + tl.arange(0, BLOCK_KV)
     vecI_chunk_KV = tl.load(vecI_chunk_KV_ptr)  # (BLOCK_KV,)
 
     # init vecDeltaI_sum accumulator
     vecDeltaI_sum_chunk_KV = tl.zeros([BLOCK_KV], dtype=tl.float32)
 
     # load vecF_cs_chunk_KV
-    vecF_cs_chunk_KV_ptr = (
-        vecF_cs + ifmn_batchhead_offset + kv_offset + tl.arange(0, BLOCK_KV)
-    )
+    vecF_cs_chunk_KV_ptr = vecF_cs + ifmn_batchhead_offset + kv_offset + tl.arange(0, BLOCK_KV)
     vecF_cs_chunk_KV = tl.load(vecF_cs_chunk_KV_ptr)
     vecF_cs_chunk_KV = vecF_cs_chunk_KV.to(tl.float32)
 
@@ -228,9 +220,7 @@ def _mlstm_bwd_dkdv(
     # move mat(Delta)Q_block_ptr & matDeltaHtilde_block_ptr to the position for the current thread block
     # input pointers:
     matQ_block_ptr = tl.advance(matQ_block_ptr, (qStartIdx * BLOCK_Q, 0))
-    matDeltaHtilde_block_ptr = tl.advance(
-        matDeltaHtilde_block_ptr, (qStartIdx * BLOCK_Q, 0)
-    )
+    matDeltaHtilde_block_ptr = tl.advance(matDeltaHtilde_block_ptr, (qStartIdx * BLOCK_Q, 0))
     # output pointers:
     # matDeltaQ_block_ptr = tl.advance(matDeltaQ_block_ptr, (qStartIdx * BLOCK_Q, 0))
 
@@ -252,9 +242,7 @@ def _mlstm_bwd_dkdv(
         vecN_chunk_Q = tl.load(vecN_chunk_Q_ptr)  # (BLOCK_Q,)
 
         # load vecF_cs_chunk_Q
-        vecF_cs_chunk_Q_ptr = (
-            vecF_cs + ifmn_batchhead_offset + q_offset + tl.arange(0, BLOCK_Q)
-        )
+        vecF_cs_chunk_Q_ptr = vecF_cs + ifmn_batchhead_offset + q_offset + tl.arange(0, BLOCK_Q)
         vecF_cs_chunk_Q = tl.load(vecF_cs_chunk_Q_ptr)
         vecF_cs_chunk_Q = vecF_cs_chunk_Q.to(tl.float32)
 
@@ -286,9 +274,7 @@ def _mlstm_bwd_dkdv(
 
         # else: below main diagonal
 
-        matDprime_tile = tl.exp(
-            matLogD_tile - vecM_chunk_Q[:, None]
-        )  # (BLOCK_Q, BLOCK_KV)
+        matDprime_tile = tl.exp(matLogD_tile - vecM_chunk_Q[:, None])  # (BLOCK_Q, BLOCK_KV)
         # ? end recomputation of S & D matrices
 
         matDeltaCTilde_tile = matDeltaC_tile * matS_tile * matDprime_tile
@@ -308,25 +294,17 @@ def _mlstm_bwd_dkdv(
         matP_tile_transposed = tl.trans(matP_tile)  # (BLOCK_KV, BLOCK_Q)
         # tl.static_print("matP_tile_transposed", matP_tile_transposed)
         # tl.static_print("matQ_tile", matQ_tile)
-        matDeltaK_tile_temp = tl.dot(
-            matP_tile_transposed, matQ_tile
-        )  # (BLOCK_KV, HEAD_DIM)
+        matDeltaK_tile_temp = tl.dot(matP_tile_transposed, matQ_tile)  # (BLOCK_KV, HEAD_DIM)
         matDeltaK_tile += matDeltaK_tile_temp / qk_scale
 
         matR_tile_transposed = tl.trans(matR_tile)  # (BLOCK_KV, BLOCK_Q)
-        matDeltaHtilde_tile_normalized = matDeltaHtilde_tile / (
-            vecN_chunk_Q[:, None] + EPS
-        )  # (BLOCK_Q, HEAD_DIM)
-        matDeltaHtilde_tile_normalized = matDeltaHtilde_tile_normalized.to(
-            matQ_tile.type.element_ty
-        )
+        matDeltaHtilde_tile_normalized = matDeltaHtilde_tile / (vecN_chunk_Q[:, None] + EPS)  # (BLOCK_Q, HEAD_DIM)
+        matDeltaHtilde_tile_normalized = matDeltaHtilde_tile_normalized.to(matQ_tile.type.element_ty)
         # tl.static_print("matR_tile_transposed", matR_tile_transposed)
         # tl.static_print(
         #     "matDeltaHtilde_tile_normalized", matDeltaHtilde_tile_normalized
         # )
-        matDeltaV_tile += tl.dot(
-            matR_tile_transposed, matDeltaHtilde_tile_normalized
-        )  # (BLOCK_KV, HEAD_DIM)
+        matDeltaV_tile += tl.dot(matR_tile_transposed, matDeltaHtilde_tile_normalized)  # (BLOCK_KV, HEAD_DIM)
 
         # advance pointers (delta_)Q + deltaHtilde
         matQ_block_ptr = tl.advance(matQ_block_ptr, (BLOCK_Q, 0))
@@ -338,12 +316,8 @@ def _mlstm_bwd_dkdv(
     tl.store(matDeltaK_block_ptr, matDeltaK_tile.to(matDeltaK.type.element_ty))
     tl.store(matDeltaV_block_ptr, matDeltaV_tile.to(matDeltaV.type.element_ty))
     # store vecDeltaI_sum
-    vecDeltaI_chunk_KV_ptr = (
-        vecDeltaI + ifmn_batchhead_offset + kv_offset + tl.arange(0, BLOCK_KV)
-    )
-    tl.store(
-        vecDeltaI_chunk_KV_ptr, vecDeltaI_sum_chunk_KV.to(vecDeltaI.type.element_ty)
-    )
+    vecDeltaI_chunk_KV_ptr = vecDeltaI + ifmn_batchhead_offset + kv_offset + tl.arange(0, BLOCK_KV)
+    tl.store(vecDeltaI_chunk_KV_ptr, vecDeltaI_sum_chunk_KV.to(vecDeltaI.type.element_ty))
 
 
 @triton.autotune(list(filter(keep, configs)), key=["N_CTX", "HEAD_DIM"])
@@ -401,12 +375,8 @@ def _mlstm_bwd_dQ(
     off_z = off_hz // H
     off_h = off_hz % H
 
-    qkvh_batchhead_offset = (
-        off_z.to(tl.int64) * stride_qz + off_h.to(tl.int64) * stride_qh
-    )
-    ifmn_batchhead_offset = (
-        off_z.to(tl.int64) * stride_ifmn_z + off_h.to(tl.int64) * stride_ifmn_h
-    )
+    qkvh_batchhead_offset = off_z.to(tl.int64) * stride_qz + off_h.to(tl.int64) * stride_qh
+    ifmn_batchhead_offset = off_z.to(tl.int64) * stride_ifmn_z + off_h.to(tl.int64) * stride_ifmn_h
 
     # input block pointers
     # Note: the order argument specifies the memory traversal order within a block
@@ -476,9 +446,7 @@ def _mlstm_bwd_dQ(
     vecN_chunk_Q = tl.load(vecN_chunk_Q_ptr)  # (BLOCK_Q,)
 
     # load vecF_cs_chunk_Q
-    vecF_cs_chunk_Q_ptr = (
-        vecF_cs + ifmn_batchhead_offset + q_offset + tl.arange(0, BLOCK_Q)
-    )
+    vecF_cs_chunk_Q_ptr = vecF_cs + ifmn_batchhead_offset + q_offset + tl.arange(0, BLOCK_Q)
     vecF_cs_chunk_Q = tl.load(vecF_cs_chunk_Q_ptr)
     vecF_cs_chunk_Q = vecF_cs_chunk_Q.to(tl.float32)
 
@@ -495,16 +463,12 @@ def _mlstm_bwd_dQ(
         kv_offset = tl.multiple_of(kv_offset, BLOCK_Q)
 
         # load vecF_cs_chunk_KV
-        vecF_cs_chunk_KV_ptr = (
-            vecF_cs + ifmn_batchhead_offset + kv_offset + tl.arange(0, BLOCK_KV)
-        )
+        vecF_cs_chunk_KV_ptr = vecF_cs + ifmn_batchhead_offset + kv_offset + tl.arange(0, BLOCK_KV)
         vecF_cs_chunk_KV = tl.load(vecF_cs_chunk_KV_ptr)
         vecF_cs_chunk_KV = vecF_cs_chunk_KV.to(tl.float32)
 
         # load vecI_chunk
-        vecI_chunk_KV_ptr = (
-            vecI + ifmn_batchhead_offset + kv_offset + tl.arange(0, BLOCK_KV)
-        )
+        vecI_chunk_KV_ptr = vecI + ifmn_batchhead_offset + kv_offset + tl.arange(0, BLOCK_KV)
         vecI_chunk_KV = tl.load(vecI_chunk_KV_ptr)  # (BLOCK_KV,)
 
         # load matK_tile & matV_tile
@@ -539,9 +503,7 @@ def _mlstm_bwd_dQ(
 
         # else: below main diagonal
 
-        matDprime_tile = tl.exp(
-            matLogD_tile - vecM_chunk_Q[:, None]
-        )  # (BLOCK_Q, BLOCK_KV)
+        matDprime_tile = tl.exp(matLogD_tile - vecM_chunk_Q[:, None])  # (BLOCK_Q, BLOCK_KV)
         # ? end recomputation of S & D matrices
 
         matP_tile = matDeltaC_tile * matDprime_tile  # (BLOCK_Q, BLOCK_KV)
@@ -729,7 +691,7 @@ def mlstm_bw(
     # No! this causes loading and casting all the data again.
     vecDeltaFbar_acc = (matQ * matDeltaQ - matK * matDeltaK).sum(-1)
     vecDeltaFbar = vecDeltaFbar_acc.flip(-1).cumsum(-1).flip(-1)
-    vecDeltaF = (vecDeltaFbar * torch.sigmoid(-vecF))
+    vecDeltaF = vecDeltaFbar * torch.sigmoid(-vecF)
     ## ? end postprocessing
 
     return matDeltaQ, matDeltaK, matDeltaV, vecDeltaI, vecDeltaF

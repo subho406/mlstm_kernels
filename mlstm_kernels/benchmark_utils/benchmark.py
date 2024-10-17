@@ -58,8 +58,10 @@ class BenchmarkInterface:
         """Returns the available kernel names for the benchmark."""
         raise NotImplementedError
 
-    def set_params(self, param_dict) -> None:
+    def set_params(self, param_dict: dict) -> None:
         """Used to set all or multiple parameters of the benchmark at once."""
+        if param_dict is None:
+            return
         for k, v in param_dict.items():
             if hasattr(self, k):
                 setattr(self, k, v)

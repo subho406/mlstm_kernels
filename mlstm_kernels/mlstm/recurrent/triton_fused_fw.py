@@ -8,6 +8,7 @@ import triton
 import triton.language as tl
 
 from ...kernel_utils import contiguous_noctx, torch2triton_dtype
+from .sequence_loop import recurrent_sequence_fw
 
 """
 Triton.
@@ -23,6 +24,40 @@ TODO this kernel still does not use tensor cores.
 Not sure how to use tensor cores with triton in this case. One needs to pad a block with zeros in SRAM. 
 I don't know how to do this with triton, yet.
 """
+
+
+def mlstm_recurrent_sequence_torch_step_triton_fused(
+    q: torch.Tensor,
+    k: torch.Tensor,
+    v: torch.Tensor,
+    i: torch.Tensor,
+    f: torch.Tensor,
+    c_initial: torch.Tensor = None,
+    n_initial: torch.Tensor = None,
+    m_initial: torch.Tensor = None,
+    return_last_states: bool = False,
+    eps: float = 1e-6,
+    **kwargs,
+) -> torch.Tensor | tuple[torch.Tensor, tuple[torch.Tensor, torch.Tensor, torch.Tensor]]:
+    ret_tuple = recurrent_sequence_fw(
+        mlstm_step_fn=recurrent_step_fw,
+        matQ=q,
+        matK=k,
+        matV=v,
+        vecI=i,
+        vecF=f,
+        matC_initial=c_initial,
+        vecN_initial=n_initial,
+        scaM_initial=m_initial,
+        return_last_states=return_last_states,
+        EPS=eps,
+        return_all_states=False,
+    )
+    if return_last_states:
+        return ret_tuple[0], ret_tuple[3]
+    else:
+        return ret_tuple[0]
+
 
 ENABLE_AUTOTUNING = True
 
@@ -128,12 +163,7 @@ def _recurrent_step_fw_kernel(
         block_shape=(BLOCK_DQK, BLOCK_DV),
         order=(0, 1),
     )
-    vecH_ptr = (
-        vecH
-        + i_bnh * s_vecVH_nh
-        + i_dhv * BLOCK_DV * s_vecVH_dhv
-        + tl.arange(0, BLOCK_DV)
-    )
+    vecH_ptr = vecH + i_bnh * s_vecVH_nh + i_dhv * BLOCK_DV * s_vecVH_dhv + tl.arange(0, BLOCK_DV)
 
     scaI_ptr = scaI + i_bnh * s_scaIF_nh
     scaF_ptr = scaF + i_bnh * s_scaIF_nh
@@ -152,17 +182,13 @@ def _recurrent_step_fw_kernel(
     scaFlog_val = tl.log2(tl.sigmoid(scaF_val)) * 0.6931471805599453
 
     scaM_old_val = tl.load(scaM_old_ptr)
-    scaM_new_val = tl.maximum(
-        scaFlog_val + scaM_old_val, scaI_val
-    ) 
+    scaM_new_val = tl.maximum(scaFlog_val + scaM_old_val, scaI_val)
     tl.store(scaM_new_ptr, scaM_new_val.to(DTYPE))
 
     max_val = tl.exp2((-scaM_new_val.to(tl.float32)) * 1.4426950408889634).to(DTYPE)
 
     # gate computation for all dimensions
-    scaF_act = tl.exp2(
-        (scaFlog_val + scaM_old_val - scaM_new_val) * 1.4426950408889634
-    ).to(DTYPE)
+    scaF_act = tl.exp2((scaFlog_val + scaM_old_val - scaM_new_val) * 1.4426950408889634).to(DTYPE)
     scaI_act = tl.exp2((scaI_val - scaM_new_val) * 1.4426950408889634).to(DTYPE)
     # tl.static_print("scaF_act", scaF_act)
     # ? init accumulators
@@ -172,52 +198,22 @@ def _recurrent_step_fw_kernel(
     NUM_BLOCKS_DQK = triton.cdiv(DHQK, BLOCK_DQK)
 
     for i_dhqk in range(NUM_BLOCKS_DQK):
+        vecN_old_ptr = vecN_old + i_bnh * s_vecN_nh + i_dhqk * BLOCK_DQK * s_vecN_dhqk + tl.arange(0, BLOCK_DQK)
+        vecN_new_ptr = vecN_new + i_bnh * s_vecN_nh + i_dhqk * BLOCK_DQK * s_vecN_dhqk + tl.arange(0, BLOCK_DQK)
 
-        vecN_old_ptr = (
-            vecN_old
-            + i_bnh * s_vecN_nh
-            + i_dhqk * BLOCK_DQK * s_vecN_dhqk
-            + tl.arange(0, BLOCK_DQK)
-        )
-        vecN_new_ptr = (
-            vecN_new
-            + i_bnh * s_vecN_nh
-            + i_dhqk * BLOCK_DQK * s_vecN_dhqk
-            + tl.arange(0, BLOCK_DQK)
-        )
-
-        vecQ_ptr = (
-            vecQ
-            + i_bnh * s_vecQK_nh
-            + i_dhqk * BLOCK_DQK * s_vecQK_dhqk
-            + tl.arange(0, BLOCK_DQK)
-        )
-        vecK_ptr = (
-            vecK
-            + i_bnh * s_vecQK_nh
-            + i_dhqk * BLOCK_DQK * s_vecQK_dhqk
-            + tl.arange(0, BLOCK_DQK)
-        )
-        vecV_ptr = (
-            vecV
-            + i_bnh * s_vecVH_nh
-            + i_dhv * BLOCK_DV * s_vecVH_dhv
-            + tl.arange(0, BLOCK_DV)
-        )
+        vecQ_ptr = vecQ + i_bnh * s_vecQK_nh + i_dhqk * BLOCK_DQK * s_vecQK_dhqk + tl.arange(0, BLOCK_DQK)
+        vecK_ptr = vecK + i_bnh * s_vecQK_nh + i_dhqk * BLOCK_DQK * s_vecQK_dhqk + tl.arange(0, BLOCK_DQK)
+        vecV_ptr = vecV + i_bnh * s_vecVH_nh + i_dhv * BLOCK_DV * s_vecVH_dhv + tl.arange(0, BLOCK_DV)
 
         # update rule
         # TODO add masking to avoid out of bound access
-        vecK_val = tl.load(vecK_ptr) 
+        vecK_val = tl.load(vecK_ptr)
         vecV_val = tl.load(vecV_ptr)
         # tl.static_print("vecK_val_scaled", vecK_val_scaled)
         # tl.static_print("vecV_val", vecV_val)
-        matC_old_val = tl.load(
-            matC_old_bptr, boundary_check=(0, 1), padding_option="zero"
-        )
+        matC_old_val = tl.load(matC_old_bptr, boundary_check=(0, 1), padding_option="zero")
 
-        matC_new_val = scaF_act * matC_old_val + scaI_act * (
-            vecK_val[:, None] * vecV_val[None, :]
-        )
+        matC_new_val = scaF_act * matC_old_val + scaI_act * (vecK_val[:, None] * vecV_val[None, :])
 
         vecN_new_val = scaF_act * tl.load(vecN_old_ptr) + scaI_act * vecK_val
         # tl.static_print("vecN_new_val", vecN_new_val)
@@ -238,7 +234,7 @@ def _recurrent_step_fw_kernel(
         matC_new_bptr = tl.advance(matC_new_bptr, (BLOCK_DQK, 0))
 
         # ? accumulate h_num & qn_dotproduct
-        vecQ_val = tl.load(vecQ_ptr) * qk_scale.to(DTYPE) # TODO add masking to avoid out of bound access
+        vecQ_val = tl.load(vecQ_ptr) * qk_scale.to(DTYPE)  # TODO add masking to avoid out of bound access
         # outputs
         h_num_temp = vecQ_val[:, None] * matC_new_val
         # tl.static_print("h_num_temp", h_num_temp)
@@ -287,9 +283,7 @@ def recurrent_step_fw(
         qk_scale = 1 / math.sqrt(DHQK)
 
     if matC_new is None:
-        assert (
-            vecN_new is None and scaM_new is None
-        ), "Initial states must be provided together."
+        assert vecN_new is None and scaM_new is None, "Initial states must be provided together."
         matC_new = torch.empty_like(matC_old)
         vecN_new = torch.empty_like(vecN_old)
         scaM_new = torch.empty_like(scaM_old)

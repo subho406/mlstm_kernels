@@ -173,15 +173,9 @@ def _mlstm_chunkwise_fwbw_generator(autocast_kernel_dtype=torch.float16) -> Call
     return _mlstm_chunkwise_fwbw
 
 
-_mlstm_chunkwise_fwbw_float32 = _mlstm_chunkwise_fwbw_generator(
-    autocast_kernel_dtype=torch.float32
-)
-_mlstm_chunkwise_fwbw_float16 = _mlstm_chunkwise_fwbw_generator(
-    autocast_kernel_dtype=torch.float16
-)
-_mlstm_chunkwise_fwbw_bfloat16 = _mlstm_chunkwise_fwbw_generator(
-    autocast_kernel_dtype=torch.bfloat16
-)
+_mlstm_chunkwise_fwbw_float32 = _mlstm_chunkwise_fwbw_generator(autocast_kernel_dtype=torch.float32)
+_mlstm_chunkwise_fwbw_float16 = _mlstm_chunkwise_fwbw_generator(autocast_kernel_dtype=torch.float16)
+_mlstm_chunkwise_fwbw_bfloat16 = _mlstm_chunkwise_fwbw_generator(autocast_kernel_dtype=torch.bfloat16)
 
 
 def _get_chunkwise_fwbw_kernel(autocast_kernel_dtype: torch.dtype) -> Callable:
@@ -193,47 +187,6 @@ def _get_chunkwise_fwbw_kernel(autocast_kernel_dtype: torch.dtype) -> Callable:
         return _mlstm_chunkwise_fwbw_bfloat16
     else:
         raise ValueError(f"Unsupported kernel dtype {autocast_kernel_dtype}.")
-
-
-# TODO mbeck: remove this function (use the other one below)
-def mlstm_chunkwise_fwbw(
-    matQ: torch.Tensor,  # (B, NH, S, DHQK)
-    matK: torch.Tensor,  # (B, NH, S, DHQK)
-    matV: torch.Tensor,  # (B, NH, S, DHV)
-    vecI: torch.Tensor,  # (B, NH, S)
-    vecF: torch.Tensor,  # (B, NH, S)
-    matC_initial: torch.Tensor = None,  # (B, NH, DHQK, DHV)
-    vecN_initial: torch.Tensor = None,  # (B, NH, DHQK)
-    scaM_initial: torch.Tensor = None,  # (B, NH)
-    qk_scale: float = None,
-    return_last_states: bool = False,
-    RECOMPUTE_STATES_IN_BW: bool = True,
-    CHUNK_SIZE: int = 64,
-    EPS: float = 1e-6,
-    autocast_kernel_dtype: torch.dtype = torch.float16,
-) -> (
-    torch.Tensor | tuple[torch.Tensor, tuple[torch.Tensor, torch.Tensor, torch.Tensor]]
-):
-    _mlstm_chunkwise_fwbw = _get_chunkwise_fwbw_kernel(autocast_kernel_dtype)
-    matH_out, matC_last, vecN_last, scaM_last = _mlstm_chunkwise_fwbw.apply(
-        matQ,
-        matK,
-        matV,
-        vecI,
-        vecF,
-        matC_initial,
-        vecN_initial,
-        scaM_initial,
-        qk_scale,
-        return_last_states,
-        RECOMPUTE_STATES_IN_BW,
-        CHUNK_SIZE,
-        EPS,
-    )
-    if return_last_states:
-        return matH_out, (matC_last, vecN_last, scaM_last)
-    else:
-        return matH_out
 
 
 def mlstm_chunkwise_max_triton(
@@ -249,9 +202,7 @@ def mlstm_chunkwise_max_triton(
     eps: float = 1e-6,
     chunk_size: int = 64,
     autocast_kernel_dtype: torch.dtype = torch.float32,
-) -> (
-    torch.Tensor | tuple[torch.Tensor, tuple[torch.Tensor, torch.Tensor, torch.Tensor]]
-):
+) -> torch.Tensor | tuple[torch.Tensor, tuple[torch.Tensor, torch.Tensor, torch.Tensor]]:
     _mlstm_chunkwise_fwbw = _get_chunkwise_fwbw_kernel(autocast_kernel_dtype)
     matH_out, matC_last, vecN_last, scaM_last = _mlstm_chunkwise_fwbw.apply(
         q,

@@ -1,12 +1,14 @@
 import logging
-import torch
-from typing import Optional
 from collections.abc import Callable
-from ..checks import check_correctness
-from ...torch_utils import dtype2str
-from ..test_losses import loss_layernorm_offset_quadratic
+from typing import Optional
+
 from mlstm_kernels.time_utils import Stopwatch
 
+import torch
+
+from ...torch_utils import dtype2str
+from ..checks import check_correctness
+from ..test_losses import loss_layernorm_offset_quadratic
 
 LOGGER = logging.getLogger(__name__)
 
@@ -33,6 +35,7 @@ def template_test_parallel_interface(
     max_num_batchhead_plots: int = 1,  # -1 means all
     test_folder_name_prefix: str = "torch_parallel_vs_torch_recurrent_sequence",
     save_dir: str = ".",
+    run_backward: bool = True,
     add_fp64_baseline: bool = True,  # whether to check against a fp64 baseline too
     return_output_tensors: bool = False,
 ) -> tuple[torch.Tensor, ...] | None:
@@ -79,15 +82,12 @@ def template_test_parallel_interface(
         eps=EPS,
     )
     fw_seconds = sw.lap()
-    loss_layernorm_offset_quadratic(matH_baseline).backward()
+    if run_backward:
+        loss_layernorm_offset_quadratic(matH_baseline).backward()
     fwbw_seconds = sw.stop()
 
-    print(
-        f"{baseline_name} | fw (ms): {fw_seconds * 1000}, fwbw (ms): {fwbw_seconds * 1000}"
-    )
-    LOGGER.info(
-        f"{baseline_name} | fw (ms): {fw_seconds * 1000}, fwbw (ms): {fwbw_seconds * 1000}"
-    )
+    print(f"{baseline_name} | fw (ms): {fw_seconds * 1000}, fwbw (ms): {fwbw_seconds * 1000}")
+    LOGGER.info(f"{baseline_name} | fw (ms): {fw_seconds * 1000}, fwbw (ms): {fwbw_seconds * 1000}")
 
     # target
     sw = Stopwatch()
@@ -101,14 +101,11 @@ def template_test_parallel_interface(
         eps=EPS,
     )
     fw_seconds = sw.lap()
-    loss_layernorm_offset_quadratic(matH_target).backward()
+    if run_backward:
+        loss_layernorm_offset_quadratic(matH_target).backward()
     fwbw_seconds = sw.stop()
-    print(
-        f"{target_name} | fw (ms): {fw_seconds * 1000}, fwbw (ms): {fwbw_seconds * 1000}"
-    )
-    LOGGER.info(
-        f"{target_name} | fw (ms): {fw_seconds * 1000}, fwbw (ms): {fwbw_seconds * 1000}"
-    )
+    print(f"{target_name} | fw (ms): {fw_seconds * 1000}, fwbw (ms): {fwbw_seconds * 1000}")
+    LOGGER.info(f"{target_name} | fw (ms): {fw_seconds * 1000}, fwbw (ms): {fwbw_seconds * 1000}")
 
     test_specifier_template_str = "{specifier}_bl-{dtype}"
 
@@ -128,9 +125,7 @@ def template_test_parallel_interface(
         vecF_target,
     ):
         matH_match = check_correctness(
-            test_specifier=test_specifier_template_str.format(
-                specifier="matH", dtype=dtype2str(matH_baseline.dtype)
-            ),
+            test_specifier=test_specifier_template_str.format(specifier="matH", dtype=dtype2str(matH_baseline.dtype)),
             baseline=matH_baseline,
             target=matH_target,
             atol=atol_fw,
@@ -139,66 +134,73 @@ def template_test_parallel_interface(
             max_num_batchhead_plots=max_num_batchhead_plots,
             savepath=f"{save_dir}/{test_folder_name}",
         )
+        if run_backward:
+            matQgrad_match = check_correctness(
+                test_specifier=test_specifier_template_str.format(
+                    specifier="matQgrad", dtype=dtype2str(matQ_baseline.grad.dtype)
+                ),
+                baseline=matQ_baseline.grad,
+                target=matQ_target.grad,
+                atol=atol_fwbw,
+                rtol=rtol_fwbw,
+                vmax=vmax,
+                max_num_batchhead_plots=max_num_batchhead_plots,
+                savepath=f"{save_dir}/{test_folder_name}",
+            )
+            matKgrad_match = check_correctness(
+                test_specifier=test_specifier_template_str.format(
+                    specifier="matKgrad", dtype=dtype2str(matK_baseline.grad.dtype)
+                ),
+                baseline=matK_baseline.grad,
+                target=matK_target.grad,
+                atol=atol_fwbw,
+                rtol=rtol_fwbw,
+                vmax=vmax,
+                max_num_batchhead_plots=max_num_batchhead_plots,
+                savepath=f"{save_dir}/{test_folder_name}",
+            )
+            matVgrad_match = check_correctness(
+                test_specifier=test_specifier_template_str.format(
+                    specifier="matVgrad", dtype=dtype2str(matV_baseline.grad.dtype)
+                ),
+                baseline=matV_baseline.grad,
+                target=matV_target.grad,
+                atol=atol_fwbw,
+                rtol=rtol_fwbw,
+                vmax=vmax,
+                max_num_batchhead_plots=max_num_batchhead_plots,
+                savepath=f"{save_dir}/{test_folder_name}",
+            )
+            vecIgrad_match = check_correctness(
+                test_specifier=test_specifier_template_str.format(
+                    specifier="vecIgrad", dtype=dtype2str(vecI_baseline.grad.dtype)
+                ),
+                baseline=vecI_baseline.grad,
+                target=vecI_target.grad,
+                atol=atol_fwbw,
+                rtol=rtol_fwbw,
+                vmax=vmax,
+                savepath=f"{save_dir}/{test_folder_name}",
+            )
+            vecFgrad_match = check_correctness(
+                test_specifier=test_specifier_template_str.format(
+                    specifier="vecFgrad", dtype=dtype2str(vecF_baseline.grad.dtype)
+                ),
+                baseline=vecF_baseline.grad,
+                target=vecF_target.grad,
+                atol=atol_fwbw,
+                rtol=rtol_fwbw,
+                vmax=vmax,
+                max_num_batchhead_plots=max_num_batchhead_plots,
+                savepath=f"{save_dir}/{test_folder_name}",
+            )
+        else:
+            matQgrad_match = True
+            matKgrad_match = True
+            matVgrad_match = True
+            vecIgrad_match = True
+            vecFgrad_match = True
 
-        matQgrad_match = check_correctness(
-            test_specifier=test_specifier_template_str.format(
-                specifier="matQgrad", dtype=dtype2str(matQ_baseline.grad.dtype)
-            ),
-            baseline=matQ_baseline.grad,
-            target=matQ_target.grad,
-            atol=atol_fwbw,
-            rtol=rtol_fwbw,
-            vmax=vmax,
-            max_num_batchhead_plots=max_num_batchhead_plots,
-            savepath=f"{save_dir}/{test_folder_name}",
-        )
-        matKgrad_match = check_correctness(
-            test_specifier=test_specifier_template_str.format(
-                specifier="matKgrad", dtype=dtype2str(matK_baseline.grad.dtype)
-            ),
-            baseline=matK_baseline.grad,
-            target=matK_target.grad,
-            atol=atol_fwbw,
-            rtol=rtol_fwbw,
-            vmax=vmax,
-            max_num_batchhead_plots=max_num_batchhead_plots,
-            savepath=f"{save_dir}/{test_folder_name}",
-        )
-        matVgrad_match = check_correctness(
-            test_specifier=test_specifier_template_str.format(
-                specifier="matVgrad", dtype=dtype2str(matV_baseline.grad.dtype)
-            ),
-            baseline=matV_baseline.grad,
-            target=matV_target.grad,
-            atol=atol_fwbw,
-            rtol=rtol_fwbw,
-            vmax=vmax,
-            max_num_batchhead_plots=max_num_batchhead_plots,
-            savepath=f"{save_dir}/{test_folder_name}",
-        )
-        vecIgrad_match = check_correctness(
-            test_specifier=test_specifier_template_str.format(
-                specifier="vecIgrad", dtype=dtype2str(vecI_baseline.grad.dtype)
-            ),
-            baseline=vecI_baseline.grad,
-            target=vecI_target.grad,
-            atol=atol_fwbw,
-            rtol=rtol_fwbw,
-            vmax=vmax,
-            savepath=f"{save_dir}/{test_folder_name}",
-        )
-        vecFgrad_match = check_correctness(
-            test_specifier=test_specifier_template_str.format(
-                specifier="vecFgrad", dtype=dtype2str(vecF_baseline.grad.dtype)
-            ),
-            baseline=vecF_baseline.grad,
-            target=vecF_target.grad,
-            atol=atol_fwbw,
-            rtol=rtol_fwbw,
-            vmax=vmax,
-            max_num_batchhead_plots=max_num_batchhead_plots,
-            savepath=f"{save_dir}/{test_folder_name}",
-        )
         return (
             matH_match,
             matQgrad_match,
@@ -233,21 +235,11 @@ def template_test_parallel_interface(
     # float64 baseline
     if add_fp64_baseline:
         baseline_fp64_dtype = torch.float64
-        matQ_baseline_fp64 = (
-            matQ.clone().to(dtype=baseline_fp64_dtype).detach().requires_grad_(True)
-        )
-        matK_baseline_fp64 = (
-            matK.clone().to(dtype=baseline_fp64_dtype).detach().requires_grad_(True)
-        )
-        matV_baseline_fp64 = (
-            matV.clone().to(dtype=baseline_fp64_dtype).detach().requires_grad_(True)
-        )
-        vecI_baseline_fp64 = (
-            vecI.clone().to(dtype=baseline_fp64_dtype).detach().requires_grad_(True)
-        )
-        vecF_baseline_fp64 = (
-            vecF.clone().to(dtype=baseline_fp64_dtype).detach().requires_grad_(True)
-        )
+        matQ_baseline_fp64 = matQ.clone().to(dtype=baseline_fp64_dtype).detach().requires_grad_(True)
+        matK_baseline_fp64 = matK.clone().to(dtype=baseline_fp64_dtype).detach().requires_grad_(True)
+        matV_baseline_fp64 = matV.clone().to(dtype=baseline_fp64_dtype).detach().requires_grad_(True)
+        vecI_baseline_fp64 = vecI.clone().to(dtype=baseline_fp64_dtype).detach().requires_grad_(True)
+        vecF_baseline_fp64 = vecF.clone().to(dtype=baseline_fp64_dtype).detach().requires_grad_(True)
 
         matH_baseline_fp64 = baseline_fn(
             q=matQ_baseline_fp64,

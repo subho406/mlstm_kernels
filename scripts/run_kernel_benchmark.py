@@ -70,9 +70,9 @@ def perform_single_benchmark(benchmark_config: BenchmarkConfig, output_folder: P
     result_df.to_csv(benchmark_folder / "results.csv")
 
     fig = plot_benchmark_result_table(result_df, benchmark_config.x_axis_param, title=benchmark_config.get_plot_title())
-    fig.savefig(benchmark_folder / f"plot_{benchmark_config.benchmark_name}.png", dpi=300)
-    fig.savefig(benchmark_folder / f"plot_{benchmark_config.benchmark_name}.pdf")
-    fig.savefig(benchmark_folder / f"plot_{benchmark_config.benchmark_name}.svg")
+    fig.savefig(benchmark_folder / f"plot_{benchmark_config.benchmark_name}.png", dpi=300, bbox_inches="tight")
+    fig.savefig(benchmark_folder / f"plot_{benchmark_config.benchmark_name}.pdf", bbox_inches="tight")
+    fig.savefig(benchmark_folder / f"plot_{benchmark_config.benchmark_name}.svg", bbox_inches="tight")
 
 
 def _head_dim_benchmark(output_folder: Path):
@@ -94,6 +94,10 @@ fixed_params:
 x_axis_param: "head_dim_v"
   
 kernel_specs:
+  - kernel_name: "parallel--triton"
+    fwbw: True
+    dtype: bfloat16
+    
   - kernel_name: "chunkwise--max_triton_v3"
     fwbw: True
     dtype: bfloat16
@@ -156,6 +160,91 @@ benchmark_name: "head_dim_7B"
     perform_single_benchmark(cfg, output_folder)
 
 
+def _head_dim_benchmark_seqlen1024(output_folder: Path):
+    ### head dimension benchmark 7B
+    head_dims = [64, 128, 256, 512, 1024, 2048]
+    embedding_dim = 4096
+    num_heads = [embedding_dim // head_dim for head_dim in head_dims]
+
+    cfg_yaml = f"""
+vary_type: sequence
+vary_params:
+  num_heads: {num_heads}
+  head_dim_qk: {head_dims}
+  head_dim_v: {head_dims}
+fixed_params:
+  sequence_length: 1024
+  batch_size: 1
+
+x_axis_param: "head_dim_v"
+  
+kernel_specs:
+  - kernel_name: "parallel--triton"
+    fwbw: True
+    dtype: bfloat16
+    
+  - kernel_name: "chunkwise--max_triton_v3"
+    fwbw: True
+    dtype: bfloat16
+    additional_params:
+      chunk_size: 64
+  - kernel_name: "chunkwise--max_triton_v3"
+    fwbw: True
+    dtype: bfloat16
+    additional_params:
+      chunk_size: 128
+  - kernel_name: "chunkwise--max_triton_v3"
+    fwbw: True
+    dtype: bfloat16
+    additional_params:
+      chunk_size: 32
+  - kernel_name: "chunkwise--torch_ownbw"
+    fwbw: True
+    dtype: bfloat16
+    use_torch_compile: False
+    additional_params:
+      chunk_size: 64
+  - kernel_name: "chunkwise--torch_ownbw"
+    fwbw: True
+    dtype: bfloat16
+    use_torch_compile: False
+    additional_params:
+      chunk_size: 128
+  - kernel_name: "chunkwise--torch_ownbw"
+    fwbw: True
+    dtype: bfloat16
+    use_torch_compile: False
+    additional_params:
+      chunk_size: 256
+  - kernel_name: "chunkwise--torch_ownbw"
+    fwbw: True
+    dtype: bfloat16
+    use_torch_compile: False
+    additional_params:
+      chunk_size: 512
+  - kernel_name: "chunkwise--torch_ownbw"
+    fwbw: True
+    dtype: bfloat16
+    use_torch_compile: False
+    additional_params:
+      chunk_size: 1024
+
+  # - kernel_name: "chunkwise--torch_autograd"
+  #   fwbw: True
+  #   dtype: bfloat16
+  #   use_torch_compile: False
+
+benchmark_name: "head_dim_seqlen1024_7B"
+"""
+
+    cfg = from_dict(
+        data_class=BenchmarkConfig,
+        data=OmegaConf.to_container(OmegaConf.create(cfg_yaml)),
+    )
+
+    perform_single_benchmark(cfg, output_folder)
+
+
 def _head_dim_benchmark_half_qkdim(output_folder: Path):
     ### head dimension benchmark 7B
     head_dims_v = [64, 128, 256, 512, 1024, 2048]
@@ -167,8 +256,8 @@ def _head_dim_benchmark_half_qkdim(output_folder: Path):
 vary_type: sequence
 vary_params:
   num_heads: {num_heads}
-  head_dim_qk: {head_dims_v}
-  head_dim_v: {head_dims_qk}
+  head_dim_qk: {head_dims_qk}
+  head_dim_v: {head_dims_v}
 fixed_params:
   sequence_length: 8192
   batch_size: 1
@@ -260,6 +349,14 @@ kernel_specs:
       head_dim_qk: 128
       head_dim_v: 128
   
+  - kernel_name: "parallel--triton"
+    fwbw: True
+    dtype: bfloat16
+    additional_params:
+      num_heads: 32
+      head_dim_qk: 128
+      head_dim_v: 128
+
   - kernel_name: "chunkwise--max_triton_v3"
     fwbw: True
     dtype: bfloat16
@@ -326,6 +423,26 @@ kernel_specs:
       head_dim_qk: 256
       head_dim_v: 512
 
+  - kernel_name: "chunkwise--torch_ownbw"
+    fwbw: True
+    dtype: bfloat16
+    use_torch_compile: False
+    additional_params:
+      chunk_size: 1024
+      num_heads: 8
+      head_dim_qk: 256
+      head_dim_v: 512
+
+  - kernel_name: "chunkwise--torch_ownbw"
+    fwbw: True
+    dtype: bfloat16
+    use_torch_compile: False
+    additional_params:
+      chunk_size: 1024
+      num_heads: 8
+      head_dim_qk: 256
+      head_dim_v: 512
+
 benchmark_name: "batch_size_7B"
 """
     cfg = from_dict(
@@ -339,10 +456,11 @@ benchmark_name: "batch_size_7B"
 def run_multiple_benchmarks(output_dir: str = "./outputs_kernel_benchmarks"):
     output_folder = setup_output_folder(output_dir)
 
-    _head_dim_benchmark(output_folder)
-    _head_dim_benchmark_half_qkdim(output_folder)
-    _sequence_length_benchmark(output_folder)
-    _batch_size_benchmark(output_folder)
+    _head_dim_benchmark_seqlen1024(output_folder)
+    # _head_dim_benchmark(output_folder)
+    # _head_dim_benchmark_half_qkdim(output_folder)
+    # _sequence_length_benchmark(output_folder)
+    # _batch_size_benchmark(output_folder)
 
 
 if __name__ == "__main__":

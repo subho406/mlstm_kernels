@@ -1,8 +1,9 @@
-import pytest
-from pathlib import Path
-from datetime import datetime
 import logging
 import sys
+from datetime import datetime
+from pathlib import Path
+
+import pytest
 
 # We declare this here globally to enforca that there is only one timestamp per test session
 TIMESTAMP = None
@@ -16,7 +17,7 @@ def test_session_folder() -> Path:
 
     timestamp = TIMESTAMP
 
-    test_output_folder = Path(__file__).parents[2] / "tests_outputs" / timestamp
+    test_output_folder = Path(__file__).parents[2] / "outputs_tests" / timestamp
 
     test_output_folder.mkdir(parents=True, exist_ok=True)
 
