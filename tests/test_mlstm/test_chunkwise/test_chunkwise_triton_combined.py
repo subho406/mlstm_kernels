@@ -2,13 +2,13 @@
 
 import logging
 
+import pytest
+import torch
+
 from mlstm_kernels.mlstm.chunkwise import mlstm_chunkwise_max_triton_v3
 from mlstm_kernels.mlstm.parallel import mlstm_parallel_stable_torch_autograd, mlstm_parallel_torch_autograd
 from mlstm_kernels.test_utils.test_fixtures import test_session_folder  # noqa
 from mlstm_kernels.test_utils.test_templates.template_parallel_interface import template_test_parallel_interface
-
-import pytest
-import torch
 
 from ..test_params import final_combinations
 

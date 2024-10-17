@@ -232,6 +232,7 @@ def run_benchmarks(benchmark_config: BenchmarkConfig, param_prefix: str = "P--")
             benchmark.setup_benchmark()
             runtime = benchmark.run_benchmark()
             result_dict[kernel_spec.to_string()] = runtime
+            LOGGER.info(f"Running kernel: {kernel_spec.to_string()} finished. Runtime: {runtime} ms")
         results.append(result_dict)
 
     return pd.DataFrame(results)

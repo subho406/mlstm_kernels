@@ -1,12 +1,12 @@
 from dataclasses import asdict
 from pathlib import Path
 
+from dacite import from_dict
+from omegaconf import OmegaConf
+
 from mlstm_kernels.benchmark_utils.benchmark import mLSTMBenchmark, run_benchmarks
 from mlstm_kernels.benchmark_utils.param_handling import BenchmarkConfig
 from mlstm_kernels.benchmark_utils.plot_results import plot_benchmark_result_table
-
-from dacite import from_dict
-from omegaconf import OmegaConf
 
 
 def debug_single_benchmark():
@@ -150,6 +150,72 @@ kernel_specs:
   #   use_torch_compile: False
 
 benchmark_name: "head_dim_7B"
+"""
+
+    cfg = from_dict(
+        data_class=BenchmarkConfig,
+        data=OmegaConf.to_container(OmegaConf.create(cfg_yaml)),
+    )
+
+    perform_single_benchmark(cfg, output_folder)
+
+
+def _head_dim_benchmark_no_slicing(output_folder: Path):
+    ### head dimension benchmark 7B
+    head_dims = [64, 128, 256, 512, 1024, 2048]
+    embedding_dim = 4096
+    num_heads = [embedding_dim // head_dim for head_dim in head_dims]
+
+    cfg_yaml = f"""
+vary_type: sequence
+vary_params:
+  num_heads: {num_heads}
+  head_dim_qk: {head_dims}
+  head_dim_v: {head_dims}
+fixed_params:
+  sequence_length: 8192
+  batch_size: 1
+
+x_axis_param: "head_dim_v"
+  
+kernel_specs:
+   
+  - kernel_name: "chunkwise--max_triton_v3"
+    fwbw: True
+    dtype: bfloat16
+    additional_params:
+      chunk_size: 64
+  # - kernel_name: "chunkwise--max_triton_v3"
+  #   fwbw: True
+  #   dtype: bfloat16
+  #   additional_params:
+  #     chunk_size: 128
+  # - kernel_name: "chunkwise--max_triton_v3"
+  #   fwbw: True
+  #   dtype: bfloat16
+  #   additional_params:
+  #     chunk_size: 32
+
+  - kernel_name: "chunkwise--max_triton_v3noslice"
+    fwbw: True
+    dtype: bfloat16
+    additional_params:
+      chunk_size: 64
+  # - kernel_name: "chunkwise--max_triton_v3noslice"
+  #   fwbw: True
+  #   dtype: bfloat16
+  #   additional_params:
+  #     chunk_size: 128
+  # - kernel_name: "chunkwise--max_triton_v3noslice"
+  #   fwbw: True
+  #   dtype: bfloat16
+  #   additional_params:
+  #     chunk_size: 32
+
+
+
+
+benchmark_name: "head_dim_no_slicing_7B"
 """
 
     cfg = from_dict(
@@ -457,10 +523,11 @@ def run_multiple_benchmarks(output_dir: str = "./outputs_kernel_benchmarks"):
     output_folder = setup_output_folder(output_dir)
 
     _head_dim_benchmark_seqlen1024(output_folder)
-    # _head_dim_benchmark(output_folder)
-    # _head_dim_benchmark_half_qkdim(output_folder)
-    # _sequence_length_benchmark(output_folder)
-    # _batch_size_benchmark(output_folder)
+    _head_dim_benchmark(output_folder)
+    _head_dim_benchmark_half_qkdim(output_folder)
+    _sequence_length_benchmark(output_folder)
+    _batch_size_benchmark(output_folder)
+    # _head_dim_benchmark_no_slicing(output_folder)
 
 
 if __name__ == "__main__":
