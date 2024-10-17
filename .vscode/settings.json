@@ -1,0 +1,27 @@
+{
+  "editor.rulers": [
+    120
+  ],
+  "[python]": {
+    "editor.defaultFormatter": "charliermarsh.ruff",
+    "editor.formatOnType": true,
+    "editor.codeActionsOnSave": {
+      "source.organizeImports": "explicit"
+    }
+  },
+  "editor.formatOnSave": true,
+  "files.watcherExclude": {
+    "outputs/**": true,
+    "**/*.feather": true,
+    "data/**": true,
+    "**/.git/objects/**": true,
+    "**/.git/subtree-cache/**": true
+  },
+  "python.linting.enabled": false,
+  "C_Cpp.intelliSenseEngine": "disabled",
+  "C_Cpp.default.cppStandard": "c++17",
+  "C_Cpp.clang_format_fallbackStyle": "LLVM",
+  "jupyter.debugJustMyCode": false,
+  "editor.fastScrollSensitivity": 50,
+  "editor.mouseWheelScrollSensitivity": 3
+}

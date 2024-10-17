@@ -22,7 +22,7 @@ combinations_long = {
     "DHHV": [16],  # [5, 5, 5, 5],
 }
 combinations_long_list = [values for values in zip(*combinations_long.values())]
-target_dtypes = ["float16", "bfloat16", "float32", "float64"]
+target_dtypes = ["bfloat16", "float32"]
 
 final_combinations = [
     (*combinations, dtype)

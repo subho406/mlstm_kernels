@@ -6,6 +6,7 @@ data/*
 # !.vscode/cpp_properties.json
 # !.vscode/settings.json
 # !.vscode/launch.json
+outputs_kernel_benchmarks
 configs
 configs/*
 resources/*.p
