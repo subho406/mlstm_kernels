@@ -39,8 +39,8 @@ def chunk_mlstm_fwd_kernel_C(
     K: tl.constexpr,
     V: tl.constexpr,
     BT: tl.constexpr,
-    BK: tl.constexpr,
-    BV: tl.constexpr,
+    BHQK: tl.constexpr,
+    BHHV: tl.constexpr,
     NT: tl.constexpr,
     USE_INITIAL_STATE: tl.constexpr,
     STORE_FINAL_STATE: tl.constexpr,
@@ -52,16 +52,16 @@ def chunk_mlstm_fwd_kernel_C(
             matC_initial + idx_BC * K * V,
             (K, V),
             (V, 1),
-            (idx_K * BK, idx_V * BV),
-            (BK, BV),
+            (idx_K * BHQK, idx_V * BHHV),
+            (BHQK, BHHV),
             (1, 0),
         )
         matN0_ptr = tl.make_block_ptr(
             matN_initial + idx_BC * K,
             (K,),
             (1,),
-            (idx_K * BK,),
-            (BK,),
+            (idx_K * BHQK,),
+            (BHQK,),
             (0,),
         )
         matM0_ptr = matM_initial + idx_BC
@@ -70,8 +70,8 @@ def chunk_mlstm_fwd_kernel_C(
         matN_val = tl.load(matN0_ptr, boundary_check=(0,))
         matM_val = tl.load(matM0_ptr)
     else:
-        matC_val = tl.zeros([BK, BV], dtype=tl.load(matC).dtype)
-        matN_val = tl.zeros([BK], dtype=matC_val.dtype)
+        matC_val = tl.zeros([BHQK, BHHV], dtype=tl.load(matC).dtype)
+        matN_val = tl.zeros([BHQK], dtype=matC_val.dtype)
         matM_val = 0.0
 
     matM_next_val = 0.0
@@ -80,39 +80,44 @@ def chunk_mlstm_fwd_kernel_C(
             matK + idx_BC * str_QK_H,
             (K, T),
             (str_QK_d, str_QK_t),
-            (idx_K * BK, idx_t * BT),
-            (BK, BT),
+            (idx_K * BHQK, idx_t * BT),
+            (BHQK, BT),
             (0, 1),
         )
         matV_ptr = tl.make_block_ptr(
             matV + idx_BC * str_VH_H,
             (T, V),
             (str_VH_t, str_VH_d),
-            (idx_t * BT, idx_V * BV),
-            (BT, BV),
+            (idx_t * BT, idx_V * BHHV),
+            (BT, BHHV),
             (1, 0),
         )
         matC_ptr = tl.make_block_ptr(
             matC + idx_BC * str_C_H + idx_t * K * V,
             (K, V),
             (str_C_t, 1),
-            (idx_K * BK, idx_V * BV),
-            (BK, BV),
+            (idx_K * BHQK, idx_V * BHHV),
+            (BHQK, BHHV),
             (1, 0),
         )
         matN_ptr = tl.make_block_ptr(
-            matN + idx_BC * str_N_H + idx_t * K, (K,), (1,), (idx_K * BK,), (BK,), (0,)
+            matN + idx_BC * str_N_H + idx_t * K,
+            (K,),
+            (1,),
+            (idx_K * BHQK,),
+            (BHQK,),
+            (0,),
         )
         tl.store(
             matC_ptr, matC_val.to(matC_ptr.dtype.element_ty), boundary_check=(0, 1)
         )
         tl.store(matN_ptr, matN_val.to(matN_ptr.dtype.element_ty), boundary_check=(0,))
         tl.store(matM + idx_BC * (NT + 1) + idx_t, matM_val)
-        # [BK, BT]
+        # [BHQK, BT]
         matK_val = tl.load(matK_ptr, boundary_check=(0, 1))
-        # [BT, BV]
+        # [BT, BHHV]
         matV_val = tl.load(matV_ptr, boundary_check=(0, 1))
-        # [BK, BV]
+        # [BHQK, BHHV]
 
         idx_t_cta = tl.arange(0, BT)
         vecF_val = tl.load(
@@ -151,12 +156,12 @@ def chunk_mlstm_fwd_kernel_C(
             matC_final + idx_BC * K * V,
             (K, V),
             (V, 1),
-            (idx_K * BK, idx_V * BV),
-            (BK, BV),
+            (idx_K * BHQK, idx_V * BHHV),
+            (BHQK, BHHV),
             (1, 0),
         )
         matN_ptr = tl.make_block_ptr(
-            matN_final + idx_BC * K, (K,), (1,), (idx_K * BK,), (BK,), (0,)
+            matN_final + idx_BC * K, (K,), (1,), (idx_K * BHQK,), (BHQK,), (0,)
         )
         tl.store(
             matC_ptr, matC_val.to(matC_ptr.dtype.element_ty), boundary_check=(0, 1)
@@ -194,8 +199,8 @@ def chunk_mlstm_fwd_kernel_h(
     V: tl.constexpr,
     BT: tl.constexpr,
     BS: tl.constexpr,
-    BK: tl.constexpr,
-    BV: tl.constexpr,
+    BHQK: tl.constexpr,
+    BHHV: tl.constexpr,
     NT: tl.constexpr,
 ):
     idx_V, idx_t, idx_BC = tl.program_id(0), tl.program_id(1), tl.program_id(2)
@@ -204,50 +209,50 @@ def chunk_mlstm_fwd_kernel_h(
     idx_s_cta = tl.arange(0, BS)[None, :]
     matM_s = idx_t_cta >= idx_s_cta
 
-    matH_val = tl.zeros([BT, BV], dtype=tl.load(matQ).dtype)
+    matH_val = tl.zeros([BT, BHHV], dtype=tl.load(matQ).dtype)
     matS_val = tl.zeros([BT, BT], dtype=matH_val.dtype)
-    vecNorm_val = tl.zeros([BT, BV], dtype=matH_val.dtype)
-    for idx_K in range(tl.cdiv(K, BK)):
+    vecNorm_val = tl.zeros([BT, BHHV], dtype=matH_val.dtype)
+    for idx_K in range(tl.cdiv(K, BHQK)):
         matQ_ptr = tl.make_block_ptr(
             matQ + idx_BC * str_QK_H,
             (T, K),
             (str_QK_t, str_QK_d),
-            (idx_t * BT, idx_K * BK),
-            (BT, BK),
+            (idx_t * BT, idx_K * BHQK),
+            (BT, BHQK),
             (1, 0),
         )
         matK_ptr = tl.make_block_ptr(
             matK + idx_BC * str_QK_H,
             (K, T),
             (str_QK_d, str_QK_t),
-            (idx_K * BK, idx_t * BT),
-            (BK, BT),
+            (idx_K * BHQK, idx_t * BT),
+            (BHQK, BT),
             (0, 1),
         )
         matC_ptr = tl.make_block_ptr(
             matC + idx_BC * str_C_H + idx_t * K * V,
             (K, V),
             (str_C_t, 1),
-            (idx_K * BK, idx_V * BV),
-            (BK, BV),
+            (idx_K * BHQK, idx_V * BHHV),
+            (BHQK, BHHV),
             (1, 0),
         )
         matN_ptr = tl.make_block_ptr(
             matN + idx_BC * str_N_H + idx_t * K,
-            (K, BV),
+            (K, BHHV),
             (1, 0),
-            (idx_K * BK, 0),
-            (BK, BV),
+            (idx_K * BHQK, 0),
+            (BHQK, BHHV),
             (0, 1),
         )
 
-        # [BT, BK]
+        # [BT, BHQK]
         matQ_val = tl.load(matQ_ptr, boundary_check=(0, 1))
-        # [BK, BT]
+        # [BHQK, BT]
         matK_val = tl.load(matK_ptr, boundary_check=(0, 1))
         # [BT]
 
-        # [BK, BV]
+        # [BHQK, BHHV]
         matC_val = tl.load(matC_ptr, boundary_check=(0, 1))
         matN_val = tl.load(matN_ptr, boundary_check=(0,))
         matH_val += tl.dot(matQ_val, matC_val.to(matQ_val.dtype), allow_tf32=False).to(
@@ -311,8 +316,8 @@ def chunk_mlstm_fwd_kernel_h(
         matV + idx_BC * str_VH_H,
         (T, V),
         (str_VH_t, str_VH_d),
-        (idx_t * BT, idx_V * BV),
-        (BT, BV),
+        (idx_t * BT, idx_V * BHHV),
+        (BT, BHHV),
         (1, 0),
     )
     matV_val = tl.load(matV_ptr, boundary_check=(0, 1))
@@ -323,8 +328,8 @@ def chunk_mlstm_fwd_kernel_h(
         matH + idx_BC * str_VH_H,
         (T, V),
         (str_VH_t, str_VH_d),
-        (idx_t * BT, idx_V * BV),
-        (BT, BV),
+        (idx_t * BT, idx_V * BHHV),
+        (BT, BHHV),
         (1, 0),
     )
     tl.store(matH_ptr, matH_val.to(matH_ptr.dtype.element_ty), boundary_check=(0, 1))
@@ -357,19 +362,19 @@ def chunk_mlstm_bwd_kernel_dC(
     K: tl.constexpr,
     V: tl.constexpr,
     BT: tl.constexpr,
-    BK: tl.constexpr,
-    BV: tl.constexpr,
+    BHQK: tl.constexpr,
+    BHHV: tl.constexpr,
     NT: tl.constexpr,
 ):
     idx_K, idx_V, idx_BC = tl.program_id(0), tl.program_id(1), tl.program_id(2)
 
-    # [BK, BV]
+    # [BHQK, BHHV]
     matdC_ptr = tl.make_block_ptr(
         matdC_final + idx_BC * K * V,
         (K, V),
         (str_C_t, 1),
-        (idx_K * BK, idx_V * BV),
-        (BK, BV),
+        (idx_K * BHQK, idx_V * BHHV),
+        (BHQK, BHHV),
         (1, 0),
     )
     matdC_val = tl.load(matdC_ptr, boundary_check=(0, 1))
@@ -379,24 +384,24 @@ def chunk_mlstm_bwd_kernel_dC(
             matQ + idx_BC * str_QK_H,
             (K, T),
             (str_QK_d, str_QK_t),
-            (idx_K * BK, idx_t * BT),
-            (BK, BT),
+            (idx_K * BHQK, idx_t * BT),
+            (BHQK, BT),
             (0, 1),
         )
         matdH_ptr = tl.make_block_ptr(
             matdH + idx_BC * str_VH_H,
             (T, V),
             (str_VH_t, str_VH_d),
-            (idx_t * BT, idx_V * BV),
-            (BT, BV),
+            (idx_t * BT, idx_V * BHHV),
+            (BT, BHHV),
             (1, 0),
         )
         matdC_ptr = tl.make_block_ptr(
             matdC + idx_BC * str_C_H + idx_t * K * V,
             (K, V),
             (str_C_t, 1),
-            (idx_K * BK, idx_V * BV),
-            (BK, BV),
+            (idx_K * BHQK, idx_V * BHHV),
+            (BHQK, BHHV),
             (1, 0),
         )
 
@@ -412,7 +417,7 @@ def chunk_mlstm_bwd_kernel_dC(
         )
         vecNorm_val = tl.load(vecNorm + idx_BC * T + idx_t * BT + tl.arange(0, BT))
 
-        # [BK, BT]
+        # [BHQK, BT]
         matQ_val = tl.load(matQ_ptr, boundary_check=(0, 1))
         matQ_val = (
             matQ_val
@@ -422,7 +427,7 @@ def chunk_mlstm_bwd_kernel_dC(
         # [BT, V]
         matdH_val = tl.load(matdH_ptr, boundary_check=(0, 1))
         matdH_val /= vecNorm_val[:, None]
-        # [BK, BV]
+        # [BHQK, BHHV]
         matdC_val *= tl.math.exp2(scaF_all_val + matM_p_val - matM_val).to(
             matdC_val.dtype
         )
@@ -435,8 +440,8 @@ def chunk_mlstm_bwd_kernel_dC(
         matdC_initial + idx_BC * K * V,
         (K, V),
         (V, 1),
-        (idx_K * BK, idx_V * BV),
-        (BK, BV),
+        (idx_K * BHQK, idx_V * BHHV),
+        (BHQK, BHHV),
         (1, 0),
     )
     tl.store(
@@ -484,8 +489,8 @@ def chunk_mlstm_bwd_kernel_dqkvif(
     V: tl.constexpr,
     BT: tl.constexpr,
     BS: tl.constexpr,
-    BK: tl.constexpr,
-    BV: tl.constexpr,
+    BHQK: tl.constexpr,
+    BHHV: tl.constexpr,
     NT: tl.constexpr,
 ):
     idx_K, idx_t, idx_BC = tl.program_id(0), tl.program_id(1), tl.program_id(2)
@@ -496,16 +501,16 @@ def chunk_mlstm_bwd_kernel_dqkvif(
         matQ + idx_BC * str_QK_H,
         (K, T),
         (str_QK_d, str_QK_t),
-        (idx_K * BK, idx_t * BT),
-        (BK, BT),
+        (idx_K * BHQK, idx_t * BT),
+        (BHQK, BT),
         (0, 1),
     )
     matK_ptr = tl.make_block_ptr(
         matK + idx_BC * str_QK_H,
         (T, K),
         (str_QK_t, str_QK_d),
-        (idx_t * BT, idx_K * BK),
-        (BT, BK),
+        (idx_t * BT, idx_K * BHQK),
+        (BT, BHQK),
         (1, 0),
     )
 
@@ -548,8 +553,8 @@ def chunk_mlstm_bwd_kernel_dqkvif(
 
     matM_next_val = tl.load(matM + idx_BC * (NT + 1) + idx_t + 1)
 
-    matdQ_val = tl.zeros([BT, BK], dtype=matQ_val.dtype)
-    matdK_val = tl.zeros([BT, BK], dtype=matQ_val.dtype)
+    matdQ_val = tl.zeros([BT, BHQK], dtype=matQ_val.dtype)
+    matdK_val = tl.zeros([BT, BHQK], dtype=matQ_val.dtype)
     matdS_val = tl.zeros([BT, BT], dtype=matQ_val.dtype)
     vecdI_val = tl.zeros([BT], dtype=vecG_val.dtype)
 
@@ -559,66 +564,66 @@ def chunk_mlstm_bwd_kernel_dqkvif(
     scadFc_ptr = scadFc + (idx_K * matN_bh + idx_BC) * NT + idx_t
     scadFc_val = 0.0
 
-    for idx_V in range(tl.cdiv(V, BV)):
+    for idx_V in range(tl.cdiv(V, BHHV)):
         matV_ptr = tl.make_block_ptr(
             matV + idx_BC * str_VH_H,
             (T, V),
             (str_VH_t, str_VH_d),
-            (idx_t * BT, idx_V * BV),
-            (BT, BV),
+            (idx_t * BT, idx_V * BHHV),
+            (BT, BHHV),
             (1, 0),
         )
         matC_ptr = tl.make_block_ptr(
             matC + idx_BC * str_C_H,
             (V, NT * K),
             (1, str_C_t),
-            (idx_V * BV, idx_t * K + idx_K * BK),
-            (BV, BK),
+            (idx_V * BHHV, idx_t * K + idx_K * BHQK),
+            (BHHV, BHQK),
             (0, 1),
         )
         matdH_ptr = tl.make_block_ptr(
             matdH + idx_BC * str_VH_H,
             (T, V),
             (str_VH_t, str_VH_d),
-            (idx_t * BT, idx_V * BV),
-            (BT, BV),
+            (idx_t * BT, idx_V * BHHV),
+            (BT, BHHV),
             (1, 0),
         )
         matdC_ptr = tl.make_block_ptr(
             matdC + idx_BC * str_C_H,
             (NT * K, V),
             (str_C_t, 1),
-            (idx_t * K + idx_K * BK, idx_V * BV),
-            (BK, BV),
+            (idx_t * K + idx_K * BHQK, idx_V * BHHV),
+            (BHQK, BHHV),
             (1, 0),
         )
         matdV_ptr = tl.make_block_ptr(
             matdV + (idx_K * matN_bh + idx_BC) * str_VH_H,
             (T, V),
             (str_VH_t, str_VH_d),
-            (idx_t * BT, idx_V * BV),
-            (BT, BV),
+            (idx_t * BT, idx_V * BHHV),
+            (BT, BHHV),
             (1, 0),
         )
-        # [BT, BV]
+        # [BT, BHHV]
         matV_val = tl.load(matV_ptr, boundary_check=(0, 1))
         matdH_val = tl.load(matdH_ptr, boundary_check=(0, 1))
-        # [BV, BK]
+        # [BHHV, BHQK]
         matC_val = tl.load(matC_ptr, boundary_check=(0, 1))
-        # [BK, BV]
+        # [BHQK, BHHV]
         matdC_val = tl.load(matdC_ptr, boundary_check=(0, 1))
         # [BT, BT]
         matdS_val += tl.dot(matdH_val, tl.trans(matV_val), allow_tf32=False).to(
             matdS_val.dtype
         )
-        # [BT, BK]
+        # [BT, BHQK]
         matdQ_val += (
             tl.dot(matdH_val, matC_val.to(matdH_val.dtype), allow_tf32=False) * scale
         ).to(matdQ_val.dtype)
         matdK_val += tl.dot(
             matV_val, tl.trans(matdC_val.to(matV_val.dtype)), allow_tf32=False
         ).to(matdK_val.dtype)
-        # [BT, BV]
+        # [BT, BHHV]
         matdV_val = (
             tl.dot(matK_val, matdC_val.to(matK_val.dtype), allow_tf32=False).to(
                 matQ_val.dtype
@@ -662,7 +667,7 @@ def chunk_mlstm_bwd_kernel_dqkvif(
     matdS_val = tl.trans(DT_val) * matdS_val
     matdS_val = matdS_val.to(matK_val.dtype)
 
-    # [BT, BK]
+    # [BT, BHQK]
     matdQ_p_val = tl.dot(matdS_val, matK_val, allow_tf32=False) / vecNorm_val[
         :, None
     ].to(matdQ_val.dtype)
@@ -692,16 +697,16 @@ def chunk_mlstm_bwd_kernel_dqkvif(
         matdQ + idx_BC * str_QK_H,
         (T, K),
         (str_QK_t, str_QK_d),
-        (idx_t * BT, idx_K * BK),
-        (BT, BK),
+        (idx_t * BT, idx_K * BHQK),
+        (BT, BHQK),
         (1, 0),
     )
     matdK_ptr = tl.make_block_ptr(
         matdK + idx_BC * str_QK_H,
         (T, K),
         (str_QK_t, str_QK_d),
-        (idx_t * BT, idx_K * BK),
-        (BT, BK),
+        (idx_t * BT, idx_K * BHQK),
+        (BT, BHQK),
         (1, 0),
     )
     vecdFq_ptr = tl.make_block_ptr(
@@ -749,13 +754,20 @@ class mLSTMKernelC(torch.autograd.Function):
     ):
         B, H, NT, BT, K, V = *k.shape, matV.shape[-1]
         T = BT * NT
-        BK, BV = min(64, triton.next_power_of_2(K)), min(64, triton.next_power_of_2(V))
-        NT, NK, NV = triton.cdiv(T, BT), triton.cdiv(K, BK), triton.cdiv(V, BV)
+        BHQK, BHHV = (
+            min(64, triton.next_power_of_2(K)),
+            min(64, triton.next_power_of_2(V)),
+        )
+        NT, siz_K, siz_V = (
+            triton.cdiv(T, BT),
+            triton.cdiv(K, BHQK),
+            triton.cdiv(V, BHHV),
+        )
         num_stages = 1
-        num_warps = 4 if BK == 64 else 2
+        num_warps = 4 if BHQK == 64 else 2
         scale = K**-0.5
 
-        grid = (NK, NV, B * H)
+        grid = (siz_K, siz_V, B * H)
         chunk_mlstm_fwd_kernel_C[grid](
             matK,
             matV,
@@ -784,8 +796,8 @@ class mLSTMKernelC(torch.autograd.Function):
             K=K,
             V=V,
             BT=BT,
-            BK=BK,
-            BV=BV,
+            BHQK=BHQK,
+            BHHV=BHHV,
             NT=NT,
             USE_INITIAL_STATE=matC_initial is not None,
             STORE_FINAL_STATE=True,
@@ -820,13 +832,20 @@ class mLSTMKernelH(torch.autograd.Function):
     ):
         B, H, NT, BT, K, V = *k.shape, matV.shape[-1]
         T = BT * NT
-        BK, BV = min(64, triton.next_power_of_2(K)), min(64, triton.next_power_of_2(V))
-        NT, NK, NV = triton.cdiv(T, BT), triton.cdiv(K, BK), triton.cdiv(V, BV)
+        BHQK, BHHV = (
+            min(64, triton.next_power_of_2(K)),
+            min(64, triton.next_power_of_2(V)),
+        )
+        NT, siz_K, siz_V = (
+            triton.cdiv(T, BT),
+            triton.cdiv(K, BHQK),
+            triton.cdiv(V, BHHV),
+        )
         num_stages = 1
-        num_warps = 4 if BK == 64 else 2
+        num_warps = 4 if BHQK == 64 else 2
         scale = K**-0.5
 
-        grid = (NV, NT, B * H)
+        grid = (siz_V, NT, B * H)
         chunk_mlstm_fwd_kernel_h[grid](
             matQ,
             matK,
@@ -854,8 +873,8 @@ class mLSTMKernelH(torch.autograd.Function):
             K=K,
             V=V,
             BT=BT,
-            BK=BK,
-            BV=BV,
+            BHQK=BHQK,
+            BHHV=BHHV,
             num_warps=num_warps,
             num_stages=num_stages,
         )
@@ -887,13 +906,20 @@ class mLSTMKerneldC(torch.autograd.Function):
     ):
         B, H, NT, BT, K, V = *matQ.shape, matdH.shape[-1]
         T = BT * NT
-        BK, BV = min(64, triton.next_power_of_2(K)), min(64, triton.next_power_of_2(V))
-        NT, NK, NV = triton.cdiv(T, BT), triton.cdiv(K, BK), triton.cdiv(V, BV)
+        BHQK, BHHV = (
+            min(64, triton.next_power_of_2(K)),
+            min(64, triton.next_power_of_2(V)),
+        )
+        NT, siz_K, siz_V = (
+            triton.cdiv(T, BT),
+            triton.cdiv(K, BHQK),
+            triton.cdiv(V, BHHV),
+        )
         num_stages = 1
-        num_warps = 4 if BK == 64 else 2
+        num_warps = 4 if BHQK == 64 else 2
         scale = K**-0.5
 
-        grid = (NK, NV, B * H)
+        grid = (siz_K, siz_V, B * H)
         chunk_mlstm_bwd_kernel_dC[grid](
             matQ,
             vecF,
@@ -920,8 +946,8 @@ class mLSTMKerneldC(torch.autograd.Function):
             K=K,
             V=V,
             BT=BT,
-            BK=BK,
-            BV=BV,
+            BHQK=BHQK,
+            BHHV=BHHV,
             NT=NT,
             num_warps=num_warps,
             num_stages=num_stages,
@@ -958,15 +984,19 @@ class mLSTMKerneldqkv(torch.autograd.Function):
     ):
         B, H, NT, BT, K, V = *matQ.shape, matV.shape[-1]
         T = NT * BT
-        BK, BV = (
+        BHQK, BHHV = (
             min(32 if matQ.dtype == torch.float32 else 64, triton.next_power_of_2(K)),
             min(32 if matQ.dtype == torch.float32 else 64, triton.next_power_of_2(V)),
         )
-        NT, NK, NV = triton.cdiv(T, BT), triton.cdiv(K, BK), triton.cdiv(V, BV)
-        grid = (NK, NT, B * H)
-        matdV_internal = matV.new_full((NK, *matV.shape), float("nan"))
+        NT, siz_K, siz_V = (
+            triton.cdiv(T, BT),
+            triton.cdiv(K, BHQK),
+            triton.cdiv(V, BHHV),
+        )
+        grid = (siz_K, NT, B * H)
+        matdV_internal = matV.new_full((siz_K, *matV.shape), float("nan"))
         num_stages = 1
-        num_warps = 4 if BK == 64 else 2
+        num_warps = 4 if BHQK == 64 else 2
         scale = K**-0.5
 
         chunk_mlstm_bwd_kernel_dqkvif[grid](
@@ -1000,8 +1030,8 @@ class mLSTMKerneldqkv(torch.autograd.Function):
             K=K,
             V=V,
             BT=BT,
-            BK=BK,
-            BV=BV,
+            BHQK=BHQK,
+            BHHV=BHHV,
             NT=NT,
             num_warps=num_warps,
             num_stages=num_stages,
@@ -1014,6 +1044,378 @@ class mLSTMKerneldqkv(torch.autograd.Function):
     @contiguous
     def backward(ctx, matdH, d_ht=None):
         pass
+
+
+def mLSTMforward(
+    matQ: torch.Tensor,
+    matK: torch.Tensor,
+    matV: torch.Tensor,
+    vecI: torch.Tensor,
+    vecF: torch.Tensor,
+    matC_initial: torch.Tensor,
+    matN_initial: torch.Tensor,
+    matM_initial: torch.Tensor,
+    dtype_state: torch.dtype | None = torch.float32,
+    dtype_gate: torch.dtype | None = torch.float32,
+    chunk_size: int = 64,
+    return_last_states: bool = False,
+) -> tuple[
+    torch.Tensor,
+    torch.Tensor,
+    torch.Tensor,
+    torch.Tensor,
+    torch.Tensor | None,
+    torch.Tensor | None,
+    torch.Tensor | None,
+]:
+    B, H, T, K, V = *matQ.shape, matV.shape[-1]
+    BT = chunk_size
+    BHQK, BHHV = (
+        min(64, triton.next_power_of_2(K)),
+        min(64, triton.next_power_of_2(V)),
+    )
+    NT, siz_K, siz_V = triton.cdiv(T, BT), triton.cdiv(K, BHQK), triton.cdiv(V, BHHV)
+    num_stages = 1
+    num_warps = 4 if BHQK == 64 else 2
+    scale = K**-0.5
+    if dtype_state is None:
+        dtype_states = matQ.dtype
+    else:
+        dtype_states = dtype_state
+    if dtype_gate is None:
+        dtype_gates = matQ.dtype
+    else:
+        dtype_gates = dtype_gate
+    assert T % BT == 0, "sequence length must be divisible by BT"
+    vecF_orig = vecF
+    vecF = torch.nn.functional.logsigmoid(vecF.to(dtype_gates))
+    vecF = vecF.reshape(B, H, -1, BT)
+    vecF = vecF * 1.44269504
+    vecF = vecF.reshape(B, H, -1)
+    vecI = (vecI.reshape(B, H, -1) * 1.44269504).to(dtype_gates)
+
+    matC_final, matN_final, matM_final = None, None, None
+    if return_last_states:
+        matC_final = matQ.new_full(
+            (B, H, K, V), float("nan"), requires_grad=False, dtype=dtype_states
+        )
+        matN_final = matQ.new_full(
+            (B, H, K), float("nan"), requires_grad=False, dtype=dtype_states
+        )
+        matM_final = matQ.new_full(
+            (B, H), float("nan"), requires_grad=False, dtype=dtype_states
+        )
+
+    matC = matQ.new_full((B, H, NT * K, V), float("nan"), dtype=dtype_states)
+    matN = matQ.new_full((B, H, NT, K), float("nan"), dtype=dtype_states)
+    matM = matQ.new_full((B, H, NT + 1), float("nan"), dtype=dtype_states)
+    matM_total = matQ.new_full((B, H, NT, BT), float("nan"), dtype=dtype_states)
+    vecNorm = matQ.new_full((B, H, NT, BT), float("nan"), dtype=dtype_states)
+    grid = (siz_K, siz_V, B * H)
+    chunk_mlstm_fwd_kernel_C[grid](
+        matK,
+        matV,
+        matC,
+        matN,
+        matM,
+        vecI,
+        vecF,
+        matC_initial,
+        matN_initial,
+        matM_initial,
+        matC_final,
+        matN_final,
+        matM_final,
+        matQ.stride(1),
+        matQ.stride(2),
+        matQ.stride(3),
+        matV.stride(1),
+        matV.stride(2),
+        matV.stride(3),
+        matC.stride(1),
+        matC.stride(2),
+        matN.stride(1),
+        H=H,
+        T=T,
+        K=K,
+        V=V,
+        BT=BT,
+        BHQK=BHQK,
+        BHHV=BHHV,
+        NT=NT,
+        USE_INITIAL_STATE=matC_initial is not None,
+        STORE_FINAL_STATE=return_last_states,
+        num_warps=num_warps,
+        num_stages=num_stages,
+    )
+    grid = (siz_V, NT, B * H)
+    matH = torch.empty_like(matV)
+
+    chunk_mlstm_fwd_kernel_h[grid](
+        matQ,
+        matK,
+        matV,
+        matC,
+        matN,
+        matM,
+        matM_total,
+        vecI,
+        vecF,
+        matH,
+        vecNorm,
+        matQ.stride(1),
+        matQ.stride(2),
+        matQ.stride(3),
+        matV.stride(1),
+        matV.stride(2),
+        matV.stride(3),
+        matC.stride(1),
+        matC.stride(2),
+        matN.stride(1),
+        scale,
+        H=H,
+        T=T,
+        K=K,
+        V=V,
+        BT=BT,
+        BS=BT,
+        BHQK=BHQK,
+        BHHV=BHHV,
+        NT=NT,
+        num_warps=num_warps,
+        num_stages=num_stages,
+    )
+
+    return matH, matC, vecNorm, matM, matM_total, matC_final, matN_final, matM_final
+
+
+def mLSTMbackward(
+    matdH: torch.Tensor,
+    matdC_final: torch.Tensor | None,
+    matdN_final: torch.Tensor | None,
+    matdM_final: torch.Tensor | None,
+    matQ: torch.Tensor,
+    matK: torch.Tensor,
+    matV: torch.Tensor,
+    matC: torch.Tensor | None,
+    vecF: torch.Tensor,
+    vecI: torch.Tensor,
+    matM: torch.Tensor,
+    matM_total: torch.Tensor,
+    vecNorm: torch.Tensor,
+    matM_final: torch.Tensor,
+    matC_initial: torch.Tensor | None,
+    matN_initial: torch.Tensor | None,
+    matM_initial: torch.Tensor | None,
+    dtype_state: torch.dtype,
+    dtype_gate: torch.dtype,
+    chunk_size: int,
+) -> tuple[
+    torch.Tensor,
+    torch.Tensor,
+    torch.Tensor,
+    torch.Tensor,
+    torch.Tensor,
+    torch.Tensor | None,
+    None,
+    None,
+    None,
+]:
+    B, H, T, K, V = *matQ.shape, matV.shape[-1]
+    BT = chunk_size
+    BHQK, BHHV = (
+        min(32 if matQ.dtype == torch.float32 else 64, triton.next_power_of_2(K)),
+        min(32 if matQ.dtype == torch.float32 else 64, triton.next_power_of_2(V)),
+    )
+    NT, siz_K, siz_V = triton.cdiv(T, BT), triton.cdiv(K, BHQK), triton.cdiv(V, BHHV)
+
+    if dtype_state is None:
+        dtype_states = matQ.dtype
+    else:
+        dtype_states = dtype_state
+    if dtype_gate is None:
+        dtype_gates = matQ.dtype
+    else:
+        dtype_gates = dtype_gate
+    vecF_orig = vecF
+    vecF = torch.nn.functional.logsigmoid(vecF.to(dtype_gates))
+    vecF = vecF.reshape(B, H, -1, BT)
+    vecF = vecF * 1.44269504
+    vecF = vecF.reshape(B, H, -1)
+    vecI = (vecI.reshape(B, H, -1) * 1.44269504).to(dtype_gates)
+
+    if matC is None:
+        num_stages = 1
+        num_warps = 4 if BHQK == 64 else 2
+        scale = K**-0.5
+
+        matC = matQ.new_full((B, H, NT * K, V), float("nan"), dtype=dtype_states)
+        matN = matQ.new_full((B, H, NT, K), float("nan"), dtype=dtype_states)
+        grid = (siz_K, siz_V, B * H)
+        matC_final, matN_final, matM_final = None, None, None
+
+        chunk_mlstm_fwd_kernel_C[grid](
+            matK,
+            matV,
+            matC,
+            matN,
+            matM,
+            vecI,
+            vecF,
+            matC_initial,
+            matN_initial,
+            matM_initial,
+            matC_final,
+            matN_final,
+            matM_final,
+            matQ.stride(1),
+            matQ.stride(2),
+            matQ.stride(3),
+            matV.stride(1),
+            matV.stride(2),
+            matV.stride(3),
+            matC.stride(1),
+            matC.stride(2),
+            matN.stride(1),
+            H=H,
+            T=T,
+            K=K,
+            V=V,
+            BT=BT,
+            BHQK=BHQK,
+            BHHV=BHHV,
+            NT=NT,
+            USE_INITIAL_STATE=matC_initial is not None,
+            STORE_FINAL_STATE=False,
+            num_warps=num_warps,
+            num_stages=num_stages,
+        )
+
+    num_stages = 1
+    num_warps = 4 if BHQK == 64 else 2
+    scale = K**-0.5
+    matdC = matQ.new_full((B, H, NT * K, V), float("nan"), dtype=dtype_states)
+
+    matdC_initial = matQ.new_full(
+        (B, H, K, V), float("nan"), requires_grad=False, dtype=dtype_states
+    )
+    matM_initial = matQ.new_full(
+        (B, H), float("nan"), requires_grad=False, dtype=dtype_states
+    )
+
+    if matdC_final is None:
+        matdC_final = matQ.new_full(matdC_initial.shape, 0.0, dtype=dtype_states)
+        matM_final = matQ.new_full(matM_initial.shape, 0.0, dtype=dtype_states)
+
+    grid = (siz_K, siz_V, B * H)
+    chunk_mlstm_bwd_kernel_dC[grid](
+        matQ,
+        vecF,
+        matM,
+        matM_total,
+        vecNorm,
+        matdH,
+        matdC,
+        matdC_final,
+        matM_final,
+        matdC_initial,
+        matM_initial,
+        matQ.stride(1),
+        matQ.stride(2),
+        matQ.stride(3),
+        matV.stride(1),
+        matV.stride(2),
+        matV.stride(3),
+        matdC.stride(1),
+        matdC.stride(2),
+        scale,
+        H=H,
+        T=T,
+        K=K,
+        V=V,
+        BT=BT,
+        BHQK=BHQK,
+        BHHV=BHHV,
+        NT=NT,
+        num_warps=num_warps,
+        num_stages=num_stages,
+    )
+    grid = (siz_K, NT, B * H)
+    matdQ = torch.empty_like(matQ)
+    matdK = torch.empty_like(matK)
+    matdV = matV.new_full((siz_K, *matV.shape), float("nan"))
+    vecdI = vecI.new_full((siz_K, *vecI.shape), float("nan"))
+    vecdFq = vecF.new_zeros(siz_K, B * H, T)
+    vecdFk = vecF.new_zeros(siz_K, B * H, T + 1)
+    scadFc = vecF.new_zeros(siz_K, B * H, NT)
+    num_stages = 1
+    num_warps = 4 if BHQK == 64 else 2
+    chunk_mlstm_bwd_kernel_dqkvif[grid](
+        matQ,
+        matK,
+        matV,
+        matC,
+        matM,
+        matM_total,
+        matM_final,
+        vecNorm,
+        vecI,
+        vecF,
+        matdH,
+        matdC,
+        matdQ,
+        matdK,
+        matdV,
+        vecdI,
+        vecdFq,
+        vecdFk,
+        scadFc,
+        matQ.stride(1),
+        matQ.stride(2),
+        matQ.stride(3),
+        matV.stride(1),
+        matV.stride(2),
+        matV.stride(3),
+        matdC.stride(1),
+        matdC.stride(2),
+        scale,
+        B=B,
+        H=H,
+        T=T,
+        K=K,
+        V=V,
+        BT=BT,
+        BS=BT,
+        BHQK=BHQK,
+        BHHV=BHHV,
+        NT=NT,
+        num_warps=num_warps,
+        num_stages=num_stages,
+    )
+    matdV = matdV.sum(0)
+    # baselines
+    # vecdF = (matdQ * matQ - matdK * matK).sum(-1)
+    #  vecdI = (matdV * matV).sum(-1)
+
+    # stabilized version without differences
+    vecdI = vecdI.sum(0)
+    vecdF = vecdFq.sum(0)
+    vecdF += vecdFk[:, :, :-1].sum(0)
+    scadFc = scadFc.sum(0)
+
+    vecdF = vecdF.view(B * H, NT, BT) + scadFc.view(B * H, NT, 1)
+    vecdF = vecdF.view(vecF_orig.shape) * torch.nn.functional.sigmoid(-vecF_orig)
+    return (
+        matdQ.to(matQ.dtype),
+        matdK.to(matK.dtype),
+        matdV.to(matV.dtype),
+        vecdI.to(vecF_orig.dtype),
+        vecdF.to(vecF_orig.dtype).view(vecF.shape),
+        matdC_initial.to(matC_initial.dtype) if matC_initial is not None else None,
+        None,
+        None,
+        None,
+    )
 
 
 def mLSTMFunctionGenerator(
@@ -1038,122 +1440,28 @@ def mLSTMFunctionGenerator(
             matM_initial,
             return_last_states,
         ):
-            B, H, T, K, V = *matQ.shape, matV.shape[-1]
-            BT = chunk_size
-            BK, BV = (
-                min(64, triton.next_power_of_2(K)),
-                min(64, triton.next_power_of_2(V)),
-            )
-            NT, NK, NV = triton.cdiv(T, BT), triton.cdiv(K, BK), triton.cdiv(V, BV)
-            num_stages = 1
-            num_warps = 4 if BK == 64 else 2
-            scale = K**-0.5
-            if dtype_state is None:
-                dtype_states = matQ.dtype
-            else:
-                dtype_states = dtype_state
-            if dtype_gate is None:
-                dtype_gates = matQ.dtype
-            else:
-                dtype_gates = dtype_gate
-            assert T % BT == 0, "sequence length must be divisible by BT"
-            scaF_orig = vecF
-            vecF = torch.nn.functional.logsigmoid(vecF.to(dtype_gates))
-            vecF = vecF.reshape(B, H, -1, BT)
-            vecF = vecF * 1.44269504
-            vecF = vecF.reshape(B, H, -1)
-            vecI = (vecI.reshape(B, H, -1) * 1.44269504).to(dtype_gates)
-
-            matC_final, matN_final, matM_final = None, None, None
-            if return_last_states:
-                matC_final = matQ.new_full(
-                    (B, H, K, V), float("nan"), requires_grad=False, dtype=dtype_states
-                )
-                matN_final = matQ.new_full(
-                    (B, H, K), float("nan"), requires_grad=False, dtype=dtype_states
-                )
-                matM_final = matQ.new_full(
-                    (B, H), float("nan"), requires_grad=False, dtype=dtype_states
-                )
-
-            matC = matQ.new_full((B, H, NT * K, V), float("nan"), dtype=dtype_states)
-            matN = matQ.new_full((B, H, NT, K), float("nan"), dtype=dtype_states)
-            matM = matQ.new_full((B, H, NT + 1), float("nan"), dtype=dtype_states)
-            matM_total = matQ.new_full((B, H, NT, BT), float("nan"), dtype=dtype_states)
-            vecNorm = matQ.new_full((B, H, NT, BT), float("nan"), dtype=dtype_states)
-            grid = (NK, NV, B * H)
-            chunk_mlstm_fwd_kernel_C[grid](
-                matK,
-                matV,
+            (
+                matH,
                 matC,
-                matN,
+                vecNorm,
                 matM,
-                vecI,
-                vecF,
-                matC_initial,
-                matN_initial,
-                matM_initial,
+                matM_total,
                 matC_final,
                 matN_final,
                 matM_final,
-                matQ.stride(1),
-                matQ.stride(2),
-                matQ.stride(3),
-                matV.stride(1),
-                matV.stride(2),
-                matV.stride(3),
-                matC.stride(1),
-                matC.stride(2),
-                matN.stride(1),
-                H=H,
-                T=T,
-                K=K,
-                V=V,
-                BT=BT,
-                BK=BK,
-                BV=BV,
-                NT=NT,
-                USE_INITIAL_STATE=matC_initial is not None,
-                STORE_FINAL_STATE=return_last_states,
-                num_warps=num_warps,
-                num_stages=num_stages,
-            )
-            grid = (NV, NT, B * H)
-            matH = torch.empty_like(matV)
-
-            chunk_mlstm_fwd_kernel_h[grid](
-                matQ,
-                matK,
-                matV,
-                matC,
-                matN,
-                matM,
-                matM_total,
-                vecI,
-                vecF,
-                matH,
-                vecNorm,
-                matQ.stride(1),
-                matQ.stride(2),
-                matQ.stride(3),
-                matV.stride(1),
-                matV.stride(2),
-                matV.stride(3),
-                matC.stride(1),
-                matC.stride(2),
-                matN.stride(1),
-                scale,
-                H=H,
-                T=T,
-                K=K,
-                V=V,
-                BT=BT,
-                BS=BT,
-                BK=BK,
-                BV=BV,
-                NT=NT,
-                num_warps=num_warps,
-                num_stages=num_stages,
+            ) = mLSTMforward(
+                matQ=matQ,
+                matK=matK,
+                matV=matV,
+                vecI=vecI,
+                vecF=vecF,
+                matC_initial=matC_initial,
+                matN_initial=matN_initial,
+                matM_initial=matM_initial,
+                dtype_state=dtype_state,
+                dtype_gate=dtype_gate,
+                chunk_size=chunk_size,
+                return_last_states=return_last_states,
             )
             if keep_states:
                 ctx.save_for_backward(
@@ -1170,7 +1478,6 @@ def mLSTMFunctionGenerator(
                     matC_initial,
                     matN_initial,
                     matM_initial,
-                    scaF_orig,
                 )
             else:
                 ctx.save_for_backward(
@@ -1187,14 +1494,13 @@ def mLSTMFunctionGenerator(
                     matC_initial,
                     matN_initial,
                     matM_initial,
-                    scaF_orig,
                 )
             return matH.to(matQ.dtype), matC_final, matN_final, matM_final
 
         @staticmethod
         @custom_bwd(device_type="cuda")
         @contiguous
-        def backward(ctx, matdH, matdC_final=None, d_finaln=None, d_finalm=None):
+        def backward(ctx, matdH, matdC_final=None, matdN_final=None, matdM_final=None):
             (
                 matQ,
                 matK,
@@ -1209,205 +1515,28 @@ def mLSTMFunctionGenerator(
                 matC_initial,
                 matN_initial,
                 matM_initial,
-                scaF_orig,
             ) = ctx.saved_tensors
-
-            B, H, T, K, V = *matQ.shape, matV.shape[-1]
-            BT = chunk_size
-            BK, BV = (
-                min(
-                    32 if matQ.dtype == torch.float32 else 64, triton.next_power_of_2(K)
-                ),
-                min(
-                    32 if matQ.dtype == torch.float32 else 64, triton.next_power_of_2(V)
-                ),
-            )
-            NT, NK, NV = triton.cdiv(T, BT), triton.cdiv(K, BK), triton.cdiv(V, BV)
-
-            if dtype_state is None:
-                dtype_states = matQ.dtype
-            else:
-                dtype_states = dtype_state
-
-            if matC is None:
-                num_stages = 1
-                num_warps = 4 if BK == 64 else 2
-                scale = K**-0.5
-
-                matC = matQ.new_full(
-                    (B, H, NT * K, V), float("nan"), dtype=dtype_states
-                )
-                matN = matQ.new_full((B, H, NT, K), float("nan"), dtype=dtype_states)
-                grid = (NK, NV, B * H)
-                matC_final, matN_final, matM_final = None, None, None
-
-                chunk_mlstm_fwd_kernel_C[grid](
-                    matK,
-                    matV,
-                    matC,
-                    matN,
-                    matM,
-                    vecI,
-                    vecF,
-                    matC_initial,
-                    matN_initial,
-                    matM_initial,
-                    matC_final,
-                    matN_final,
-                    matM_final,
-                    matQ.stride(1),
-                    matQ.stride(2),
-                    matQ.stride(3),
-                    matV.stride(1),
-                    matV.stride(2),
-                    matV.stride(3),
-                    matC.stride(1),
-                    matC.stride(2),
-                    matN.stride(1),
-                    H=H,
-                    T=T,
-                    K=K,
-                    V=V,
-                    BT=BT,
-                    BK=BK,
-                    BV=BV,
-                    NT=NT,
-                    USE_INITIAL_STATE=matC_initial is not None,
-                    STORE_FINAL_STATE=False,
-                    num_warps=num_warps,
-                    num_stages=num_stages,
-                )
-
-            num_stages = 1
-            num_warps = 4 if BK == 64 else 2
-            scale = K**-0.5
-            matdC = matQ.new_full((B, H, NT * K, V), float("nan"), dtype=dtype_states)
-
-            matdC_initial = matQ.new_full(
-                (B, H, K, V), float("nan"), requires_grad=False, dtype=dtype_states
-            )
-            matM_initial = matQ.new_full(
-                (B, H), float("nan"), requires_grad=False, dtype=dtype_states
-            )
-
-            if matdC_final is None:
-                matdC_final = matQ.new_full(
-                    matdC_initial.shape, 0.0, dtype=dtype_states
-                )
-                matM_final = matQ.new_full(matM_initial.shape, 0.0, dtype=dtype_states)
-
-            grid = (NK, NV, B * H)
-            chunk_mlstm_bwd_kernel_dC[grid](
-                matQ,
-                vecF,
-                matM,
-                matM_total,
-                vecNorm,
-                matdH,
-                matdC,
-                matdC_final,
-                matM_final,
-                matdC_initial,
-                matM_initial,
-                matQ.stride(1),
-                matQ.stride(2),
-                matQ.stride(3),
-                matV.stride(1),
-                matV.stride(2),
-                matV.stride(3),
-                matdC.stride(1),
-                matdC.stride(2),
-                scale,
-                H=H,
-                T=T,
-                K=K,
-                V=V,
-                BT=BT,
-                BK=BK,
-                BV=BV,
-                NT=NT,
-                num_warps=num_warps,
-                num_stages=num_stages,
-            )
-            grid = (NK, NT, B * H)
-            matdQ = torch.empty_like(matQ)
-            matdK = torch.empty_like(matK)
-            matdV = matV.new_full((NK, *matV.shape), float("nan"))
-            vecdI = vecI.new_full((NK, *vecI.shape), float("nan"))
-            vecdFq = vecF.new_zeros(NK, B * H, T)
-            vecdFk = vecF.new_zeros(NK, B * H, T + 1)
-            scadFc = vecF.new_zeros(NK, B * H, NT)
-            num_stages = 1
-            num_warps = 4 if BK == 64 else 2
-            chunk_mlstm_bwd_kernel_dqkvif[grid](
-                matQ,
-                matK,
-                matV,
-                matC,
-                matM,
-                matM_total,
-                matM_final,
-                vecNorm,
-                vecI,
-                vecF,
-                matdH,
-                matdC,
-                matdQ,
-                matdK,
-                matdV,
-                vecdI,
-                vecdFq,
-                vecdFk,
-                scadFc,
-                matQ.stride(1),
-                matQ.stride(2),
-                matQ.stride(3),
-                matV.stride(1),
-                matV.stride(2),
-                matV.stride(3),
-                matdC.stride(1),
-                matdC.stride(2),
-                scale,
-                B=B,
-                H=H,
-                T=T,
-                K=K,
-                V=V,
-                BT=BT,
-                BS=BT,
-                BK=BK,
-                BV=BV,
-                NT=NT,
-                num_warps=num_warps,
-                num_stages=num_stages,
-            )
-            matdV = matdV.sum(0)
-            # baselines
-            # vecdF = (matdQ * matQ - matdK * matK).sum(-1)
-            #  vecdI = (matdV * matV).sum(-1)
-
-            # stabilized version without differences
-            vecdI = vecdI.sum(0)
-            vecdF = vecdFq.sum(0)
-            vecdF += vecdFk[:, :, :-1].sum(0)
-            scadFc = scadFc.sum(0)
-
-            vecdF = vecdF.view(B * H, NT, BT) + scadFc.view(B * H, NT, 1)
-            vecdF = vecdF.view(scaF_orig.shape) * torch.nn.functional.sigmoid(
-                -scaF_orig
-            )
-            return (
-                matdQ.to(matQ.dtype),
-                matdK.to(matK.dtype),
-                matdV.to(matV.dtype),
-                vecdI.to(scaF_orig.dtype),
-                vecdF.to(scaF_orig.dtype).view(vecF.shape),
-                matdC_initial.to(matC_initial.dtype)
-                if matC_initial is not None
-                else None,
-                None,
-                None,
-                None,
+            return mLSTMbackward(
+                matdH=matdH,
+                matdC_final=matdC_final,
+                matdN_final=matdN_final,
+                matdM_final=matdM_final,
+                matQ=matQ,
+                matK=matK,
+                matV=matV,
+                matC=matC,
+                vecF=vecF,
+                vecI=vecI,
+                matM=matM,
+                matM_total=matM_total,
+                vecNorm=vecNorm,
+                matM_final=matM_final,
+                matC_initial=matC_initial,
+                matN_initial=matN_initial,
+                matM_initial=matM_initial,
+                dtype_state=dtype_state,
+                dtype_gate=dtype_gate,
+                chunk_size=chunk_size,
             )
 
     return mLSTMFunction
@@ -1523,4 +1652,4 @@ class mLSTMBackendTriton(torch.nn.Module):
         if return_last_states:
             return matH, (matC_final, matN_final, matM_final)
         else:
-            return h
+            return matH
