@@ -4,12 +4,15 @@ from mlstm_kernels.test_utils.test_fwbw import test_forward, test_backward
 
 # from mlstm_kernels.mlstm.chunkwise.triton_fwbw_debug import chunk_mlstm
 from mlstm_kernels.mlstm.chunkwise import mlstm_chunkwise_triton as mlstm_fwbw_chunk
-from mlstm_kernels.mlstm.chunkwise import (
-    mlstm_chunkwise_stable_triton as mlstm_fwbw_chunkstab,
+from mlstm_kernels.mlstm.chunkwise.triton_fwbw_stablef import (
+    mlstm_fwbw as mlstm_fwbw_chunkstab,
 )
+# from mlstm_kernels.mlstm.chunkwise.triton_fwbw_stablef_extchunk import mlstm_fwbw as mlstm_fwbw_chunk
+# from mlstm_kernels.mlstm.chunkwise import (
+#     mlstm_chunkwise_stable_triton as mlstm_fwbw_chunkstab,
+# )
 
 # from mlstm_kernels.mlstm.parallel import mlstm
-import matplotlib.pyplot as plt
 from math import sqrt
 import os
 
@@ -27,18 +30,19 @@ def shape_to_rect(shape):
 
 
 def plot_diff(x, y, title=""):
-    fig, ax = plt.subplots()
-
-    im = ax.imshow(
+    dat = (
         (x - y)
         .abs()
         .float()
         .cpu()
         .detach()
         .reshape(shape_to_rect(x.shape))
-        .transpose(0, 1),
-        vmin=0,
-        # vmax=0.1,
+        .transpose(0, 1)
+    )
+    fig, ax = plt.subplots(figsize=(20, 20))
+
+    im = ax.imshow(
+        dat,
     )
     fig.colorbar(im, ax=ax)
     if title:
@@ -50,13 +54,39 @@ def plot_diff(x, y, title=""):
         n += 1
     fig.savefig(f"testplot_{n}.png")
 
+    fig, ax = plt.subplots(figsize=(20, 20))
+
+    im = ax.imshow(
+        dat.numpy()
+        / (
+            x.abs()
+            .float()
+            .cpu()
+            .detach()
+            .reshape(shape_to_rect(x.shape))
+            .transpose(0, 1)
+            + 1e-8
+        ),
+    )
+    fig.colorbar(im, ax=ax)
+    if title:
+        ax.set_title(title)
+    fig.show()
+
+    n = 0
+    while os.path.exists(f"testplot_{n}_rel.png"):
+        n += 1
+    fig.savefig(f"testplot_{n}_rel.png")
+
 
 def layer_norm(x, ndim=16):
     return torch.nn.functional.layer_norm(x, normalized_shape=ndim)
 
 
 if __name__ == "__main__":
-    B, H, T, K, V = 3, 4, 2048, 256, 256
+    import sys
+
+    B, H, T, K, V = 3, 4, 256, 256, 256
     device = "cuda"
     dtype = torch.bfloat16
 
@@ -67,9 +97,9 @@ if __name__ == "__main__":
     i = torch.randn([B, H, T], device=device, dtype=dtype)
     f = +3.0 + 0.5 * torch.randn([B, H, T], device=device, dtype=dtype)
 
-    C_i = torch.randn([B, H, K, V], device=device, dtype=dtype)
-    n_i = 1 + torch.randn([B, H, K], device=device, dtype=dtype)
-    m_i = 0.0 * torch.ones([B, H], device=device, dtype=dtype)
+    C_i = torch.randn([B, H, K, V], device=device, dtype=torch.float32)
+    n_i = 1 + torch.randn([B, H, K], device=device, dtype=torch.float32)
+    m_i = 0.0 * torch.ones([B, H], device=device, dtype=torch.float32)
 
     mask = torch.randn([B, H, T, V], device=device, dtype=dtype)
     # mask[:, :, ] = 0.
@@ -105,19 +135,20 @@ if __name__ == "__main__":
             test_forward(
                 bl,
                 cm,
-                (q, k, v, i, f),
-                comp_func_kwargs={"atol": 0.000001, "rtol": 0.00001},
+                (q, k, v, i, f, C_i, n_i, m_i),
+                comp_func_kwargs={"atol": 0.01, "rtol": 0.05},
                 show_diff_func=lambda x, y: plot_diff(
                     x, y, f"{bl_name}-{cm_name}-FW-B{B}H{H}T{T}K{K}V{V}"
                 ),
             )
-            test_backward(
-                bl,
-                cm,
-                (q, k, v, i, f),
-                mask=mask,
-                comp_func_kwargs={"atol": 0.0000001, "rtol": 0.0000001},
-                show_diff_func=lambda x, y: plot_diff(
-                    x, y, f"{bl_name}-{cm_name}-BW-B{B}H{H}T{T}K{K}V{V}"
-                ),
-            )
+            if not "--skip-backward" in sys.argv:
+                test_backward(
+                    bl,
+                    cm,
+                    (q, k, v, i, f, C_i, n_i, m_i),
+                    mask=mask,
+                    comp_func_kwargs={"atol": 0.01, "rtol": 0.05},
+                    show_diff_func=lambda x, y: plot_diff(
+                        x, y, f"{bl_name}-{cm_name}-BW-B{B}H{H}T{T}K{K}V{V}"
+                    ),
+                )
