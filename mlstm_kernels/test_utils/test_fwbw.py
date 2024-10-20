@@ -13,6 +13,12 @@ def test_forward(
     out1 = f1(*inputs)
     out2 = f2(*inputs)
 
+    if torch.any(torch.isnan(out1)):
+        print("NaN found in output 1")
+
+    if torch.any(torch.isnan(out2)):
+        print("NaN found in output 2")
+
     if out1.shape != out2.shape:
         print("Bad output shape")
 
@@ -26,7 +32,7 @@ def test_backward(
     f1,
     f2,
     inputs: tuple[torch.Tensor],
-    mask: Optional[torch.Tensor] = None,
+    mask: torch.Tensor | None = None,
     comp_func=torch.allclose,
     comp_func_kwargs={},
     show_diff_func=None,
@@ -52,6 +58,12 @@ def test_backward(
     l2.backward()
 
     for n, (inp1, inp2) in enumerate(zip(inputs1, inputs2)):
+        if inp1.grad is None and inp2.grad is None:
+            continue
+        if inp1.grad is not None and torch.any(torch.isnan(inp1.grad)):
+            print(f"NaN found in grad {n} of inp1")
+        if inp2.grad is not None and torch.any(torch.isnan(inp2.grad)):
+            print(f"NaN found in grad {n} of inp2")
         if not comp_func(inp1.grad, inp2.grad, **comp_func_kwargs):
             print(f"Difference in {n}-th gradient")
             if show_diff_func is not None:
