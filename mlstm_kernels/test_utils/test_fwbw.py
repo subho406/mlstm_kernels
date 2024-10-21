@@ -37,12 +37,14 @@ def test_backward(
     comp_func_kwargs={},
     show_diff_func=None,
 ):
-    inputs1 = [inp.clone().detach() for inp in inputs]
-    inputs2 = [inp.clone().detach() for inp in inputs]
+    inputs1 = [inp.clone().detach() if inp is not None else None for inp in inputs]
+    inputs2 = [inp.clone().detach() if inp is not None else None for inp in inputs]
     for inp in inputs1:
-        inp.requires_grad_(True)
+        if inp is not None:
+            inp.requires_grad_(True)
     for inp in inputs2:
-        inp.requires_grad_(True)
+        if inp is not None:
+            inp.requires_grad_(True)
 
     out1 = f1(*inputs1)
     out2 = f2(*inputs2)
@@ -58,6 +60,8 @@ def test_backward(
     l2.backward()
 
     for n, (inp1, inp2) in enumerate(zip(inputs1, inputs2)):
+        if inp is None and inp2 is None:
+            continue
         if inp1.grad is None and inp2.grad is None:
             continue
         if inp1.grad is not None and torch.any(torch.isnan(inp1.grad)):
