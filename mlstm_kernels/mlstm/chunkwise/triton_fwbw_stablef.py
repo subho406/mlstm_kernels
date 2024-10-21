@@ -383,20 +383,26 @@ def chunk_mlstm_bwd_kernel_dC(
     BHQK: tl.constexpr,
     BHHV: tl.constexpr,
     NT: tl.constexpr,
+    USE_LAST_STATE: tl.constexpr,
 ):
     idx_K, idx_V, idx_BC = tl.program_id(0), tl.program_id(1), tl.program_id(2)
 
     # [BHQK, BHHV]
-    matdC_ptr = tl.make_block_ptr(
-        matdC_final + idx_BC * K * V,
-        (K, V),
-        (str_C_K, 1),
-        (idx_K * BHQK, idx_V * BHHV),
-        (BHQK, BHHV),
-        (1, 0),
-    )
-    matdC_val = tl.load(matdC_ptr, boundary_check=(0, 1))
-    matM_val = tl.load(matM_final + idx_BC)
+    if USE_LAST_STATE:
+        # [BHQK, BHHV]
+        matdC_ptr = tl.make_block_ptr(
+            matdC_final + idx_BC * K * V,
+            (K, V),
+            (str_C_K, 1),
+            (idx_K * BHQK, idx_V * BHHV),
+            (BHQK, BHHV),
+            (1, 0),
+        )
+        matdC_val = tl.load(matdC_ptr, boundary_check=(0, 1))
+        matM_val = tl.load(matM_final + idx_BC)
+    else:
+        matdC_val = tl.zeros((BHQK, BHHV), dtype=tl.load(matdC_final).dtype)
+        matM_val = tl.load(matM + idx_BC * (NT + 1) + NT)
     for idx_t in range(NT - 1, -1, -1):
         matQ_ptr = tl.make_block_ptr(
             matQ + idx_BC * str_QK_H,
@@ -973,6 +979,7 @@ class mLSTMKerneldC(torch.autograd.Function):
             BHQK=BHQK,
             BHHV=BHHV,
             NT=NT,
+            USE_LAST_STATE=False,
             num_warps=num_warps,
             num_stages=num_stages,
         )
@@ -1334,8 +1341,13 @@ def mLSTMbackward(
     )
 
     if matdC_final is None:
-        matdC_final = matQ.new_full(matdC_initial.shape, 0.0, dtype=dtype_states)
-        matM_final = matQ.new_full(matM_initial.shape, 0.0, dtype=dtype_states)
+        matdC_final = matQ.new_empty((1,), dtype=dtype_states)
+        matM_final = matQ.new_empty((1,), dtype=dtype_states)
+        USE_LAST_STATE = False
+    else:
+        USE_LAST_STATE = True
+        matdC_final = matdC_final.to(dtype_states)
+        matM_final = matM_final.to(dtype_states)
 
     grid = (siz_K, siz_V, B * H)
     chunk_mlstm_bwd_kernel_dC[grid](
@@ -1367,6 +1379,7 @@ def mLSTMbackward(
         BHQK=BHQK,
         BHHV=BHHV,
         NT=NT,
+        USE_LAST_STATE=USE_LAST_STATE,
         num_warps=num_warps,
         num_stages=num_stages,
     )
