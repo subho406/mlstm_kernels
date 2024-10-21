@@ -186,6 +186,9 @@ def chunk_mlstm_fwd_kernel_h(
     str_C_K,
     str_N_H,
     scale,
+    EPS: tl.constexpr,
+    STABILIZE_CORRECTLY: tl.constexpr,
+    NORM_VAL: tl.constexpr,
     H: tl.constexpr,
     T: tl.constexpr,
     K: tl.constexpr,
@@ -291,9 +294,22 @@ def chunk_mlstm_fwd_kernel_h(
     vecNorm_val += tl.sum(matS_val, axis=1)[:, None]
     vecNorm_val = tl.abs(vecNorm_val)
 
-    vecNorm_val = tl.maximum(
-        vecNorm_val.to(matM_total_val.dtype), tl.math.exp2(-matM_total_val)[:, None]
-    )
+    if STABILIZE_CORRECTLY:
+        vecNorm_val = (
+            tl.maximum(
+                vecNorm_val.to(matM_total_val.dtype),
+                NORM_VAL * tl.math.exp2(-matM_total_val)[:, None],
+            )
+            + EPS
+        )
+    else:
+        vecNorm_val = (
+            tl.maximum(
+                vecNorm_val.to(matM_total_val.dtype),
+                NORM_VAL + tl.zeros(vecNorm_val.shape, matM_total_val.dtype),
+            )
+            + EPS
+        )
 
     tl.store(
         vecNorm + idx_BC * T + idx_t * BT + tl.arange(0, BT),
@@ -742,11 +758,14 @@ class mLSTMKernelH(torch.autograd.Function):
             min(64, triton.next_power_of_2(K)),
             min(64, triton.next_power_of_2(V)),
         )
+        EPS = 1e-6
         NT, siz_K, siz_V = (
             triton.cdiv(T, BT),
             triton.cdiv(K, BHQK),
             triton.cdiv(V, BHHV),
         )
+        STABILIZE_CORRECTLY = False
+        NORM_VAL = 1.0
         num_stages = 1
         num_warps = 4 if BHQK == 64 else 2
         scale = K**-0.5
@@ -773,7 +792,10 @@ class mLSTMKernelH(torch.autograd.Function):
             matC.stride(2),
             matC.stride(3),
             matN.stride(1),
-            scale,
+            scale=scale,
+            EPS=EPS,
+            STABILIZE_CORRECTLY=STABILIZE_CORRECTLY,
+            NORM_VAL=NORM_VAL,
             H=H,
             T=T,
             K=K,
@@ -970,6 +992,9 @@ def mLSTMforward(
     dtype_gate: torch.dtype | None = torch.float32,
     chunk_size: int = 64,
     return_last_states: bool = False,
+    EPS: float = 1e-6,
+    STABILIZE_CORRECTLY: bool = True,
+    NORM_VAL: float = 1.0,
 ) -> tuple[
     torch.Tensor,
     torch.Tensor,
@@ -1079,7 +1104,10 @@ def mLSTMforward(
         matC.stride(1),
         matC.stride(2),
         matN.stride(1),
-        scale,
+        scale=scale,
+        EPS=EPS,
+        STABILIZE_CORRECTLY=STABILIZE_CORRECTLY,
+        NORM_VAL=NORM_VAL,
         H=H,
         T=T,
         K=K,
@@ -1317,24 +1345,15 @@ def mLSTMbackward(
         None,
     )
 
-    return (
-        matdQ.to(matQ.dtype),
-        matdK.to(matK.dtype),
-        matdV.to(matV.dtype),
-        vecdI.to(vecF_orig.dtype),
-        vecdF.to(vecF_orig.dtype).view(vecF.shape),
-        matdC_initial.to(matC_initial.dtype) if matC_initial is not None else None,
-        None,
-        None,
-        None,
-    )
-
 
 def mLSTMFunctionGenerator(
     chunk_size: int = 64,
     keep_states: bool = False,
     dtype_state: torch.dtype | None = torch.float32,
     dtype_gate: torch.dtype | None = torch.float32,
+    EPS: float = 1e-6,
+    NORM_VAL: float = 1.0,
+    STABILIZE_CORRECTLY: bool = True,
 ):
     class mLSTMFunction(torch.autograd.Function):
         @staticmethod
@@ -1374,6 +1393,9 @@ def mLSTMFunctionGenerator(
                 dtype_gate=dtype_gate,
                 chunk_size=chunk_size,
                 return_last_states=return_last_states,
+                EPS=EPS,
+                STABILIZE_CORRECTLY=STABILIZE_CORRECTLY,
+                NORM_VAL=NORM_VAL,
             )
             if keep_states:
                 ctx.save_for_backward(
@@ -1456,16 +1478,6 @@ def mLSTMFunctionGenerator(
 
 
 mLSTMFunction = {}
-# registry with (chunk_size, keep_state, dtype_states, dtype_gates)
-mLSTMFunction[(64, False, "float32", "float32")] = mLSTMFunctionGenerator(
-    chunk_size=64, keep_states=False
-)
-mLSTMFunction[(64, False, "bfloat16", "float32")] = mLSTMFunctionGenerator(
-    chunk_size=64, keep_states=False
-)
-mLSTMFunction[(64, False, "float16", "float32")] = mLSTMFunctionGenerator(
-    chunk_size=64, keep_states=False
-)
 
 DTYPESTR_TO_DTYPE = {
     "float32": torch.float32,
@@ -1486,7 +1498,9 @@ def mlstm_fwbw(
     return_last_states: bool = False,
     chunk_size: int = 64,
     keep_states: bool = False,
-    eps: float = 1e-6,  # is ignored
+    eps: float = 1e-6,
+    norm_val: float = 1.0,
+    stabilize_correctly: bool = True,
     dtype_states: Literal["float32", "bfloat16", "float16"] = "float32",
     autocast_kernel_dtype: torch.dtype | None = torch.float32,
     dtype_gates: Literal["float32", "bfloat16", "float16"] = "float32",
@@ -1497,16 +1511,26 @@ def mlstm_fwbw(
     vecI = i.float()
     if autocast_kernel_dtype is not None:
         dtype_states = str(autocast_kernel_dtype).split(".")[1]
-    if (chunk_size, keep_states, dtype_states, dtype_gates) not in mLSTMFunction:
-        mLSTMFunction[(chunk_size, keep_states, dtype_states, dtype_gates)] = (
-            mLSTMFunctionGenerator(
-                chunk_size=chunk_size,
-                keep_states=keep_states,
-                dtype_state=DTYPESTR_TO_DTYPE[dtype_states],
-                dtype_gate=DTYPESTR_TO_DTYPE[dtype_gates],
-            )
+    signature = (
+        chunk_size,
+        keep_states,
+        dtype_states,
+        dtype_gates,
+        eps,
+        stabilize_correctly,
+    )
+
+    if signature not in mLSTMFunction:
+        mLSTMFunction[signature] = mLSTMFunctionGenerator(
+            chunk_size=chunk_size,
+            keep_states=keep_states,
+            dtype_state=DTYPESTR_TO_DTYPE[dtype_states],
+            dtype_gate=DTYPESTR_TO_DTYPE[dtype_gates],
+            EPS=eps,
+            STABILIZE_CORRECTLY=stabilize_correctly,
+            NORM_VAL=norm_val,
         )
-    mLSTMFunc = mLSTMFunction[(chunk_size, keep_states, dtype_states, dtype_gates)]
+    mLSTMFunc = mLSTMFunction[signature]
     matH, matC_final, matN_final, matM_final = mLSTMFunc.apply(
         q, k, v, vecI, vecF, c_initial, n_initial, m_initial, return_last_states
     )
