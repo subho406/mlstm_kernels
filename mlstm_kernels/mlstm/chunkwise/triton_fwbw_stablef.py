@@ -770,7 +770,7 @@ class mLSTMKernelC(torch.autograd.Function):
         matN_final,
         matM_final,
     ):
-        B, H, NT, BT, K, V = *k.shape, matV.shape[-1]
+        B, H, NT, BT, K, V = *matK.shape, matV.shape[-1]
         T = BT * NT
         BHQK, BHHV = (
             min(64, triton.next_power_of_2(K)),
@@ -848,7 +848,7 @@ class mLSTMKernelH(torch.autograd.Function):
         vecNorm,
         matM_total,
     ):
-        B, H, NT, BT, K, V = *k.shape, matV.shape[-1]
+        B, H, NT, BT, K, V = *matK.shape, matV.shape[-1]
         T = BT * NT
         BHQK, BHHV = (
             min(64, triton.next_power_of_2(K)),
