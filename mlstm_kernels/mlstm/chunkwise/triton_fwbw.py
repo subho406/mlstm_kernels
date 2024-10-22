@@ -524,7 +524,7 @@ def chunk_mlstm_bwd_kernel_dqkvif(
     vecNorm_val = tl.load(vecNorm + idx_BC * T + idx_t * BT + tl.arange(0, BT))
     vecI_val = tl.load(vecI_ptr)
 
-    # TODO: update to stable version of Mamba2
+    # numerically unstable version
     mask_f = vecF_val[None, :] - vecF_val[:, None]
     logDT_val = vecI_val[:, None] + mask_f - matM_total_val[None, :]
     mask = tl.where(
@@ -700,7 +700,6 @@ def mLSTMforward(
         dtype_gates = dtype_gate
 
     assert T % BT == 0, "sequence length must be divisible by BT"
-    vecF_orig = vecF
     vecF = torch.nn.functional.logsigmoid(vecF.to(dtype_gates))
     vecF = vecF.reshape(B, H, -1, BT)
     vecF = vecF.cumsum(-1) * 1.44269504
@@ -903,12 +902,17 @@ def mLSTMbackward(
     scale = K**-0.5
     matdC = matQ.new_full((B, H, NT * K, V), float("nan"), dtype=dtype_states)
 
-    matdC_initial = matQ.new_full(
-        (B, H, K, V), float("nan"), requires_grad=False, dtype=dtype_states
-    )
-    matM_initial = matQ.new_full(
-        (B, H), float("nan"), requires_grad=False, dtype=dtype_states
-    )
+    USE_INITIAL_STATE = matC_initial is not None
+    if USE_INITIAL_STATE:
+        matdC_initial = matQ.new_full(
+            (B, H, K, V), float("nan"), requires_grad=False, dtype=dtype_states
+        )
+        matM_initial = matQ.new_full(
+            (B, H), float("nan"), requires_grad=False, dtype=dtype_states
+        )
+    else:
+        matdC_initial = matQ.new_zeros((1,), requires_grad=False, dtype=dtype_states)
+        matM_initial = matQ.new_zeros((1,), requires_grad=False, dtype=dtype_states)
 
     if matdC_final is None:
         matdC_final = matQ.new_empty((1,), dtype=dtype_states)
@@ -1120,7 +1124,7 @@ def mLSTMFunctionGenerator(
                 matN_initial,
                 matM_initial,
             ) = ctx.saved_tensors
-
+            _ = matdM_final
             return mLSTMbackward(
                 matdH=matdH,
                 matdC_final=matdC_final,
@@ -1146,7 +1150,7 @@ def mLSTMFunctionGenerator(
     return mLSTMFunction
 
 
-mLSTMFunction = {}
+mLSTMFunctionDict = {}
 
 DTYPESTR_TO_DTYPE = {
     "float32": torch.float32,
@@ -1190,8 +1194,8 @@ def mlstm_fwbw(
         stabilize_correctly,
     )
 
-    if signature not in mLSTMFunction:
-        mLSTMFunction[signature] = mLSTMFunctionGenerator(
+    if signature not in mLSTMFunctionDict:
+        mLSTMFunctionDict[signature] = mLSTMFunctionGenerator(
             chunk_size=chunk_size,
             keep_states=keep_states,
             dtype_state=DTYPESTR_TO_DTYPE[dtype_states],
@@ -1200,7 +1204,7 @@ def mlstm_fwbw(
             EPS=eps,
             STABILIZE_CORRECTLY=stabilize_correctly,
         )
-    mLSTMFunc = mLSTMFunction[signature]
+    mLSTMFunc = mLSTMFunctionDict[signature]
     matH, matC_final, matN_final, matM_final = mLSTMFunc.apply(
         q, k, v, vecI, vecF, c_initial, n_initial, m_initial, return_last_states
     )

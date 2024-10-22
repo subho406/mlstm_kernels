@@ -1003,7 +1003,7 @@ def mLSTMbackward(
     scale = K**-0.5
     matdC = matQ.new_full((B, H, NT * K, V), float("nan"), dtype=dtype_states)
 
-    USE_INITIAL_STATE = matC_initial is None
+    USE_INITIAL_STATE = matC_initial is not None
     if USE_INITIAL_STATE:
         matdC_initial = matQ.new_full(
             (B, H, K, V), float("nan"), requires_grad=False, dtype=dtype_states
