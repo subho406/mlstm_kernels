@@ -567,10 +567,6 @@ def chunk_mlstm_bwd_kernel_dqkvif(
     vecG_val = idx_vecG_val + vecF_rc_val
     vecNorm_val = tl.load(vecNorm + idx_BC * T + idx_t * BT + o_cta)
 
-    # if idx_t == NT - 1:
-    #     matM_next_val = tl.load(matM_final)
-    # else:
-
     matM_next_val = tl.load(matM + idx_BC * (NT + 1) + idx_t + 1)
 
     matdQ_val = tl.zeros([BT, BHQK], dtype=matQ_val.dtype)
