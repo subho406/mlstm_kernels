@@ -68,6 +68,8 @@ def test_backward(
             print(f"NaN found in grad {n} of inp1")
         if inp2.grad is not None and torch.any(torch.isnan(inp2.grad)):
             print(f"NaN found in grad {n} of inp2")
+        # if n == 4:
+        #     print(inp1.grad, inp2.grad)
         if not comp_func(inp1.grad, inp2.grad, **comp_func_kwargs):
             print(f"Difference in {n}-th gradient")
             if show_diff_func is not None:

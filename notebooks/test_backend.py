@@ -15,7 +15,7 @@ import os
 # options
 _ = (mlstm_parallel_torch_ownbw, mlstm_fwbw_chunk, mlstm_fwbw_chunkstab)
 # choose
-baseline = mlstm_parallel_torch_ownbw
+baseline = mlstm_fwbw_chunk  # mlstm_parallel_torch_ownbw
 comp = mlstm_fwbw_chunkstab
 
 
@@ -26,7 +26,7 @@ def shape_to_rect(shape):
     d1 = 1
     for s in shape[:-1]:
         d1 *= s
-        if d1 > 0.25 * sqrt(tot):
+        if d1 > 0.25 * tot ** (1 / 2):
             return (d1, tot // d1)
     return (d1, tot // d1)
 
@@ -87,18 +87,28 @@ def layer_norm(x, ndim=16):
 
 if __name__ == "__main__":
     import sys
+    import numpy as np
 
-    include_initial = False
-    B, H, T, K, V = 3, 2, 256, 256, 256
+    include_initial = True  # False
+    B, H, T, K, V = 8, 8, 1024, 512, 512
     device = "cuda"
     dtype = torch.float32  # bfloat16
 
     q = 1 + 0.0 * torch.randn([B, H, T, K], device=device, dtype=dtype)
     k = 1 + 0.0 * torch.randn([B, H, T, K], device=device, dtype=dtype)
     v = torch.randn([B, H, T, V], device=device, dtype=dtype)
-
     i = torch.randn([B, H, T], device=device, dtype=dtype)
     f = +3.0 + 0.5 * torch.randn([B, H, T], device=device, dtype=dtype)
+
+    # inps = np.load("test_failed_1729621406.npz")
+    # print(inps)
+    # q, k, v, i, f = [
+    #     torch.from_numpy(inps[inp]).to(device=device, dtype=dtype)
+    #     for inp in inps.files[:5]
+    # ]
+
+    B, H, T, K = q.shape
+    V = v.shape[-1]
 
     if include_initial:
         C_i = torch.randn([B, H, K, V], device=device, dtype=torch.float32)
