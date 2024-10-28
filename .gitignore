@@ -11,7 +11,7 @@ outputs_tests
 configs
 configs/*
 resources/*.p
-
+tests_outputs
 *.png
 *.csv
 
