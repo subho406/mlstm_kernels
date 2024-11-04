@@ -1,3 +1,4 @@
+import gc
 import logging
 from collections.abc import Callable
 from dataclasses import dataclass
@@ -73,7 +74,10 @@ class BenchmarkInterface:
 
         inputs = self._get_input_tensors()
 
-        inputs = [x.to(device=self.device, dtype=torch_dtype).requires_grad_(self.fwbw) for x in inputs]
+        inputs = [
+            x.to(device=self.device, dtype=torch_dtype).requires_grad_(self.fwbw)
+            for x in inputs
+        ]
         self.kernel_inputs = inputs
 
         kernel_fn = self._get_kernel_fn()
@@ -192,14 +196,249 @@ class FlashAttentionBenchmark(mLSTMBenchmark):
         return list(flash_attention_registry.keys())
 
 
-def get_benchmark(kernel_spec: KernelSpec, param_dict: dict[str, Any]) -> BenchmarkInterface:
+@dataclass
+class mLSTMXLChunkSizeTuneBenchmark(mLSTMBenchmark):
+    chunk_size_inter: int = None
+    chunk_size_intra: int = None
+    siz_b_L_parallel: int = None
+    siz_b_L_loop: int = None
+    siz_b_DH_parallel: int = None
+    siz_b_DH_loop: int = None
+    num_warps_intra: int = None
+    num_warps_inter: int = None
+    num_stages_intra: int = None
+    num_stages_inter: int = None
+    output_dtype: Literal["bfloat16", "float32"] = "float32"
+
+    def _get_input_tensors(self) -> tuple[torch.Tensor, ...]:
+        q = torch.randn(
+            (self.batch_size, self.num_heads, self.sequence_length, self.head_dim_qk),
+            dtype=torch.float32,
+        )
+        k = torch.randn(
+            (self.batch_size, self.num_heads, self.sequence_length, self.head_dim_qk),
+            dtype=torch.float32,
+        )
+        v = torch.randn(
+            (self.batch_size, self.num_heads, self.sequence_length, self.head_dim_v),
+            dtype=torch.float32,
+        )
+        ig = torch.randn(
+            (self.batch_size, self.num_heads, self.sequence_length),
+            dtype=torch.float32,
+        )
+        fg = torch.randn(
+            (self.batch_size, self.num_heads, self.sequence_length),
+            dtype=torch.float32,
+        )
+        return q, k, v, ig, fg
+
+    def _get_kernel_fn(self) -> Callable[[tuple[torch.Tensor, ...]], torch.Tensor]:
+        from functools import partial
+
+        assert (
+            self.kernel_name == "max_triton_v5xlchunksize"
+        ), "Only supports max_triton_v5xlchunksize kernel"
+
+        from ..mlstm.chunkwise.max_triton_fwbw_v5xlchunksize.triton_fwbw import (
+            mlstm_chunkwise_max_triton,
+        )
+
+        kernel_fn = mlstm_chunkwise_max_triton
+        kernel_fn = partial(
+            kernel_fn,
+            chunk_size_inter=self.chunk_size_inter,
+            chunk_size_intra=self.chunk_size_intra,
+            siz_b_L_parallel=self.siz_b_L_parallel,
+            siz_b_L_loop=self.siz_b_L_loop
+            if self.siz_b_L_loop is not None
+            else self.siz_b_L_parallel,
+            siz_b_DH_parallel=self.siz_b_DH_parallel,
+            siz_b_DH_loop=self.siz_b_DH_loop,
+            num_warps_intra=self.num_warps_intra,
+            num_warps_inter=self.num_warps_inter,
+            num_stages_intra=self.num_stages_intra,
+            num_stages_inter=self.num_stages_inter,
+        )
+
+        return kernel_fn
+
+    def available_kernels(self) -> list[str]:
+        return ["max_triton_v5xlchunksize"]
+
+
+@dataclass
+class mLSTMXLChunkSizeBackwardTuneBenchmark(mLSTMXLChunkSizeTuneBenchmark):
+    # TODO: weird, when running this benchmark I get an illegal memory access error
+    def _get_input_tensors(self) -> tuple[torch.Tensor, ...]:
+        q = torch.randn(
+            (self.batch_size, self.num_heads, self.sequence_length, self.head_dim_qk),
+            dtype=torch.float32,
+        )
+        # k = torch.randn(
+        #     (self.batch_size, self.num_heads, self.sequence_length, self.head_dim_qk),
+        #     dtype=torch.float32,
+        # )
+        v = torch.randn(
+            (self.batch_size, self.num_heads, self.sequence_length, self.head_dim_v),
+            dtype=torch.float32,
+        )
+        ig = torch.randn(
+            (
+                self.batch_size,
+                self.num_heads,
+                self.sequence_length // self.chunk_size_intra,
+                self.chunk_size_intra,
+            ),
+            dtype=torch.float32,
+        )
+        # ag = torch.randn(
+        #     (
+        #         self.batch_size,
+        #         self.num_heads,
+        #         self.sequence_length // self.chunk_size_intra,
+        #         self.chunk_size_intra,
+        #     ),
+        #     dtype=torch.float32,
+        # )
+        # bg = torch.randn(
+        #     (
+        #         self.batch_size,
+        #         self.num_heads,
+        #         self.sequence_length // self.chunk_size_intra,
+        #         self.chunk_size_intra,
+        #     ),
+        #     dtype=torch.float32,
+        # )
+        matCstate_all = torch.randn(
+            (
+                self.batch_size,
+                self.num_heads,
+                self.chunk_size_intra + 1,
+                self.head_dim_qk,
+                self.head_dim_v,
+            ),
+            dtype=torch.float32,
+        )
+        vecNstate_all = torch.randn(
+            (
+                self.batch_size,
+                self.num_heads,
+                self.chunk_size_intra + 1,
+                self.head_dim_qk,
+            ),
+            dtype=torch.float32,
+        )
+        scaMstate_all = torch.randn(
+            (self.batch_size, self.num_heads, self.chunk_size_intra + 1),
+            dtype=torch.float32,
+        )
+        # matH_out = torch.randn(
+        #     (self.batch_size, self.num_heads, self.sequence_length, self.head_dim_v),
+        #     dtype=torch.float32,
+        # )
+        vecN_out = torch.randn(
+            (self.batch_size, self.num_heads, self.sequence_length), dtype=torch.float32
+        )
+        # vecM_out = torch.randn(
+        #     (self.batch_size, self.num_heads, self.sequence_length), dtype=torch.float32
+        # )
+        # matDeltaH_out = torch.randn(
+        #     (self.batch_size, self.num_heads, self.sequence_length, self.head_dim_v),
+        #     dtype=torch.float32,
+        # )
+        matDeltaC_states = torch.randn(
+            (
+                self.batch_size,
+                self.num_heads,
+                self.chunk_size_intra + 1,
+                self.head_dim_qk,
+                self.head_dim_v,
+            ),
+            dtype=torch.float32,
+        )
+        vecDeltaN_states = torch.randn(
+            (
+                self.batch_size,
+                self.num_heads,
+                self.chunk_size_intra + 1,
+                self.head_dim_qk,
+            ),
+            dtype=torch.float32,
+        )
+        return (
+            q,
+            q,
+            v,
+            ig,
+            ig,
+            ig,
+            matCstate_all,
+            vecNstate_all,
+            scaMstate_all,
+            v,
+            vecN_out,
+            vecN_out,
+            v,
+            matDeltaC_states,
+            vecDeltaN_states,
+        )
+
+    def _get_kernel_fn(self) -> Callable[[tuple[torch.Tensor, ...]], torch.Tensor]:
+        from functools import partial
+
+        assert (
+            self.kernel_name == "max_triton_v5xlchunksize-bw-dV"
+        ), "Only supports max_triton_v5xlchunksize-bw-dV kernel"
+
+        from ..mlstm.chunkwise.max_triton_fwbw_v5xlchunksize._triton_parallel_bw_dV import (
+            mlstm_chunkwise__parallel_bw_dV,
+        )
+
+        kernel_fn = mlstm_chunkwise__parallel_bw_dV
+        kernel_fn = partial(
+            kernel_fn,
+            chunk_size=self.chunk_size_intra,
+            siz_b_LQ=self.siz_b_LQ,
+            siz_b_LKV=self.siz_b_LKV if self.siz_b_LKV is not None else self.siz_b_LQ,
+            siz_b_DHQK=self.siz_b_DHQK,
+            siz_b_DHHV=self.siz_b_DHHV,
+            num_warps=self.num_warps_intra,
+            output_dtype=torch.float32
+            if self.output_dtype == "float32"
+            else torch.bfloat16,
+        )
+
+        return kernel_fn
+
+    def available_kernels(self) -> list[str]:
+        return ["max_triton_v5xlchunksize-bw-dV"]
+
+
+def get_benchmark(
+    kernel_spec: KernelSpec, param_dict: dict[str, Any]
+) -> BenchmarkInterface:
     mlstm_benchmark = mLSTMBenchmark()
     flashattention_benchmark = FlashAttentionBenchmark()
+    mlstm_xl_chunk_size_tune_benchmark = mLSTMXLChunkSizeTuneBenchmark()
+    mlstm_xl_chunk_size_tune_benchmark_backward = (
+        mLSTMXLChunkSizeBackwardTuneBenchmark()
+    )
 
     if kernel_spec.kernel_name in mlstm_benchmark.available_kernels():
         benchmark = mlstm_benchmark
     elif kernel_spec.kernel_name in flashattention_benchmark.available_kernels():
         benchmark = flashattention_benchmark
+    elif (
+        kernel_spec.kernel_name
+        in mlstm_xl_chunk_size_tune_benchmark.available_kernels()
+    ):
+        benchmark = mlstm_xl_chunk_size_tune_benchmark
+    elif (
+        kernel_spec.kernel_name
+        in mlstm_xl_chunk_size_tune_benchmark_backward.available_kernels()
+    ):
+        benchmark = mlstm_xl_chunk_size_tune_benchmark_backward
     else:
         raise ValueError(f"Unknown kernel name: {kernel_spec.kernel_name}")
 
@@ -211,7 +450,9 @@ def get_benchmark(kernel_spec: KernelSpec, param_dict: dict[str, Any]) -> Benchm
     return benchmark
 
 
-def run_benchmarks(benchmark_config: BenchmarkConfig, param_prefix: str = "P--") -> pd.DataFrame:
+def run_benchmarks(
+    benchmark_config: BenchmarkConfig, param_prefix: str = "P--"
+) -> pd.DataFrame:
     """Runs the different kernel configurations and summarizes the results in a DataFrame.
 
     Args:
@@ -221,18 +462,21 @@ def run_benchmarks(benchmark_config: BenchmarkConfig, param_prefix: str = "P--")
     param_dicts = benchmark_config.get_param_dicts()
     kernel_specs = benchmark_config.kernel_specs
     results = []
-    for param_dict in param_dicts:
-        LOGGER.info(f"Running parameters: {param_dict}")
+    for i, param_dict in enumerate(param_dicts):
+        LOGGER.info(f"Parameter combination ({i+1}/{len(param_dicts)}): {param_dict}")
         # add a prefix to easily identify the parameters in the DataFrame
         result_dict = {f"{param_prefix}{k}": v for k, v in param_dict.items()}
-        for kernel_spec in kernel_specs:
-            LOGGER.info(f"Running kernel: {kernel_spec.to_string()}")
+        for k, kernel_spec in enumerate(kernel_specs):
             benchmark = get_benchmark(kernel_spec, param_dict)
             benchmark.set_params(kernel_spec.additional_params)
             benchmark.setup_benchmark()
             runtime = benchmark.run_benchmark()
             result_dict[kernel_spec.to_string()] = runtime
-            LOGGER.info(f"Running kernel: {kernel_spec.to_string()} finished. Runtime: {runtime} ms")
+            LOGGER.info(
+                f"Kernel ({k+1}/{len(kernel_specs)}): {kernel_spec.to_string()} finished. Runtime: {runtime} ms"
+            )
+            gc.collect()
+            torch.cuda.empty_cache()
         results.append(result_dict)
 
     return pd.DataFrame(results)

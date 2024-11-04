@@ -1,15 +1,15 @@
-from pathlib import Path
-import torch
 import logging
+from pathlib import Path
+
+import matplotlib.pyplot as plt
 import numpy as np
+import torch
 
 from ..plot_utils import (
-    plot_numerical_diffs_per_batchhead,
-    plot_error_statistics_over_time_per_batchhead,
     compute_errors_per_batchhead,
+    plot_error_statistics_over_time_per_batchhead,
+    plot_numerical_diffs_per_batchhead,
 )
-import matplotlib.pyplot as plt
-
 from ..torch_utils import dtype2str
 
 LOGGER = logging.getLogger(__name__)
@@ -96,3 +96,23 @@ def check_correctness(
             plt.close()
 
     return result
+
+
+def verify_output(
+    name: str,
+    baseline: torch.Tensor,
+    target: torch.Tensor,
+    atol: float = 1e-4,
+    rtol: float = 1e-2,
+    vmax: float = 1e-2,
+):
+    check_correctness(name, baseline=baseline, target=target, rtol=rtol, atol=atol)
+    fig = plot_numerical_diffs_per_batchhead(
+        baseline=baseline,
+        target=target,
+        title=name,
+        rtol=rtol,
+        atol=atol,
+        vmax=vmax,
+    )
+    return fig

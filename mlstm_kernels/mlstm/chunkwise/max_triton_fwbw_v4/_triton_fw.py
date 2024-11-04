@@ -1,13 +1,11 @@
 # Copyright JKU Linz 2024
 # Author: Maximilian Beck
-from typing import Optional
-
 import torch
 import torch.nn.functional as F
 import triton
 import triton.language as tl
+from typing import Optional
 from einops import rearrange
-
 from ....kernel_utils import contiguous_noctx, is_power_of_2, torch2triton_dtype
 
 # Triton.
@@ -38,7 +36,7 @@ from ....kernel_utils import contiguous_noctx, is_power_of_2, torch2triton_dtype
 def _mlstm_chunkwise__recurrent_fw_C_kernel(
     matK,  # (B, NH, S, DHQK)
     matV,  # (B, NH, S, DHHV)
-    vecB,  # (B, NH, NC, L)
+    vecF,  # (B, NH, NC, L)
     vecI,  # (B, NH, NC, L)
     matC_states,  # (B, NH, (NC + 1) * DHQK, DHHV)
     vecN_states,  # (B, NH, (NC + 1) * DHQK)
@@ -52,9 +50,9 @@ def _mlstm_chunkwise__recurrent_fw_C_kernel(
     str_matV_B_NH,
     str_matV_S,
     str_matV_DHHV,
-    str_vecBI_B_NH,
-    str_vecBI_NC,
-    str_vecBI_L,
+    str_vecFI_B_NH,
+    str_vecFI_NC,
+    str_vecFI_L,
     str_matCstates_B_NH,
     str_matCstates_NCDHQK,
     str_matCstates_DHHV,
@@ -168,20 +166,29 @@ def _mlstm_chunkwise__recurrent_fw_C_kernel(
             tl.store(scaMinterstates_k_ptr, scaMinter_k_val.to(dtype=tl.float32))
 
         # load / compute vecA_k, scaG_k
-        # last element of vecB in k-th chunk
-        vecB_last_k_val = tl.load(
-            vecB + idx_b_BNH * str_vecBI_B_NH + k * str_vecBI_NC + (L - 1)
-        ).to(tl.float32)
-        vecB_k_val = tl.load(
-            vecB + idx_b_BNH * str_vecBI_B_NH + k * str_vecBI_NC + tl.arange(0, L)
-        ).to(tl.float32)
-
+        idx_L = tl.arange(0, L)
         vecI_k_val = tl.load(
-            vecI + idx_b_BNH * str_vecBI_B_NH + k * str_vecBI_NC + tl.arange(0, L)
+            vecI + idx_b_BNH * str_vecFI_B_NH + k * str_vecFI_NC + idx_L
         ).to(tl.float32)
 
-        vecA_k_val = (vecB_last_k_val - vecB_k_val) + vecI_k_val
-        scaG_k_val = vecB_last_k_val
+        vecF_k_val = tl.load(
+            vecF + idx_b_BNH * str_vecFI_B_NH + k * str_vecFI_NC + idx_L + 1,
+            mask=(idx_L < L - 1),
+            other=0.0,
+        ).to(tl.float32)
+
+        vecFlogsig_k_val = tl.log(tl.sigmoid(vecF_k_val))
+        vecFlogsig_masked = tl.where(idx_L < L - 1, vecFlogsig_k_val, 0.0).to(
+            tl.float32
+        )
+
+        vecA_k_val = tl.flip(tl.cumsum(tl.flip(vecFlogsig_masked), axis=0)) + vecI_k_val
+
+        vecFfirst_k_val = tl.load(
+            vecF + idx_b_BNH * str_vecFI_B_NH + k * str_vecFI_NC + 0
+        ).to(tl.float32)
+        vecFfirstlogsig_k_val = tl.log(tl.sigmoid(vecFfirst_k_val))
+        scaG_k_val = tl.sum(vecFlogsig_masked, axis=0) + vecFfirstlogsig_k_val
 
         # scaM_inter_k update
         scaAmax_k_val, _ = tl.max(vecA_k_val)
@@ -234,7 +241,7 @@ def _mlstm_chunkwise__recurrent_fw_C_kernel(
 def _mlstm_chunkwise__recurrent_fw_C(
     matK: torch.Tensor,  # (B, NH, S, DHQK)
     matV: torch.Tensor,  # (B, NH, S, DHHV)
-    vecB: torch.Tensor,  # (B, NH, NC, L)
+    vecF: torch.Tensor,  # (B, NH, NC, L)
     vecI: torch.Tensor,  # (B, NH, NC, L)
     matC_states: torch.Tensor = None,  # (B, NH, (NC + 1) * DHQK, DHHV)
     vecN_states: torch.Tensor = None,  # (B, NH, (NC + 1) * DHQK)
@@ -299,12 +306,13 @@ def _mlstm_chunkwise__recurrent_fw_C(
         if scaMinter_states is None
         else scaMinter_states
     )
+    print("vecF", vecF)
 
     grid = (num_b_DHQK, num_b_DHHV, B * NH)
     _mlstm_chunkwise__recurrent_fw_C_kernel[grid](
         matK=matK,
         matV=matV,
-        vecB=vecB,
+        vecF=vecF,
         vecI=vecI,
         matC_states=matC_states,
         vecN_states=vecN_states,
@@ -318,9 +326,9 @@ def _mlstm_chunkwise__recurrent_fw_C(
         str_matV_B_NH=matV.stride(1),
         str_matV_S=matV.stride(2),
         str_matV_DHHV=matV.stride(3),
-        str_vecBI_B_NH=vecB.stride(1),
-        str_vecBI_NC=vecB.stride(2),
-        str_vecBI_L=vecB.stride(3),
+        str_vecFI_B_NH=vecF.stride(1),
+        str_vecFI_NC=vecF.stride(2),
+        str_vecFI_L=vecF.stride(3),
         str_matCstates_B_NH=matC_states.stride(1),
         str_matCstates_NCDHQK=matC_states.stride(2),
         str_matCstates_DHHV=matC_states.stride(3),
@@ -361,7 +369,7 @@ def _mlstm_chunkwise_parallel_fw_H_kernel(
     vecN_states,  # (B, NH, NC * DHQK)
     scaMinter_states,  # (B, NH, NC)
     vecI,  # (B, NH, NC, L)
-    vecB,  # (B, NH, NC, L)
+    vecF,  # (B, NH, NC, L)
     matHout,  # (B, NH, S, DHHV)
     vecNout,  # (B, NH, S)
     vecMout,  # (B, NH, S)
@@ -378,9 +386,9 @@ def _mlstm_chunkwise_parallel_fw_H_kernel(
     str_vecNstates_B_NH,
     str_vecNstates_NCDHQK,
     str_scaMinterstates_B_NH,
-    str_vecBI_B_NH,
-    str_vecBI_NC,
-    str_vecBI_L,
+    str_vecFI_B_NH,
+    str_vecFI_NC,
+    str_vecFI_L,
     str_vecMN_B_NH,
     str_vecMN_S,
     B: tl.constexpr,
@@ -401,14 +409,15 @@ def _mlstm_chunkwise_parallel_fw_H_kernel(
         tl.program_id(2),
     )
 
-    # load vecB (L,)
-    vecB_val = tl.load(
-        vecB + idx_b_BNH * str_vecBI_B_NH + idx_b_NC * str_vecBI_NC + tl.arange(0, L)
+    # load vecF (L,)
+    vecF_val = tl.load(
+        vecF + idx_b_BNH * str_vecFI_B_NH + idx_b_NC * str_vecFI_NC + tl.arange(0, L)
     ).to(tl.float32)
+    vecFlogsig_val = tl.log(tl.sigmoid(vecF_val))
 
     # load vecI (L,)
     vecI_val = tl.load(
-        vecI + idx_b_BNH * str_vecBI_B_NH + idx_b_NC * str_vecBI_NC + tl.arange(0, L)
+        vecI + idx_b_BNH * str_vecFI_B_NH + idx_b_NC * str_vecFI_NC + tl.arange(0, L)
     ).to(tl.float32)
 
     # load scaMinter_km1 (1,)
@@ -416,23 +425,39 @@ def _mlstm_chunkwise_parallel_fw_H_kernel(
         scaMinter_states + idx_b_BNH * str_scaMinterstates_B_NH + idx_b_NC
     ).to(tl.float32)
 
+    # compute vecB_val (L,)
+    vecB_val = tl.cumsum(vecFlogsig_val, axis=0)
+
     # compute gate matrix matDbar (L, L)
+    # unstable matD computation:
+    # idx_mask = tl.arange(0, L)
+    # mask = idx_mask[:, None] >= idx_mask[None, :]
+    # matD_full_val = vecB_val[:, None] - vecB_val[None, :] + vecI_val[None, :]
+    # matD_val = tl.where(mask, matD_full_val, -float("inf"))
+
+    # stable matD computation:
     idx_mask = tl.arange(0, L)
-    mask = idx_mask[:, None] >= idx_mask[None, :]
-    matD_full_val = vecB_val[:, None] - vecB_val[None, :] + vecI_val[None, :]
-    matD_val = tl.where(mask, matD_full_val, -float("inf"))
+    matFlogsig_val = tl.cumsum(
+        tl.where(
+            idx_mask[:, None] > idx_mask[None, :],
+            vecFlogsig_val[:, None].broadcast_to(L, L),
+            0.0,
+        ),
+        axis=0,
+    )
+    matD_val = (
+        tl.where(idx_mask[:, None] >= idx_mask[None, :], matFlogsig_val, -float("inf"))
+        + vecI_val[None, :]
+    )
 
     # compute vecM_k_intra (L,) & vecM_k_combine (L,)
     vecM_intra_val = tl.max(matD_val, axis=1)
     vecM_combine_val = tl.maximum(vecB_val + scaMinter_km1_val, vecM_intra_val)
-    # tl.static_print("vecM_combine_val", vecM_combine_val[:, None])
-    # tl.static_print("matD_val", matD_val)
+    # compute gate matrix matDbar (L, L)
     matDbar_val = tl.exp(matD_val - vecM_combine_val[:, None])
 
     # compute vecBbar (L,)
     vecBbar_val = tl.exp(vecB_val + scaMinter_km1_val - vecM_combine_val)
-    # tl.static_print("vecBbar_val", vecBbar_val)
-    # tl.device_print("vecBbar_val",vecBbar_val)
 
     ## loop over DHQK blocks
     matS_val = tl.zeros((L, L), dtype=tl.float32)
@@ -562,7 +587,7 @@ def _mlstm_chunkwise__parallel_fw_H(
     vecN_states: torch.Tensor,  # (B, NH, NC * DHQK)
     scaMinter_states: torch.Tensor,  # (B, NH, NC)
     vecI: torch.Tensor,  # (B, NH, NC, L)
-    vecB: torch.Tensor,  # (B, NH, NC, L)
+    vecF: torch.Tensor,  # (B, NH, NC, L)
     qk_scale: float = None,
     CHUNK_SIZE: int = 64,
     NUM_CHUNKS: int = 1,
@@ -591,6 +616,7 @@ def _mlstm_chunkwise__parallel_fw_H(
     num_stages = 1
     num_warps = 4 if siz_b_DHQK == 64 else 2
 
+    # TODO make these empty
     matH_out = torch.empty(B, NH, S, DHHV, device=matQ.device, dtype=matQ.dtype)
     vecN_out = torch.empty(B, NH, S, device=matQ.device, dtype=torch.float32)
     vecM_out = torch.empty(B, NH, S, device=matQ.device, dtype=torch.float32)
@@ -604,7 +630,7 @@ def _mlstm_chunkwise__parallel_fw_H(
         vecN_states=vecN_states,
         scaMinter_states=scaMinter_states,
         vecI=vecI,
-        vecB=vecB,
+        vecF=vecF,
         matHout=matH_out,
         vecNout=vecN_out,
         vecMout=vecM_out,
@@ -621,9 +647,9 @@ def _mlstm_chunkwise__parallel_fw_H(
         str_vecNstates_B_NH=vecN_states.stride(1),
         str_vecNstates_NCDHQK=vecN_states.stride(2),
         str_scaMinterstates_B_NH=scaMinter_states.stride(1),
-        str_vecBI_B_NH=vecB.stride(1),
-        str_vecBI_NC=vecB.stride(2),
-        str_vecBI_L=vecB.stride(3),
+        str_vecFI_B_NH=vecF.stride(1),
+        str_vecFI_NC=vecF.stride(2),
+        str_vecFI_L=vecF.stride(3),
         str_vecMN_B_NH=vecN_out.stride(1),
         str_vecMN_S=vecN_out.stride(2),
         B=B,
@@ -679,6 +705,7 @@ def _mlstm_chunkwise_fw(
     ), f"Sequence length {S} is not divisible by chunk size {CHUNK_SIZE}."
     NC = S // CHUNK_SIZE
 
+    # TODO we might not even need this rearrange
     vecI = rearrange(vecI, "b nh (nc l) -> b nh nc l", l=CHUNK_SIZE)
     vecF = rearrange(vecF, "b nh (nc l) -> b nh nc l", l=CHUNK_SIZE).to(torch.float32)
 
@@ -693,7 +720,7 @@ def _mlstm_chunkwise_fw(
     matC_k_states, vecN_k_states, scaMinter_k_states = _mlstm_chunkwise__recurrent_fw_C(
         matK=matK,
         matV=matV,
-        vecB=vecB,
+        vecF=vecF,
         vecI=vecI,
         matC_initial=matC_initial,
         vecN_initial=vecN_initial,
@@ -713,7 +740,7 @@ def _mlstm_chunkwise_fw(
         vecN_states=vecN_k_states[:, :, :-DHQK],
         scaMinter_states=scaMinter_k_states[:, :, :-1],
         vecI=vecI,
-        vecB=vecB,
+        vecF=vecF,
         qk_scale=qk_scale,
         CHUNK_SIZE=CHUNK_SIZE,
         NUM_CHUNKS=NC,

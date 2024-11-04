@@ -16,7 +16,7 @@ import torch
 import triton
 import triton.language as tl
 
-ENABLE_AUTOTUNING = True
+ENABLE_AUTOTUNING = False
 
 if ENABLE_AUTOTUNING:
     configs = [
@@ -70,7 +70,7 @@ BLOCK_KV = 16
 MINIMUM_MAX_VAL = -10  # -float("inf")  # -10.0
 
 
-@triton.autotune(list(filter(keep, configs)), key=["N_CTX", "HEAD_DIM"])
+# @triton.autotune(list(filter(keep, configs)), key=["N_CTX", "HEAD_DIM"])
 @triton.jit
 def _mlstm_fwd(
     matQ,
@@ -280,14 +280,13 @@ def mlstm_fw(
     vecI: torch.Tensor,
     vecF: torch.Tensor,
     eps: float = 1e-6,
-    # BLOCK_Q: int = BLOCK_Q,
-    # BLOCK_KV: int = BLOCK_KV,
+    BLOCK_Q: int = BLOCK_Q,
+    BLOCK_KV: int = BLOCK_KV,
 ) -> torch.Tensor:
     # batch size, number of heads, sequence length, head dimension
-    BS, NH, S, DHQK = matQ.shape
-    _, _, _, DHHV = matV.shape
-    assert vecI.shape == (BS, NH, S)
-    assert vecF.shape == (BS, NH, S)
+    BS, NH, SL, DH = matQ.shape
+    assert vecI.shape == (BS, NH, SL)
+    assert vecF.shape == (BS, NH, SL)
 
     # shape constraints
     HEAD_DIM_Q, HEAD_DIM_K = matQ.shape[-1], matK.shape[-1]
@@ -304,14 +303,11 @@ def mlstm_fw(
         256,
     }, f"Only head dimensions 16, 32, 64, 128, 256 are supported, got {HEAD_DIM_K}"
 
-    # grid = lambda args: (
-    #     triton.cdiv(matQ.shape[2], args["BLOCK_Q"]),
-    #     matQ.shape[0] * matQ.shape[1],
-    #     1,
-    # )
+    # def grid(args):
+    #     return triton.cdiv(matQ.shape[2], args["BLOCK_Q"]), matQ.shape[0] * matQ.shape[1], 1
     # fix grid for debugging
     def grid(args):
-        return triton.cdiv(S, BLOCK_Q), BS * NH, 1
+        return triton.cdiv(matQ.shape[2], BLOCK_Q), matQ.shape[0] * matQ.shape[1], 1
 
     print(f"Triton grid: {grid(None)}, BLOCK_Q: {BLOCK_Q}, BLOCK_KV: {BLOCK_KV}")
 
@@ -363,7 +359,7 @@ def mlstm_fw(
         stride_ifmn_m=vecF_cs.stride(2),
         Z=BS,
         H=NH,
-        N_CTX=S,
+        N_CTX=SL,
         HEAD_DIM=HEAD_DIM_K,
         BLOCK_Q=BLOCK_Q,
         BLOCK_KV=BLOCK_KV,
@@ -371,4 +367,4 @@ def mlstm_fw(
         EPS=eps,
     )
 
-    return matH, vecN, vecM
+    return matH, vecM, vecN

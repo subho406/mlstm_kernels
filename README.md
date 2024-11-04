@@ -109,3 +109,25 @@ Our ground truth kernels are the parallel torch mLSTM implementations:
 We then compare all our chunkwise kernels and recurrent kernels with these baselines.
 
 We use the recurrent kernels to check for numerical correctness of the initial state and the last state.
+
+## Profiling Kernels with Nsight Systems & Nsight Compute
+
+### Nsight Systems
+
+Documentation: <https://docs.nvidia.com/nsight-systems/UserGuide/#cli-profiling>
+
+Command:
+
+```bash
+PYTHONPATH=. nsys profile -t cuda,osrt,nvtx,cudnn,cublas -w true -o ./nvidia_nsight/nsys_mlstm_v5xlchunksize python scripts/run_mlstm_max_triton_v5xlchunksize.py
+```
+
+### Nsight Compute
+
+Documentation: <https://docs.nvidia.com/nsight-compute/NsightComputeCli/index.html>
+
+Command:
+
+```bash
+PYTHONPATH=. ncu -o kernel_prof -f -c 1 -k _mlstm_chunkwise__parallel_fw_Hintra_kernel --set=full python ./scripts/run_mlstm_max_triton_v5xlchunksize_fwbw.p
+```

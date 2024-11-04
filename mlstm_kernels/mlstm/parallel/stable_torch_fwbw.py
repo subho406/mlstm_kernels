@@ -2,14 +2,12 @@
 # Author: Maximilian Beck
 import math
 from collections.abc import Callable
+
 import torch
 import torch.nn.functional as F
-
-
-from torch.amp import custom_fwd, custom_bwd
+from torch.amp import custom_bwd, custom_fwd
 
 from ...kernel_utils import contiguous
-
 
 # PyTorch
 # mLSTM forward and backward pass. Parallel formulation with stabilized Forget gate matrix.
@@ -63,7 +61,7 @@ def _mlstm_fw(
 
     matH = matC @ matV  # (B, NH, S, DH)
 
-    return matH, vecM.squeeze(-1), vecN.squeeze(-1)
+    return matH, vecN.squeeze(-1), vecM.squeeze(-1)
 
 
 def _mlstm_bw(
@@ -154,7 +152,7 @@ def _mlstm_parallel_fwbw_generator(autocast_kernel_dtype=torch.float32) -> Calla
             vecF: torch.Tensor,
             eps: float = 1e-6,
         ) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
-            matH, vecM, vecN = _mlstm_fw(
+            matH, vecN, vecM = _mlstm_fw(
                 matQ=matQ,
                 matK=matK,
                 matV=matV,
@@ -163,7 +161,7 @@ def _mlstm_parallel_fwbw_generator(autocast_kernel_dtype=torch.float32) -> Calla
                 eps=eps,
             )
             ctx.save_for_backward(matQ, matK, matV, vecI, vecF, vecM, vecN)
-            return matH, vecM, vecN
+            return matH, vecN, vecM
 
         @staticmethod
         @custom_bwd(device_type="cuda")

@@ -591,6 +591,7 @@ def _mlstm_chunkwise__parallel_fw_H(
     num_stages = 1
     num_warps = 4 if siz_b_DHQK == 64 else 2
 
+    # TODO make these empty
     matH_out = torch.empty(B, NH, S, DHHV, device=matQ.device, dtype=matQ.dtype)
     vecN_out = torch.empty(B, NH, S, device=matQ.device, dtype=torch.float32)
     vecM_out = torch.empty(B, NH, S, device=matQ.device, dtype=torch.float32)
@@ -705,13 +706,15 @@ def _mlstm_chunkwise_fw(
     # print("matC_k_states - fw_C", matC_k_states.shape, matC_k_states.dtype)
 
     #! compute the outputs within each chunk
+    # we pass NC+1 states into this kernel but load only the first NC states
+    # the NC+1th state is the next state after the last chunk
     matH_out, vecN_out, vecM_out = _mlstm_chunkwise__parallel_fw_H(
         matQ=matQ,
         matK=matK,
         matV=matV,
-        matC_states=matC_k_states[:, :, :-DHQK, :],
-        vecN_states=vecN_k_states[:, :, :-DHQK],
-        scaMinter_states=scaMinter_k_states[:, :, :-1],
+        matC_states=matC_k_states,  # (B, NH, (NC+1) * DHQK, DHHV)
+        vecN_states=vecN_k_states,  # (B, NH, (NC+1) * DHQK)
+        scaMinter_states=scaMinter_k_states,  # (B, NH, (NC+1))
         vecI=vecI,
         vecB=vecB,
         qk_scale=qk_scale,
@@ -740,5 +743,7 @@ def _mlstm_chunkwise_fw(
         ret_tuple += ((matC_k_states, vecN_k_states, scaMinter_k_states),)
     else:
         ret_tuple += (None,)
+
+    return ret_tuple  # (matH_out, vecN_out, vecM_out, optional(last_states), optional(all_states))
 
     return ret_tuple  # (matH_out, vecN_out, vecM_out, optional(last_states), optional(all_states))

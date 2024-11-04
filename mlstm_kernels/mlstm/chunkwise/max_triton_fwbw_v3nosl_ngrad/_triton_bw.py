@@ -304,10 +304,10 @@ def _mlstm_chunkwise__parallel_bw_dQKV_kernel(
     vecI,  # (B, NH, NC, L)
     vecM_combine,  # (B, NH, S)
     scaM_inter,  # (B, NH, NC+1)
-    matC_states,  # (B, NH, NC * DHQK, DHHV)
+    matC_states,  # (B, NH, (NC+1) * DHQK, DHHV) # take only the first NC states
     matDeltaH,  # (B, NH, S, DHHV)
     vecN_out,  # (B, NH, S)
-    matDeltaC_states,  # (B, NH, NC * DHQK, DHHV)
+    matDeltaC_states,  # (B, NH, (NC+1) * DHQK, DHHV) # take only the last NC states
     matDeltaQ,  # (B, NH, S, DHQK)
     matDeltaK,  # (B, NH, S, DHQK)
     matDeltaV,  # (num_b_DHQK, B, NH, S, DHHV)
@@ -407,7 +407,7 @@ def _mlstm_chunkwise__parallel_bw_dQKV_kernel(
         order=(1, 0),
     )
     matQ_val = tl.load(matQ_ptr, boundary_check=(0, 1)).to(DTYPE)  # (L, siz_b_DHQK)
-    matK_val = tl.load(matK_ptr, boundary_check=(0, 1)).to(DTYPE)  # (L, siz_b_DHQK)
+    matK_val = tl.load(matK_ptr, boundary_check=(0, 1)).to(DTYPE)  # (siz_b_DHQK, L)
     matS_val = tl.dot(matQ_val, tl.trans(matK_val)) * qk_scale
     matSbar_val = (matS_val * matDbar_val).to(DTYPE)  # (L, L)
 
@@ -450,10 +450,11 @@ def _mlstm_chunkwise__parallel_bw_dQKV_kernel(
             block_shape=(siz_b_DHHV, siz_b_DHQK),
             order=(0, 1),
         )
+        # (idx_b_NC + 1) since we take only the last NC states
         matDeltaC_k_ptr = tl.make_block_ptr(
             base=matDeltaC_states
             + idx_b_BNH * str_matDeltaC_states_B_NH
-            + idx_b_NC * DHQK * DHHV,
+            + (idx_b_NC + 1) * DHQK * DHHV,
             shape=(DHQK, DHHV),
             strides=(str_matDeltaC_states_NCDHQK, str_matDeltaC_states_DHHV),
             offsets=(idx_b_DHQK * siz_b_DHQK, idx_b_DHHV * siz_b_DHHV),
@@ -748,9 +749,9 @@ def _mlstm_chunkwise_bw(
     # print("matDeltaC_states", matDeltaC_states.shape, matDeltaC_states.dtype)
 
     #! parallel backward: compute the deltaQ, deltaK, deltaV, deltaI gradients
-    matC_k_states = matC_all[:, :, :-DHQK, :]  # take the first NC states
+    matC_k_states = matC_all  # [:, :, :-DHQK, :]  # take the first NC states
 
-    matDeltaC_k_states = matDeltaC_states[:, :, DHQK:, :]  # take the last NC states
+    matDeltaC_k_states = matDeltaC_states  # [:, :, DHQK:, :]  # take the last NC states
 
     matDeltaQ, matDeltaK, matDeltaV = _mlstm_chunkwise__parallel_bw_dQKV(
         matQ=matQ,
@@ -760,10 +761,10 @@ def _mlstm_chunkwise_bw(
         vecI=vecI,
         vecM_combine=vecM_out,
         scaM_inter=scaM_all,  # (B, NH, NC)
-        matC_states=matC_k_states,  # (B, NH, NC * DHQK, DHV)
+        matC_states=matC_k_states,  # (B, NH, (NC+1) * DHQK, DHV) # we only need the first NC states
         matDeltaH=matDeltaH,  # (B, NH, S, DHV)
         vecN_out=vecN_out,  # (B, NH, S)
-        matDeltaC_states=matDeltaC_k_states,  # (B, NH, NC * DHQK, DHV)
+        matDeltaC_states=matDeltaC_k_states,  # (B, NH, (NC+1) * DHQK, DHV)
         qk_scale=qk_scale,
         CHUNK_SIZE=CHUNK_SIZE,
         NUM_CHUNKS=NC,
@@ -786,8 +787,6 @@ def _mlstm_chunkwise_bw(
     # both are equivalent:
     # vecDeltaI = (matV * matDeltaV).sum(-1)
     vecDeltaI = (matK * matDeltaK).sum(-1)
-
-    # vecDeltaI = torch.zeros((B, NH, S), dtype=vecI.dtype, device=vecI.device)
 
     matDeltaC_initial = (
         matDeltaC_states[:, :, :DHQK, :] if matC_initial is not None else None

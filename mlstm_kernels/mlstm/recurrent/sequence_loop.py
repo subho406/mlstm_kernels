@@ -1,4 +1,5 @@
-from typing import Callable, Optional
+from typing import Optional
+from collections.abc import Callable
 
 import torch
 
@@ -21,12 +22,14 @@ def recurrent_sequence_fw(
     torch.Tensor,  # (B, NH, S, DHV)
     torch.Tensor,  # (B, NH, S, DHQK)
     torch.Tensor,  # (B, NH, S)
-    Optional[
+    None
+    | (
         tuple[torch.Tensor, torch.Tensor, torch.Tensor]
-    ],  # (matC_state_last (B, NH, DHQK, DHV), vecN_state_last (B, NH, DHQK), vecM_state_last (B, NH, 1))
-    Optional[
+    ),  # (matC_state_last (B, NH, DHQK, DHV), vecN_state_last (B, NH, DHQK), vecM_state_last (B, NH, 1))
+    None
+    | (
         tuple[torch.Tensor, torch.Tensor, torch.Tensor]
-    ],  # (matC_states (B, NH, S, DHQK, DHV), vecN_states (B, NH, S, DHQK), vecM_states (B, NH, S))
+    ),  # (matC_states (B, NH, S, DHQK, DHV), vecN_states (B, NH, S, DHQK), vecM_states (B, NH, S))
 ]:
     B, NH, S, DHQK = matQ.shape
     DHV = matV.shape[-1]
@@ -34,7 +37,9 @@ def recurrent_sequence_fw(
     dtype = matQ.dtype
 
     if matC_initial is not None:
-        assert vecN_initial is not None and scaM_initial is not None, "Initial states must be provided together."
+        assert (
+            vecN_initial is not None and scaM_initial is not None
+        ), "Initial states must be provided together."
         assert scaM_initial.dim() == 2, "Initial states must be 2D."
         matC_state, vecN_state, vecM_state = (
             matC_initial,
@@ -100,7 +105,6 @@ def recurrent_sequence_fw(
 
     if return_all_states:
         matC_states = torch.stack(matC_list, dim=-3)  # (B, NH, S, DHQK, DHV)
-        matC_states.retain_grad()
         ret_tuple += ((matC_states, vecN_states, vecM_states),)
     else:
         ret_tuple += (None,)
