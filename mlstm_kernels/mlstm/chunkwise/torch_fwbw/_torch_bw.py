@@ -197,8 +197,6 @@ def _mlstm_chunkwise__parallel_bw_dQKV(
     )
 
     vecA = (vecB[..., -1, None] - vecB) + vecI  # (B, NH, NC, L)
-    print("vecA\n", vecA, vecA.shape)
-    print("vecB\n", vecB, vecB.shape)
 
     # compute the gates vecA, vecB
     scaM_inter_kminus1 = scaM_inter[:, :, :-1, None]

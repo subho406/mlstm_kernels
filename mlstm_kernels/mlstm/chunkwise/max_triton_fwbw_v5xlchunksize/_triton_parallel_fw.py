@@ -338,7 +338,7 @@ def mlstm_chunkwise__parallel_fw_Hintra(
     )
 
     if siz_b_DHHV is None:
-        siz_b_DHHV = min(64, triton.next_power_of_2(DHHV))
+        siz_b_DHHV = min(128, triton.next_power_of_2(DHHV))
     else:
         siz_b_DHHV = siz_b_DHHV
 

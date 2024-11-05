@@ -20,7 +20,7 @@ registry = {
     "max_triton_v2": mlstm_chunkwise_max_triton_v2,  # fgate cumsum in float32, intermediate states in dtype (kernel_dtype, e.g. float16, bfloat16)
     "max_triton_v3": mlstm_chunkwise_max_triton_v3,  # complete fgate grad in float32, intermediate states in float32
     "max_triton_v3noslice": mlstm_chunkwise_max_triton_v3noslice,  # complete fgate grad in float32, intermediate states in float32, no slicing before kernel calls
-    "max_triton_v5xlchunksize": mlstm_chunkwise_max_triton_v5xlchunksize,  # new work partitioning, enable larger chunk sizes, by using flash-attention work partitioning for intra chunks
+    "max_triton_v5xlcs": mlstm_chunkwise_max_triton_v5xlchunksize,  # new work partitioning, enable larger chunk sizes, by using flash-attention work partitioning for intra chunks
     "triton": mlstm_chunkwise_triton,  # TODO integrate newest version
     "stable_triton": mlstm_chunkwise_stable_triton,
 }

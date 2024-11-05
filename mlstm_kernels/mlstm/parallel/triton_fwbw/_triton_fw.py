@@ -64,8 +64,8 @@ def keep(conf):
     return True
 
 
-BLOCK_Q = 16
-BLOCK_KV = 16
+# BLOCK_Q = 16
+# BLOCK_KV = 16
 
 MINIMUM_MAX_VAL = -10  # -float("inf")  # -10.0
 
@@ -304,16 +304,18 @@ def mlstm_fw(
         256,
     }, f"Only head dimensions 16, 32, 64, 128, 256 are supported, got {HEAD_DIM_K}"
 
-    # grid = lambda args: (
-    #     triton.cdiv(matQ.shape[2], args["BLOCK_Q"]),
-    #     matQ.shape[0] * matQ.shape[1],
-    #     1,
-    # )
-    # fix grid for debugging
     def grid(args):
-        return triton.cdiv(S, BLOCK_Q), BS * NH, 1
+        return (
+            triton.cdiv(matQ.shape[2], args["BLOCK_Q"]),
+            matQ.shape[0] * matQ.shape[1],
+            1,
+        )
 
-    print(f"Triton grid: {grid(None)}, BLOCK_Q: {BLOCK_Q}, BLOCK_KV: {BLOCK_KV}")
+    # fix grid for debugging
+    # def grid(args):
+    #     return triton.cdiv(S, BLOCK_Q), BS * NH, 1
+
+    # print(f"Triton grid: {grid(None)}, BLOCK_Q: {BLOCK_Q}, BLOCK_KV: {BLOCK_KV}")
 
     matH = torch.empty_like(matQ)
 
@@ -365,8 +367,8 @@ def mlstm_fw(
         H=NH,
         N_CTX=S,
         HEAD_DIM=HEAD_DIM_K,
-        BLOCK_Q=BLOCK_Q,
-        BLOCK_KV=BLOCK_KV,
+        # BLOCK_Q=BLOCK_Q,
+        # BLOCK_KV=BLOCK_KV,
         MINIMUM_MAX_VAL=MINIMUM_MAX_VAL,
         EPS=eps,
     )

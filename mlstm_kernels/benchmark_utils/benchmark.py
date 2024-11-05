@@ -451,7 +451,9 @@ def get_benchmark(
 
 
 def run_benchmarks(
-    benchmark_config: BenchmarkConfig, param_prefix: str = "P--"
+    benchmark_config: BenchmarkConfig,
+    param_prefix: str = "P--",
+    additional_param_name_short: bool = True,
 ) -> pd.DataFrame:
     """Runs the different kernel configurations and summarizes the results in a DataFrame.
 
@@ -471,7 +473,9 @@ def run_benchmarks(
             benchmark.set_params(kernel_spec.additional_params)
             benchmark.setup_benchmark()
             runtime = benchmark.run_benchmark()
-            result_dict[kernel_spec.to_string()] = runtime
+            result_dict[
+                kernel_spec.to_string(short_param_name=additional_param_name_short)
+            ] = runtime
             LOGGER.info(
                 f"Kernel ({k+1}/{len(kernel_specs)}): {kernel_spec.to_string()} finished. Runtime: {runtime} ms"
             )

@@ -3,6 +3,18 @@ from itertools import product
 from typing import Any, Literal
 
 
+def strip_to_first_chars_of_split(input_str: str, split_str: str = "_") -> str:
+    """Strips a string to the sequence first characters after the `sep_str`.
+
+    Args:
+        s (str): The string to strip.
+        sep_str (str, optional): The separator string. Defaults to "_".
+    """
+    in_str = input_str.lstrip(split_str)  # remove all leading underscores
+    in_str = "".join([s[0] for s in in_str.split(split_str)])
+    return in_str
+
+
 @dataclass
 class KernelSpec:
     kernel_name: str
@@ -12,11 +24,13 @@ class KernelSpec:
 
     additional_params: dict[str, Any] = None
 
-    def to_string(self) -> str:
+    def to_string(self, short_param_name: bool = True) -> str:
         str_name = f"{self.kernel_name}__{self.dtype}__{'fwbw' if self.fwbw else 'fw'}"
         if self.additional_params is not None:
             str_name += "_"
             for k, v in self.additional_params.items():
+                if short_param_name:
+                    k = strip_to_first_chars_of_split(k)
                 str_name += f"_{k}-{v}"
         return str_name
 
@@ -44,7 +58,9 @@ class BenchmarkConfig:
             num_vals = len(list(self.vary_params.values())[0])
             for k, v in self.vary_params.items():
                 if len(v) != num_vals:
-                    raise ValueError(f"All vary parameters must have the same length. Not matching for {k}")
+                    raise ValueError(
+                        f"All vary parameters must have the same length. Not matching for {k}"
+                    )
 
             for val_tuple in zip(*self.vary_params.values()):
                 vary_dict = dict(zip(self.vary_params.keys(), val_tuple))
