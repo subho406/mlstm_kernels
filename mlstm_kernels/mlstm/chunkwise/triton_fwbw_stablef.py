@@ -1,5 +1,5 @@
 # Author Korbinian Poeppel
-from typing import Optional, Literal
+from typing import Literal
 
 import torch
 import triton
@@ -34,7 +34,6 @@ def chunk_mlstm_fwd_kernel_C(
     str_C_H,
     str_C_K,
     str_N_H,
-    H: tl.constexpr,
     T: tl.constexpr,
     K: tl.constexpr,
     V: tl.constexpr,
@@ -196,7 +195,6 @@ def chunk_mlstm_fwd_kernel_h(
     EPS: tl.constexpr,
     STABILIZE_CORRECTLY: tl.constexpr,
     NORM_VAL: tl.constexpr,
-    H: tl.constexpr,
     T: tl.constexpr,
     K: tl.constexpr,
     V: tl.constexpr,
@@ -375,7 +373,6 @@ def chunk_mlstm_bwd_kernel_dC(
     str_C_H,
     str_C_K,
     scale,
-    H: tl.constexpr,
     T: tl.constexpr,
     K: tl.constexpr,
     V: tl.constexpr,
@@ -384,6 +381,7 @@ def chunk_mlstm_bwd_kernel_dC(
     BHHV: tl.constexpr,
     NT: tl.constexpr,
     USE_LAST_STATE: tl.constexpr,
+    STORE_INITIAL_STATE: tl.constexpr,
 ):
     idx_K, idx_V, idx_BC = tl.program_id(0), tl.program_id(1), tl.program_id(2)
 
@@ -460,20 +458,21 @@ def chunk_mlstm_bwd_kernel_dC(
         ).to(matdC_val.dtype)
         matM_val = matM_p_val
 
-    matdC_initial_ptr = tl.make_block_ptr(
-        matdC_initial + idx_BC * K * V,
-        (K, V),
-        (V, 1),
-        (idx_K * BHQK, idx_V * BHHV),
-        (BHQK, BHHV),
-        (1, 0),
-    )
-    tl.store(
-        matdC_initial_ptr,
-        matdC_val.to(matdC_initial_ptr.dtype.element_ty),
-        boundary_check=(0, 1),
-    )
-    tl.store(matM_initial + idx_BC, matM_val)
+    if STORE_INITIAL_STATE:
+        matdC_initial_ptr = tl.make_block_ptr(
+            matdC_initial + idx_BC * K * V,
+            (K, V),
+            (V, 1),
+            (idx_K * BHQK, idx_V * BHHV),
+            (BHQK, BHHV),
+            (1, 0),
+        )
+        tl.store(
+            matdC_initial_ptr,
+            matdC_val.to(matdC_initial_ptr.dtype.element_ty),
+            boundary_check=(0, 1),
+        )
+        tl.store(matM_initial + idx_BC, matM_val)
 
 
 @triton.jit
@@ -484,7 +483,6 @@ def chunk_mlstm_bwd_kernel_dqkvif(
     matC,
     matM,
     matM_total,
-    matM_final,
     vecNorm,
     vecI,
     vecF,
@@ -506,8 +504,6 @@ def chunk_mlstm_bwd_kernel_dqkvif(
     str_C_H,
     str_C_K,
     scale,
-    B: tl.constexpr,
-    H: tl.constexpr,
     T: tl.constexpr,
     K: tl.constexpr,
     V: tl.constexpr,
@@ -570,10 +566,6 @@ def chunk_mlstm_bwd_kernel_dqkvif(
     idx_vecG_val = tl.load(vecI + idx_BC * T + idx_t * BT + o_cta)
     vecG_val = idx_vecG_val + vecF_rc_val
     vecNorm_val = tl.load(vecNorm + idx_BC * T + idx_t * BT + o_cta)
-
-    # if idx_t == NT - 1:
-    #     matM_next_val = tl.load(matM_final)
-    # else:
 
     matM_next_val = tl.load(matM + idx_BC * (NT + 1) + idx_t + 1)
 
@@ -756,327 +748,6 @@ def chunk_mlstm_bwd_kernel_dqkvif(
     )
 
 
-class mLSTMKernelC(torch.autograd.Function):
-    @staticmethod
-    @custom_fwd(device_type="cuda")
-    @contiguous
-    def forward(
-        ctx,
-        matK,
-        matV,
-        vecI,
-        vecF,
-        matC_initial,
-        matN_initial,
-        matM_initial,
-        matC,
-        matN,
-        matM,
-        matC_final,
-        matN_final,
-        matM_final,
-    ):
-        B, H, NT, BT, K, V = *matK.shape, matV.shape[-1]
-        T = BT * NT
-        BHQK, BHHV = (
-            min(64, triton.next_power_of_2(K)),
-            min(64, triton.next_power_of_2(V)),
-        )
-        NT, siz_K, siz_V = (
-            triton.cdiv(T, BT),
-            triton.cdiv(K, BHQK),
-            triton.cdiv(V, BHHV),
-        )
-        num_stages = 1
-        num_warps = 4 if BHQK == 64 else 2
-        scale = K**-0.5
-
-        grid = (siz_K, siz_V, B * H)
-        chunk_mlstm_fwd_kernel_C[grid](
-            matK,
-            matV,
-            vecI,
-            vecF,
-            matC_initial,
-            matN_initial,
-            matM_initial,
-            matC,
-            matN,
-            matM,
-            matC_final,
-            matN_final,
-            matM_final,
-            matK.stride(2),
-            matK.stride(3),
-            matK.stride(4),
-            matV.stride(2),
-            matV.stride(3),
-            matV.stride(4),
-            matC.stride(2),
-            matC.stride(3),
-            matN.stride(1),
-            H=H,
-            T=T,
-            K=K,
-            V=V,
-            BT=BT,
-            BHQK=BHQK,
-            BHHV=BHHV,
-            NT=NT,
-            USE_INITIAL_STATE=matC_initial is not None,
-            STORE_FINAL_STATE=True,
-            num_warps=num_warps,
-            num_stages=num_stages,
-        )
-
-    @staticmethod
-    @custom_bwd(device_type="cuda")
-    @contiguous
-    def backward(ctx, matdH, d_ht=None):
-        pass
-
-
-class mLSTMKernelH(torch.autograd.Function):
-    @staticmethod
-    @custom_fwd(device_type="cuda")
-    @contiguous
-    def forward(
-        ctx,
-        matQ,
-        matK,
-        matV,
-        matC,
-        matN,
-        matM,
-        vecI,
-        vecF,
-        matH,
-        vecNorm,
-        matM_total,
-    ):
-        B, H, NT, BT, K, V = *matK.shape, matV.shape[-1]
-        T = BT * NT
-        BHQK, BHHV = (
-            min(64, triton.next_power_of_2(K)),
-            min(64, triton.next_power_of_2(V)),
-        )
-        NT, siz_K, siz_V = (
-            triton.cdiv(T, BT),
-            triton.cdiv(K, BHQK),
-            triton.cdiv(V, BHHV),
-        )
-        EPS = 1e-6
-        STABILIZE_CORRECTLY = False
-        NORM_VAL = 1.0
-        num_stages = 1
-        num_warps = 4 if BHQK == 64 else 2
-        scale = K**-0.5
-
-        grid = (siz_V, NT, B * H)
-        chunk_mlstm_fwd_kernel_h[grid](
-            matQ,
-            matK,
-            matV,
-            matC,
-            matN,
-            matM,
-            vecI,
-            vecF,
-            matH,
-            vecNorm,
-            matM_total,
-            matQ.stride(2),
-            matQ.stride(3),
-            matQ.stride(4),
-            matV.stride(2),
-            matV.stride(3),
-            matV.stride(4),
-            matC.stride(2),
-            matC.stride(3),
-            matN.stride(1),
-            scale,
-            EPS=EPS,
-            STABILIZE_CORRECTLY=STABILIZE_CORRECTLY,
-            NORM_VAL=NORM_VAL,
-            H=H,
-            T=T,
-            K=K,
-            V=V,
-            BT=BT,
-            BHQK=BHQK,
-            BHHV=BHHV,
-            num_warps=num_warps,
-            num_stages=num_stages,
-        )
-
-    @staticmethod
-    @custom_bwd(device_type="cuda")
-    @contiguous
-    def backward(ctx, matdH, d_ht=None):
-        pass
-
-
-class mLSTMKerneldC(torch.autograd.Function):
-    @staticmethod
-    @custom_fwd(device_type="cuda")
-    @contiguous
-    def forward(
-        ctx,
-        matQ,
-        vecF,
-        matM,
-        matM_total,
-        vecNorm,
-        matM_final,
-        matdH,
-        matdC_final,
-        matdC,
-        matdC_initial,
-        matM_initial,
-    ):
-        B, H, NT, BT, K, V = *matQ.shape, matdH.shape[-1]
-        T = BT * NT
-        BHQK, BHHV = (
-            min(64, triton.next_power_of_2(K)),
-            min(64, triton.next_power_of_2(V)),
-        )
-        NT, siz_K, siz_V = (
-            triton.cdiv(T, BT),
-            triton.cdiv(K, BHQK),
-            triton.cdiv(V, BHHV),
-        )
-        num_stages = 1
-        num_warps = 4 if BHQK == 64 else 2
-        scale = K**-0.5
-
-        grid = (siz_K, siz_V, B * H)
-        chunk_mlstm_bwd_kernel_dC[grid](
-            matQ,
-            vecF,
-            matM,
-            matM_total,
-            vecNorm,
-            matdH,
-            matdC,
-            matdC_final,
-            matM_final,
-            matdC_initial,
-            matM_initial,
-            matQ.stride(2),
-            matQ.stride(3),
-            matQ.stride(4),
-            matdH.stride(2),
-            matdH.stride(3),
-            matdH.stride(4),
-            matdC.stride(2),
-            matdC.stride(3),
-            scale=scale,
-            H=H,
-            T=T,
-            K=K,
-            V=V,
-            BT=BT,
-            BHQK=BHQK,
-            BHHV=BHHV,
-            NT=NT,
-            USE_LAST_STATE=False,
-            num_warps=num_warps,
-            num_stages=num_stages,
-        )
-
-    @staticmethod
-    @custom_bwd(device_type="cuda")
-    @contiguous
-    def backward(ctx, matdH, d_ht=None):
-        pass
-
-
-class mLSTMKerneldqkv(torch.autograd.Function):
-    @staticmethod
-    @custom_fwd(device_type="cuda")
-    @contiguous
-    def forward(
-        ctx,
-        matQ,
-        matK,
-        matV,
-        matC,
-        matM,
-        matM_total,
-        matM_final,
-        vecNorm,
-        vecI,
-        vecF,
-        matdH,
-        matdC,
-        matdQ,
-        matdK,
-        matdV,
-    ):
-        B, H, NT, BT, K, V = *matQ.shape, matV.shape[-1]
-        T = NT * BT
-        BHQK, BHHV = (
-            min(32 if matQ.dtype == torch.float32 else 64, triton.next_power_of_2(K)),
-            min(32 if matQ.dtype == torch.float32 else 64, triton.next_power_of_2(V)),
-        )
-        NT, siz_K, siz_V = (
-            triton.cdiv(T, BT),
-            triton.cdiv(K, BHQK),
-            triton.cdiv(V, BHHV),
-        )
-        grid = (siz_K, NT, B * H)
-        matdV_internal = matV.new_full((siz_K, *matV.shape), float("nan"))
-        num_stages = 1
-        num_warps = 4 if BHQK == 64 else 2
-        scale = K**-0.5
-
-        chunk_mlstm_bwd_kernel_dqkvif[grid](
-            matQ,
-            matK,
-            matV,
-            matC,
-            matM,
-            matM_total,
-            matM_final,
-            vecNorm,
-            vecI,
-            vecF,
-            matdH,
-            matdC,
-            matdQ,
-            matdK,
-            matdV_internal,
-            matQ.stride(2),
-            matQ.stride(3),
-            matQ.stride(4),
-            matdH.stride(2),
-            matdH.stride(3),
-            matdH.stride(4),
-            matdC.stride(2),
-            matdC.stride(3),
-            scale=scale,
-            B=B,
-            H=H,
-            T=T,
-            K=K,
-            V=V,
-            BT=BT,
-            BHQK=BHQK,
-            BHHV=BHHV,
-            NT=NT,
-            num_warps=num_warps,
-            num_stages=num_stages,
-        )
-
-        matdV[:] = matdV_internal.sum(0)
-
-    @staticmethod
-    @custom_bwd(device_type="cuda")
-    @contiguous
-    def backward(ctx, matdH, d_ht=None):
-        pass
-
-
 def mLSTMforward(
     matQ: torch.Tensor,
     matK: torch.Tensor,
@@ -1121,7 +792,6 @@ def mLSTMforward(
     else:
         dtype_gates = dtype_gate
     assert T % BT == 0, "sequence length must be divisible by BT"
-    vecF_orig = vecF
     vecF = torch.nn.functional.logsigmoid(vecF.to(dtype_gates))
     vecF = vecF.reshape(B, H, -1, BT)
     vecF = vecF * 1.44269504
@@ -1169,7 +839,6 @@ def mLSTMforward(
         matC.stride(1),
         matC.stride(2),
         matN.stride(1),
-        H=H,
         T=T,
         K=K,
         V=V,
@@ -1210,7 +879,6 @@ def mLSTMforward(
         EPS=EPS,
         STABILIZE_CORRECTLY=STABILIZE_CORRECTLY,
         NORM_VAL=NORM_VAL,
-        H=H,
         T=T,
         K=K,
         V=V,
@@ -1230,7 +898,6 @@ def mLSTMbackward(
     matdH: torch.Tensor,
     matdC_final: torch.Tensor | None,
     matdN_final: torch.Tensor | None,
-    matdM_final: torch.Tensor | None,
     matQ: torch.Tensor,
     matK: torch.Tensor,
     matV: torch.Tensor,
@@ -1314,7 +981,6 @@ def mLSTMbackward(
             matC.stride(1),
             matC.stride(2),
             matN.stride(1),
-            H=H,
             T=T,
             K=K,
             V=V,
@@ -1333,12 +999,17 @@ def mLSTMbackward(
     scale = K**-0.5
     matdC = matQ.new_full((B, H, NT * K, V), float("nan"), dtype=dtype_states)
 
-    matdC_initial = matQ.new_full(
-        (B, H, K, V), float("nan"), requires_grad=False, dtype=dtype_states
-    )
-    matM_initial = matQ.new_full(
-        (B, H), float("nan"), requires_grad=False, dtype=dtype_states
-    )
+    USE_INITIAL_STATE = matC_initial is not None
+    if USE_INITIAL_STATE:
+        matdC_initial = matQ.new_full(
+            (B, H, K, V), float("nan"), requires_grad=False, dtype=dtype_states
+        )
+        matM_initial = matQ.new_full(
+            (B, H), float("nan"), requires_grad=False, dtype=dtype_states
+        )
+    else:
+        matdC_initial = matQ.new_zeros((1,), requires_grad=False, dtype=dtype_states)
+        matM_initial = matQ.new_zeros((1,), requires_grad=False, dtype=dtype_states)
 
     if matdC_final is None:
         matdC_final = matQ.new_empty((1,), dtype=dtype_states)
@@ -1371,7 +1042,6 @@ def mLSTMbackward(
         matdC.stride(1),
         matdC.stride(2),
         scale,
-        H=H,
         T=T,
         K=K,
         V=V,
@@ -1380,9 +1050,13 @@ def mLSTMbackward(
         BHHV=BHHV,
         NT=NT,
         USE_LAST_STATE=USE_LAST_STATE,
+        STORE_INITIAL_STATE=USE_INITIAL_STATE,
         num_warps=num_warps,
         num_stages=num_stages,
     )
+
+    if not USE_INITIAL_STATE:
+        matdC_initial = None
     grid = (siz_K, NT, B * H)
     matdQ = torch.empty_like(matQ)
     matdK = torch.empty_like(matK)
@@ -1400,7 +1074,6 @@ def mLSTMbackward(
         matC,
         matM,
         matM_total,
-        matM_final,
         vecNorm,
         vecI,
         vecF,
@@ -1422,8 +1095,6 @@ def mLSTMbackward(
         matdC.stride(1),
         matdC.stride(2),
         scale,
-        B=B,
-        H=H,
         T=T,
         K=K,
         V=V,
@@ -1565,11 +1236,11 @@ def mLSTMFunctionGenerator(
                 matN_initial,
                 matM_initial,
             ) = ctx.saved_tensors
+            _ = matdM_final
             return mLSTMbackward(
                 matdH=matdH,
                 matdC_final=matdC_final,
                 matdN_final=matdN_final,
-                matdM_final=matdM_final,
                 matQ=matQ,
                 matK=matK,
                 matV=matV,
@@ -1591,7 +1262,7 @@ def mLSTMFunctionGenerator(
     return mLSTMFunction
 
 
-mLSTMFunction = {}
+mLSTMFunctionDict = {}
 
 DTYPESTR_TO_DTYPE = {
     "float32": torch.float32,
@@ -1631,16 +1302,20 @@ def mlstm_fwbw(
         dtype_states,
         dtype_gates,
         eps,
+        norm_val,
         stabilize_correctly,
     )
-    if signature not in mLSTMFunction:
-        mLSTMFunction[signature] = mLSTMFunctionGenerator(
+    if signature not in mLSTMFunctionDict:
+        mLSTMFunctionDict[signature] = mLSTMFunctionGenerator(
             chunk_size=chunk_size,
             keep_states=keep_states,
             dtype_state=DTYPESTR_TO_DTYPE[dtype_states],
             dtype_gate=DTYPESTR_TO_DTYPE[dtype_gates],
+            NORM_VAL=norm_val,
+            EPS=eps,
+            STABILIZE_CORRECTLY=stabilize_correctly,
         )
-    mLSTMFunc = mLSTMFunction[signature]
+    mLSTMFunc = mLSTMFunctionDict[signature]
     matH, matC_final, matN_final, matM_final = mLSTMFunc.apply(
         q, k, v, vecI, vecF, c_initial, n_initial, m_initial, return_last_states
     )
