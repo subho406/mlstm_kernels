@@ -1,13 +1,13 @@
 # Copyright JKU Linz 2024
 # Author: Maximilian Beck
-import torch
 from collections.abc import Callable
-from ._triton_bw import mlstm_bw
-from ._triton_fw import mlstm_fw
 
-from torch.amp import custom_fwd, custom_bwd
+import torch
+from torch.amp import custom_bwd, custom_fwd
 
 from ....kernel_utils import contiguous
+from ._triton_bw import mlstm_bw
+from ._triton_fw import mlstm_fw
 
 
 def _mlstm_parallel_fwbw_generator(autocast_kernel_dtype=torch.float16) -> Callable:

@@ -1,12 +1,12 @@
 from dataclasses import asdict
 from pathlib import Path
 
-from dacite import from_dict
-from omegaconf import OmegaConf
-
 from mlstm_kernels.benchmark_utils.benchmark import mLSTMBenchmark, run_benchmarks
 from mlstm_kernels.benchmark_utils.param_handling import BenchmarkConfig
 from mlstm_kernels.benchmark_utils.plot_results import plot_benchmark_result_table
+
+from dacite import from_dict
+from omegaconf import OmegaConf
 
 
 def debug_single_benchmark():

@@ -5,13 +5,13 @@ import argparse
 import os
 
 os.environ["TRITON_PRINT_AUTOTUNING"] = "1"
-import torch
-import triton
-from tqdm import tqdm
-
 from mlstm_kernels.mlstm.chunkwise.max_triton_fwbw_v5xlchunksize._triton_combine_recurrent_parallel import (
     mlstm_chunkwise_fw,
 )
+
+import torch
+import triton
+from tqdm import tqdm
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()

@@ -1,11 +1,13 @@
 # Copyright JKU Linz 2024
 # Author: Maximilian Beck
+from typing import Optional
+
 import torch
 import torch.nn.functional as F
 import triton
 import triton.language as tl
-from typing import Optional
 from einops import rearrange
+
 from ....kernel_utils import contiguous_noctx, is_power_of_2, torch2triton_dtype
 
 # Triton.

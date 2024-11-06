@@ -2,9 +2,9 @@ import logging
 from collections.abc import Callable
 from typing import Optional
 
-import torch
-
 from mlstm_kernels.time_utils import Stopwatch
+
+import torch
 
 from ...torch_utils import dtype2str
 from ..checks import check_correctness

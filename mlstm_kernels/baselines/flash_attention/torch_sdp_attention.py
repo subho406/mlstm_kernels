@@ -1,7 +1,7 @@
 import torch
-
-from torch.nn.functional import scaled_dot_product_attention
 from torch.nn.attention import SDPBackend, sdpa_kernel
+from torch.nn.functional import scaled_dot_product_attention
+
 
 def attention_causal_pt_fa2(
     query: torch.Tensor,

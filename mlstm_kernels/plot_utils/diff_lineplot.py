@@ -1,7 +1,7 @@
-import torch
 import numpy as np
-
+import torch
 from matplotlib import pyplot as plt
+
 from .ewma import ewma_vectorized
 
 

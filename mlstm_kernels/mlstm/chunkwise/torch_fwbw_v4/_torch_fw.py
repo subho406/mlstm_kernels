@@ -1,11 +1,12 @@
 # Copyright JKU Linz 2024
 # Author: Maximilian Beck
-import torch
-from einops import rearrange
-import torch.nn.functional as F
-from typing import Optional
 from collections.abc import Callable
-from torch.amp import custom_fwd, custom_bwd
+from typing import Optional
+
+import torch
+import torch.nn.functional as F
+from einops import rearrange
+from torch.amp import custom_bwd, custom_fwd
 
 from ....kernel_utils import contiguous
 

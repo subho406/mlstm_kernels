@@ -5,17 +5,17 @@ import argparse
 import os
 
 os.environ["TRITON_PRINT_AUTOTUNING"] = "1"
-import torch
-import triton
-from torch.profiler import ProfilerActivity, profile, record_function
-from tqdm import tqdm
-
 from mlstm_kernels.mlstm.chunkwise.max_triton_fwbw_v5xlchunksize.triton_fwbw import (
     mlstm_chunkwise_max_triton as mlstm_chunkwise_max_triton_v5,
 )
 from mlstm_kernels.test_utils.test_losses import (
     loss_layernorm_offset_quadratic as loss_fn,
 )
+
+import torch
+import triton
+from torch.profiler import ProfilerActivity, profile, record_function
+from tqdm import tqdm
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()

@@ -1,5 +1,6 @@
-import torch
 from collections.abc import Callable
+
+import torch
 
 
 def mlstm_interface(
@@ -21,8 +22,10 @@ def mlstm_interface(
 def _create_module_backend_registry() -> dict[str, dict[str, Callable]]:
     from .chunkwise import registry as mlstm_chunkwise_registry
     from .parallel import registry as mlstm_parallel_registry
-    from .recurrent import registry_step as mlstm_recurrent_step_registry
-    from .recurrent import registry_sequence as mlstm_recurrent_sequence_registry
+    from .recurrent import (
+        registry_sequence as mlstm_recurrent_sequence_registry,
+        registry_step as mlstm_recurrent_step_registry,
+    )
 
     module_backend_registry = {
         "recurrent_step": mlstm_recurrent_step_registry,
