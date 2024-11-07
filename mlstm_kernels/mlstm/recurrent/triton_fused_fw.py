@@ -272,9 +272,7 @@ def _recurrent_step_fw_kernel(
         matC_new_bptr = tl.advance(matC_new_bptr, (BLOCK_DQK, 0))
 
         # ? accumulate h_num & qn_dotproduct
-        vecQ_val = tl.load(vecQ_ptr) * qk_scale.to(
-            DTYPE
-        )  # TODO add masking to avoid out of bound access #TODO remove .to(DTYPE)
+        vecQ_val = tl.load(vecQ_ptr) * qk_scale
         # outputs
         h_num_temp = vecQ_val[:, None] * matC_new_val
         # tl.static_print("h_num_temp", h_num_temp)
