@@ -25,31 +25,29 @@ def _mlstm_chunkwise_parallel_bw_dQ_kernel(
     matCstate_all,  # (B, NH, (NC+1) * DHQK, DHHV)
     vecNstate_all,  # (B, NH, (NC+1) * DHQK)
     scaMstate_all,  # (B, NH, (NC+1))
-    matH_out,  # (B, NH, S, DHHV)
     vecN_out,  # (B, NH, S) # vecN_combine
     vecM_out,  # (B, NH, S) # vecM_combine
     matDeltaH_out,  # (B, NH, S, DHHV)
     matDeltaC_states,  # (B, NH, (NC+1) * DHQK, DHHV)
-    vecDeltaN_states,  # (B, NH, (NC+1) * DHQK)
     ## output tensor pointers
     matDeltaQ,  # (B, NH, S, DHQK)
-    qk_scale,
+    qk_scale: tl.constexpr,
     ## strides
-    str_matQK_B_NH,
-    str_matQK_S,
-    str_matQK_DHQK,
-    str_matHV_B_NH,
-    str_matHV_S,
-    str_matHV_DHHV,
-    str_vecABI_B_NH,
-    str_vecABI_NC,
-    str_matCstate_B_NH,
-    str_matCstate_NCDHQK,
-    str_matCstate_DHHV,
-    str_vecNstate_B_NH,
-    str_scaMstate_B_NH,
-    str_vecMN_B_NH,
-    str_vecMN_S,
+    str_matQK_B_NH: tl.constexpr,
+    str_matQK_S: tl.constexpr,
+    str_matQK_DHQK: tl.constexpr,
+    str_matHV_B_NH: tl.constexpr,
+    str_matHV_S: tl.constexpr,
+    str_matHV_DHHV: tl.constexpr,
+    str_vecABI_B_NH: tl.constexpr,
+    str_vecABI_NC: tl.constexpr,
+    str_matCstate_B_NH: tl.constexpr,
+    str_matCstate_NCDHQK: tl.constexpr,
+    str_matCstate_DHHV: tl.constexpr,
+    str_vecNstate_B_NH: tl.constexpr,
+    str_scaMstate_B_NH: tl.constexpr,
+    str_vecMN_B_NH: tl.constexpr,
+    str_vecMN_S: tl.constexpr,
     ## dimensions
     B: tl.constexpr,
     NH: tl.constexpr,
@@ -67,7 +65,6 @@ def _mlstm_chunkwise_parallel_bw_dQ_kernel(
     DTYPE: tl.constexpr = tl.float32,
     OUTPUT_DTYPE: tl.constexpr = tl.float32,
     EPS: tl.constexpr = 0.0,
-    COMPUTE_DELTA_N: tl.constexpr = False,
 ):
     # our grid has 4 dimensions: (num_b_DHQK, num_b_LQ, NC, B * NH)
     idx_b_DHQK, idx_b_LQ, idx_b_NC_BNH = (
@@ -83,13 +80,7 @@ def _mlstm_chunkwise_parallel_bw_dQ_kernel(
     vecI_ptr = vecI + idx_b_BNH * str_vecABI_B_NH + idx_b_NC * str_vecABI_NC
 
     # load vecN_out (siz_b_LQ,)
-    vecN_out_ptr = (
-        vecN_out
-        + idx_b_BNH * str_vecMN_B_NH
-        + idx_b_NC * L
-        + idx_b_LQ * siz_b_LQ
-        + tl.arange(0, siz_b_LQ)
-    )
+    vecN_out_ptr = vecN_out + idx_b_BNH * str_vecMN_B_NH + idx_b_NC * L + idx_b_LQ * siz_b_LQ + tl.arange(0, siz_b_LQ)
     vecN_out_val = tl.load(vecN_out_ptr).to(tl.float32)
 
     # ? compute vecBbar for inter chunk contribution
@@ -98,17 +89,9 @@ def _mlstm_chunkwise_parallel_bw_dQ_kernel(
     vecB_LQ_val = tl.load(vecB_LQ_ptr).to(tl.float32)
     # load scaM_km1_val (1,)
     # k-1 corresponds to idx_b_NC
-    scaMinter_km1_val = tl.load(scaMstate_all + idx_b_BNH * (NC + 1) + (idx_b_NC)).to(
-        tl.float32
-    )
+    scaMinter_km1_val = tl.load(scaMstate_all + idx_b_BNH * (NC + 1) + (idx_b_NC)).to(tl.float32)
     # load vecM_out (siz_b_LQ,)
-    vecM_out_ptr = (
-        vecM_out
-        + idx_b_BNH * str_vecMN_B_NH
-        + idx_b_NC * L
-        + idx_b_LQ * siz_b_LQ
-        + tl.arange(0, siz_b_LQ)
-    )
+    vecM_out_ptr = vecM_out + idx_b_BNH * str_vecMN_B_NH + idx_b_NC * L + idx_b_LQ * siz_b_LQ + tl.arange(0, siz_b_LQ)
     vecM_out_val = tl.load(vecM_out_ptr).to(tl.float32)
     # compute vecBbar (siz_b_LQ,)
     vecBbar_val = tl.exp(vecB_LQ_val + scaMinter_km1_val - vecM_out_val)
@@ -150,28 +133,20 @@ def _mlstm_chunkwise_parallel_bw_dQ_kernel(
                 # load matC_km1_trans (transposed) (siz_b_DHHV, siz_b_DHQK)
                 # idx_b_NC corresponds to k-1
                 matC_km1_trans_ptr = tl.make_block_ptr(
-                    base=matCstate_all
-                    + idx_b_BNH * str_matCstate_B_NH
-                    + idx_b_NC * DHQK * DHHV,
+                    base=matCstate_all + idx_b_BNH * str_matCstate_B_NH + idx_b_NC * DHQK * DHHV,
                     shape=(DHHV, DHQK),
                     strides=(str_matCstate_DHHV, str_matCstate_NCDHQK),
                     offsets=(idx_b_DHHV * siz_b_DHHV, idx_b_DHQK * siz_b_DHQK),
                     block_shape=(siz_b_DHHV, siz_b_DHQK),
                     order=(0, 1),
                 )
-                matC_trans_val = tl.load(matC_km1_trans_ptr, boundary_check=(0, 1)).to(
-                    DTYPE
-                )
+                matC_trans_val = tl.load(matC_km1_trans_ptr, boundary_check=(0, 1)).to(DTYPE)
 
                 # compute matDeltaQbar_inter (siz_b_LQ, siz_b_DHQK)
-                matDeltaQbar_inter_val = tl.dot(matDeltaH_val, matC_trans_val) / (
-                    vecN_out_val[:, None] + EPS
-                )
+                matDeltaQbar_inter_val = tl.dot(matDeltaH_val, matC_trans_val) / (vecN_out_val[:, None] + EPS)
 
                 # compute matDeltaQ_inter (siz_b_LQ, siz_b_DHQK)
-                matDeltaQ_acc += (
-                    matDeltaQbar_inter_val * vecBbar_val[:, None] * qk_scale
-                )
+                matDeltaQ_acc += matDeltaQbar_inter_val * vecBbar_val[:, None] * qk_scale
 
             ### load matV_trans (transposed) (siz_b_DHHV, siz_b_LKV)
             matV_trans_ptr = tl.make_block_ptr(
@@ -202,9 +177,7 @@ def _mlstm_chunkwise_parallel_bw_dQ_kernel(
         vecB_LKV_val = tl.load(vecB_LKV_ptr).to(tl.float32)
 
         # construct gate matrix matDtilde (siz_b_LQ, siz_b_LKV)
-        matDtilde_val = (
-            vecB_LQ_val[:, None] - vecB_LKV_val[None, :] + vecI_LKV_val[None, :]
-        )
+        matDtilde_val = vecB_LQ_val[:, None] - vecB_LKV_val[None, :] + vecI_LKV_val[None, :]
 
         b_kv_offset = idx_b_LKV * siz_b_LKV
         # causal masking if on the diagonal
@@ -266,13 +239,10 @@ def mlstm_chunkwise__parallel_bw_dQ(
     matCstate_all: torch.Tensor,  # (B, NH, (NC+1) * DHQK, DHHV)
     vecNstate_all: torch.Tensor,  # (B, NH, (NC+1) * DHQK)
     scaMstate_all: torch.Tensor,  # (B, NH, (NC+1))
-    matH_out: torch.Tensor,  # (B, NH, S, DHHV)
     vecN_out: torch.Tensor,  # (B, NH, S) # vecN_combine
     vecM_out: torch.Tensor,  # (B, NH, S) # vecM_combine
     matDeltaH_out: torch.Tensor,  # (B, NH, S, DHHV)
-    # vecDeltaN_out: torch.Tensor = None,  # (B, NH, S) # we probably do not want external gradients going into the denominator
     matDeltaC_states: torch.Tensor,  # (B, NH, (NC+1) * DHQK, DHHV)
-    vecDeltaN_states: torch.Tensor,  # (B, NH, (NC+1) * DHQK) # TODO: use this
     ## Other arguments
     qk_scale: float = None,
     chunk_size: int = 64,
@@ -284,7 +254,6 @@ def mlstm_chunkwise__parallel_bw_dQ(
     num_stages: int | None = None,
     eps: float = 0.0,
     output_dtype: torch.dtype = torch.float32,
-    compute_delta_n: bool = False,
 ) -> torch.Tensor:  # matDeltaQ (B, NH, S, DHQK)
     """This function defines the grid and block sizes for the kernel launch and calls the kernel.
     chunk parallel size:        siz_b_LQ
@@ -295,9 +264,7 @@ def mlstm_chunkwise__parallel_bw_dQ(
     B, NH, S, DHQK = matQ.shape
     DHHV = matV.shape[-1]
 
-    assert (
-        S % chunk_size == 0
-    ), f"Sequence length {S} must be divisible by chunk size {chunk_size}"
+    assert S % chunk_size == 0, f"Sequence length {S} must be divisible by chunk size {chunk_size}"
     NC = S // chunk_size
     L = chunk_size
 
@@ -306,12 +273,8 @@ def mlstm_chunkwise__parallel_bw_dQ(
     if qk_scale is None:
         qk_scale = DHQK**-0.5
 
-    siz_b_DHQK = (
-        min(128, triton.next_power_of_2(DHQK)) if siz_b_DHQK is None else siz_b_DHQK
-    )
-    siz_b_DHHV = (
-        min(64, triton.next_power_of_2(DHHV)) if siz_b_DHHV is None else siz_b_DHHV
-    )
+    siz_b_DHQK = min(128, triton.next_power_of_2(DHQK)) if siz_b_DHQK is None else siz_b_DHQK
+    siz_b_DHHV = min(64, triton.next_power_of_2(DHHV)) if siz_b_DHHV is None else siz_b_DHHV
 
     assert siz_b_LQ <= L, "siz_b_LQ must be less than or equal to chunk size L"
     assert siz_b_LKV <= L, "siz_b_LKV must be less than or equal to chunk size L"
@@ -339,12 +302,10 @@ def mlstm_chunkwise__parallel_bw_dQ(
         matCstate_all=matCstate_all,
         vecNstate_all=vecNstate_all,
         scaMstate_all=scaMstate_all,
-        matH_out=matH_out,
         vecN_out=vecN_out,
         vecM_out=vecM_out,
         matDeltaH_out=matDeltaH_out,
         matDeltaC_states=matDeltaC_states,
-        vecDeltaN_states=vecDeltaN_states,
         matDeltaQ=matDeltaQ,
         qk_scale=qk_scale,
         str_matQK_B_NH=matQ.stride(1),
@@ -376,7 +337,6 @@ def mlstm_chunkwise__parallel_bw_dQ(
         DTYPE=torch2triton_dtype(matQ.dtype),
         OUTPUT_DTYPE=torch2triton_dtype(output_dtype),
         EPS=eps,
-        COMPUTE_DELTA_N=compute_delta_n,
         num_stages=num_stages,
         num_warps=num_warps,
     )

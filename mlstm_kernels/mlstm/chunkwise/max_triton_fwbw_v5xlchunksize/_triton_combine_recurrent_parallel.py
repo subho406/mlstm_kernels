@@ -31,10 +31,10 @@ def mlstm_chunkwise_fw(
     qk_scale: float = None,
     return_last_states: bool = False,
     return_all_states: bool = False,
-    chunk_size_inter: int = 64,
-    chunk_size_intra: int = 64,
-    siz_b_L_parallel: int = 32,
-    siz_b_L_loop: int = 32,
+    chunk_size_inter: int = 128,
+    chunk_size_intra: int = 128,
+    siz_b_L_parallel: int = 64,
+    siz_b_L_loop: int = 64,
     siz_b_DH_parallel: int | None = None,
     siz_b_DH_loop: int | None = None,
     num_warps_intra: int | None = None,
@@ -58,13 +58,9 @@ def mlstm_chunkwise_fw(
 ]:
     B, NH, S, DHQK = matQ.shape
     DHV = matV.shape[-1]
-    assert (
-        S % chunk_size_inter == 0
-    ), f"Sequence length {S} is not divisible by inter chunk size {chunk_size_inter}."
+    assert S % chunk_size_inter == 0, f"Sequence length {S} is not divisible by inter chunk size {chunk_size_inter}."
 
-    assert (
-        S % chunk_size_intra == 0
-    ), f"Sequence length {S} is not divisible by intra chunk size {chunk_size_intra}."
+    assert S % chunk_size_intra == 0, f"Sequence length {S} is not divisible by intra chunk size {chunk_size_intra}."
 
     if qk_scale is None:
         qk_scale = DHQK**-0.5
@@ -155,14 +151,10 @@ def mlstm_chunkwise_bw(
     matCstate_all: torch.Tensor = None,  # (B, NH, (NCsaved+1) * DHQK, DHV)
     vecNstate_all: torch.Tensor = None,  # (B, NH, (NCsaved+1) * DHQK)
     scaMstate_all: torch.Tensor = None,  # (B, NH, (NCsaved+1))
-    matH_out: torch.Tensor = None,  # (B, NH, S, DHV)
     vecN_out: torch.Tensor = None,  # (B, NH, S)
     vecM_out: torch.Tensor = None,  # (B, NH, S)
     matDeltaH_out: torch.Tensor = None,  # (B, NH, S, DHV)
-    # vecDeltaN_out: torch.Tensor = None,  # (B, NH, S) # we probably do not want external gradients going into the denominator
     matDeltaC_last: torch.Tensor = None,  # (B, NH, DHQK, DHV)
-    vecDeltaN_last: torch.Tensor = None,  # (B, NH, DHQK) # TODO not used, maybe leave out
-    scaDeltaM_last: torch.Tensor = None,  # (B, NH) # TODO not used, maybe leave out
     ## Other arguments
     chunk_size_inter: int = 64,
     chunk_size_intra: int = 64,
@@ -175,18 +167,12 @@ def mlstm_chunkwise_bw(
     num_stages_intra: int | None = None,
     num_stages_inter: int | None = None,
     eps: float = 0.0,
-    output_dtype: torch.dtype = torch.float32,
-    compute_delta_n: bool = False,
 ):
     B, NH, S, DHQK = matQ.shape
     DHV = matV.shape[-1]
 
-    assert (
-        S % chunk_size_inter == 0
-    ), f"Sequence length {S} is not divisible by chunk size inter {chunk_size_inter}."
-    assert (
-        S % chunk_size_intra == 0
-    ), f"Sequence length {S} is not divisible by chunk size intra {chunk_size_intra}."
+    assert S % chunk_size_inter == 0, f"Sequence length {S} is not divisible by chunk size inter {chunk_size_inter}."
+    assert S % chunk_size_intra == 0, f"Sequence length {S} is not divisible by chunk size intra {chunk_size_intra}."
 
     if qk_scale is None:
         qk_scale = DHQK**-0.5
@@ -203,9 +189,7 @@ def mlstm_chunkwise_bw(
     #! recompute the "all" states if needed
     if matCstate_all is None:
         assert (
-            (matCstate_all is None)
-            and (vecNstate_all is None)
-            and (scaMstate_all is None)
+            (matCstate_all is None) and (vecNstate_all is None) and (scaMstate_all is None)
         ), "Either all or none of the states must be provided."
 
         matCstate_all, vecNstate_all, scaMstate_all = mlstm_chunkwise__recurrent_fw_C(
@@ -232,7 +216,6 @@ def mlstm_chunkwise_bw(
         vecM_combine=vecM_out,  # (B, NH, S)
         matDeltaH=matDeltaH_out,  # (B, NH, S, DHV)
         vecN_out=vecN_out,  # (B, NH, S)
-        matH_out=matH_out,  # (B, NH, S, DHV)
         matDeltaC_last=matDeltaC_last,  # (B, NH, DHQK, DHV)
         qk_scale=qk_scale,
         chunk_size=chunk_size_inter,
@@ -246,7 +229,7 @@ def mlstm_chunkwise_bw(
     vecB, vecA = compute_chunkwise_log_gates_vecB_vecA(
         chunk_size=chunk_size_intra, vecI=vecI, vecF=vecF, return_vecB_only=False
     )
-
+    grad_output_dtype = matQ.dtype
     #! compute deltaV
     matDeltaV = mlstm_chunkwise__parallel_bw_dV(
         matQ=matQ,
@@ -255,15 +238,13 @@ def mlstm_chunkwise_bw(
         vecI=vecI,
         vecB=vecB,
         vecA=vecA,
-        matCstate_all=matCstate_all,  # unused
-        vecNstate_all=vecNstate_all,  # unused
+        matCstate_all=matCstate_all,
+        vecNstate_all=vecNstate_all,
         scaMstate_all=scaMstate_all,
-        matH_out=matH_out,  # unused
         vecN_out=vecN_out,
         vecM_out=vecM_out,
         matDeltaH_out=matDeltaH_out,
         matDeltaC_states=matDeltaC_states,
-        vecDeltaN_states=None,  # unused # TODO compute this
         qk_scale=qk_scale,
         chunk_size=chunk_size_intra,
         siz_b_LQ=siz_b_L_loop,
@@ -273,27 +254,24 @@ def mlstm_chunkwise_bw(
         num_warps=num_warps_intra,
         num_stages=num_stages_intra,
         eps=eps,
-        output_dtype=matQ.dtype,
-        compute_delta_n=False,  # TODO
+        output_dtype=grad_output_dtype,
     )
 
     #! compute deltaK
     matDeltaK = mlstm_chunkwise__parallel_bw_dK(
         matQ=matQ,
         matK=matK,
-        matV=matV,  # unused
+        matV=matV,
         vecI=vecI,
         vecB=vecB,
         vecA=vecA,
-        matCstate_all=matCstate_all,  # unused
-        vecNstate_all=vecNstate_all,  # unused
+        matCstate_all=matCstate_all,
+        vecNstate_all=vecNstate_all,
         scaMstate_all=scaMstate_all,
-        matH_out=matH_out,  # unused
         vecN_out=vecN_out,
         vecM_out=vecM_out,
         matDeltaH_out=matDeltaH_out,
         matDeltaC_states=matDeltaC_states,
-        vecDeltaN_states=None,  # unused # TODO compute this
         qk_scale=qk_scale,
         chunk_size=chunk_size_intra,
         siz_b_LQ=siz_b_L_loop,
@@ -303,27 +281,24 @@ def mlstm_chunkwise_bw(
         num_warps=num_warps_intra,
         num_stages=num_stages_intra,
         eps=eps,
-        output_dtype=matQ.dtype,
-        compute_delta_n=False,  # TODO
+        output_dtype=grad_output_dtype,
     )
 
     #! compute deltaQ
     matDeltaQ = mlstm_chunkwise__parallel_bw_dQ(
         matQ=matQ,
         matK=matK,
-        matV=matV,  # unused
+        matV=matV,
         vecI=vecI,
         vecB=vecB,
         vecA=vecA,
-        matCstate_all=matCstate_all,  # unused
-        vecNstate_all=vecNstate_all,  # unused
+        matCstate_all=matCstate_all,
+        vecNstate_all=vecNstate_all,
         scaMstate_all=scaMstate_all,
-        matH_out=matH_out,  # unused
         vecN_out=vecN_out,
         vecM_out=vecM_out,
         matDeltaH_out=matDeltaH_out,
         matDeltaC_states=matDeltaC_states,
-        vecDeltaN_states=None,  # unused # TODO compute this
         qk_scale=qk_scale,
         chunk_size=chunk_size_intra,
         siz_b_LQ=siz_b_L_parallel,
@@ -333,8 +308,7 @@ def mlstm_chunkwise_bw(
         num_warps=num_warps_intra,
         num_stages=num_stages_intra,
         eps=eps,
-        output_dtype=matQ.dtype,
-        compute_delta_n=False,  # TODO
+        output_dtype=grad_output_dtype,
     )
 
     #! postprocessing: compute deltaF and deltaI gradients
@@ -356,16 +330,10 @@ def mlstm_chunkwise_bw(
 
     # vecDeltaI = torch.zeros((B, NH, S), dtype=vecI.dtype, device=vecI.device)
 
-    matDeltaC_initial = (
-        matDeltaC_states[:, :, :DHQK, :] if matC_initial is not None else None
-    )
-    # TODO compute this
-    vecDeltaN_initial = (
-        torch.zeros_like(vecN_initial) if vecN_initial is not None else None
-    )
-    scaDeltaM_initial = (
-        torch.zeros_like(scaM_initial) if scaM_initial is not None else None
-    )
+    matDeltaC_initial = matDeltaC_states[:, :, :DHQK, :] if matC_initial is not None else None
+
+    vecDeltaN_initial = torch.zeros_like(vecN_initial) if vecN_initial is not None else None
+    scaDeltaM_initial = torch.zeros_like(scaM_initial) if scaM_initial is not None else None
 
     return (
         matDeltaQ,

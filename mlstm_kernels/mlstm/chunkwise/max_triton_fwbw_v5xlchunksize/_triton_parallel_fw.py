@@ -25,24 +25,24 @@ def _mlstm_chunkwise__parallel_fw_Hintra_kernel(
     matHout,  # (B, NH, S, DHHV)
     vecNout,  # (B, NH, S)
     vecMout,  # (B, NH, S)
-    qk_scale,
-    str_matQK_B_NH,
-    str_matQK_S,
-    str_matQK_DHQK,
-    str_matHV_B_NH,
-    str_matHV_S,
-    str_matHV_DHHV,
-    str_matCstates_B_NH,
-    str_matCstates_NCDHQK,
-    str_matCstates_DHHV,
-    str_vecNstates_B_NH,
-    str_vecNstates_NCDHQK,
-    str_scaMinterstates_B_NH,
-    str_vecBI_B_NH,
-    str_vecBI_NC,
-    str_vecBI_L,
-    str_vecMN_B_NH,
-    str_vecMN_S,
+    qk_scale: tl.constexpr,
+    str_matQK_B_NH: tl.constexpr,
+    str_matQK_S: tl.constexpr,
+    str_matQK_DHQK: tl.constexpr,
+    str_matHV_B_NH: tl.constexpr,
+    str_matHV_S: tl.constexpr,
+    str_matHV_DHHV: tl.constexpr,
+    str_matCstates_B_NH: tl.constexpr,
+    str_matCstates_NCDHQK: tl.constexpr,
+    str_matCstates_DHHV: tl.constexpr,
+    str_vecNstates_B_NH: tl.constexpr,
+    str_vecNstates_NCDHQK: tl.constexpr,
+    str_scaMinterstates_B_NH: tl.constexpr,
+    str_vecBI_B_NH: tl.constexpr,
+    str_vecBI_NC: tl.constexpr,
+    str_vecBI_L: tl.constexpr,
+    str_vecMN_B_NH: tl.constexpr,
+    str_vecMN_S: tl.constexpr,
     B: tl.constexpr,
     NH: tl.constexpr,
     S: tl.constexpr,
@@ -57,7 +57,7 @@ def _mlstm_chunkwise__parallel_fw_Hintra_kernel(
     DTYPE: tl.constexpr = tl.float32,
     OUTPUT_DTYPE: tl.constexpr = tl.float32,
     EPS: tl.constexpr = 0.0,
-    MINIMUM_MAX_VAL: tl.constexpr = -10,
+    MINIMUM_MAX_VAL: tl.constexpr = -10.0,
 ):
     # our grid has 4 dimensions: (num_b_DHHV, num_b_LQ, (NC, B * NH))
     idx_b_DHHV, idx_b_LQ, idx_b_NC_BNH = (
@@ -142,12 +142,8 @@ def _mlstm_chunkwise__parallel_fw_Hintra_kernel(
             matDtilde_val = tl.where(mask, matDtilde_val, -float("inf"))
 
         # compute vecM_new (siz_b_LQ,)
-        vecM_new_val = tl.max(
-            matDtilde_val, axis=1
-        )  # (siz_b_LQ,) # row-wise max along siz_b_LKV
-        vecM_new_val = tl.maximum(
-            vecM_new_val, MINIMUM_MAX_VAL
-        )  # (siz_b_LQ,) # element-wise max
+        vecM_new_val = tl.max(matDtilde_val, axis=1)  # (siz_b_LQ,) # row-wise max along siz_b_LKV
+        vecM_new_val = tl.maximum(vecM_new_val, MINIMUM_MAX_VAL)  # (siz_b_LQ,) # element-wise max
 
         vecM_new_val = tl.maximum(vecM_old_val, vecM_new_val)
         vecM_ratio = tl.exp(vecM_old_val - vecM_new_val)
@@ -182,9 +178,7 @@ def _mlstm_chunkwise__parallel_fw_Hintra_kernel(
     ##? compute the inter chunk contribution
     # compute vecM_combine (siz_b_LQ,)
     # load scaM_inter (1,)
-    scaM_inter_km1_ptr = (
-        scaMinter_states + idx_b_BNH * str_scaMinterstates_B_NH + idx_b_NC
-    )
+    scaM_inter_km1_ptr = scaMinter_states + idx_b_BNH * str_scaMinterstates_B_NH + idx_b_NC
     scaM_inter_km1_val = tl.load(scaM_inter_km1_ptr).to(tl.float32)
     # vecM_intra = vecM_new_val
     vecM_combine_val = tl.maximum(vecB_LQ_val + scaM_inter_km1_val, vecM_new_val)
@@ -265,28 +259,16 @@ def _mlstm_chunkwise__parallel_fw_Hintra_kernel(
         block_shape=(siz_b_LQ, siz_b_DHHV),
         order=(1, 0),
     )
-    tl.store(matHout_ptr, matH_comb_out_val.to(OUTPUT_DTYPE), boundary_check=(0, 1))
+    tl.store(matHout_ptr, matH_comb_out_val.to(DTYPE), boundary_check=(0, 1))
 
     # the different thread blocks for different value head dimensions
     # compute the same vecN and vecM
     if idx_b_DHHV == 0:
         # store vecNout (siz_b_LQ,)
-        vecNout_ptr = (
-            vecNout
-            + idx_b_BNH * str_vecMN_B_NH
-            + idx_b_NC * L
-            + idx_b_LQ * siz_b_LQ
-            + tl.arange(0, siz_b_LQ)
-        )
+        vecNout_ptr = vecNout + idx_b_BNH * str_vecMN_B_NH + idx_b_NC * L + idx_b_LQ * siz_b_LQ + tl.arange(0, siz_b_LQ)
         tl.store(vecNout_ptr, vecN_comb_denom_val.to(OUTPUT_DTYPE))
         # store vecMout (size_b_LQ,)
-        vecMout_ptr = (
-            vecMout
-            + idx_b_BNH * str_vecMN_B_NH
-            + idx_b_NC * L
-            + idx_b_LQ * siz_b_LQ
-            + tl.arange(0, siz_b_LQ)
-        )
+        vecMout_ptr = vecMout + idx_b_BNH * str_vecMN_B_NH + idx_b_NC * L + idx_b_LQ * siz_b_LQ + tl.arange(0, siz_b_LQ)
         tl.store(vecMout_ptr, vecM_combine_val.to(OUTPUT_DTYPE))
 
 
@@ -311,8 +293,8 @@ def mlstm_chunkwise__parallel_fw_Hintra(
     eps: float = 1e-6,
     output_dtype: torch.dtype = torch.float32,
 ) -> tuple[
-    torch.Tensor, torch.Tensor
-]:  # matH_out (B, NH, S, DHHV), vecN_out (B, NH, S)
+    torch.Tensor, torch.Tensor, torch.Tensor
+]:  # matH_out (B, NH, S, DHHV), vecN_out (B, NH, S), vecM_out (B, NH, S)
     """This function defines the grid and block sizes for the kernel launch and calls the kernel.
     chunk parallel size:        siz_b_LQ
     chunk loop size:            siz_b_LKV
@@ -322,9 +304,7 @@ def mlstm_chunkwise__parallel_fw_Hintra(
     B, NH, S, DHQK = matK.shape
     DHHV = matV.shape[-1]
 
-    assert (
-        S % chunk_size == 0
-    ), f"Sequence length {S} must be divisible by chunk size {chunk_size}"
+    assert S % chunk_size == 0, f"Sequence length {S} must be divisible by chunk size {chunk_size}"
     NC = S // chunk_size
     L = chunk_size
 
@@ -333,9 +313,7 @@ def mlstm_chunkwise__parallel_fw_Hintra(
     if qk_scale is None:
         qk_scale = DHQK**-0.5
 
-    siz_b_DHQK = (
-        min(64, triton.next_power_of_2(DHQK)) if siz_b_DHQK is None else siz_b_DHQK
-    )
+    siz_b_DHQK = min(64, triton.next_power_of_2(DHQK)) if siz_b_DHQK is None else siz_b_DHQK
 
     if siz_b_DHHV is None:
         siz_b_DHHV = min(128, triton.next_power_of_2(DHHV))
@@ -353,13 +331,11 @@ def mlstm_chunkwise__parallel_fw_Hintra(
     if num_warps is None:
         num_warps = 4 if siz_b_DHQK >= 64 else 2
 
-    matH_out = torch.empty(B, NH, S, DHHV, device=matQ.device, dtype=output_dtype)
+    matH_out = torch.empty(B, NH, S, DHHV, device=matQ.device, dtype=matQ.dtype)
     vecN_out = torch.empty(B, NH, S, device=matQ.device, dtype=output_dtype)
     vecM_out = torch.empty(B, NH, S, device=matQ.device, dtype=output_dtype)
 
-    vecB = compute_chunkwise_log_gates_vecB_vecA(
-        vecI=vecI, vecF=vecF, chunk_size=chunk_size, return_vecB_only=True
-    )
+    vecB = compute_chunkwise_log_gates_vecB_vecA(vecI=vecI, vecF=vecF, chunk_size=chunk_size, return_vecB_only=True)
 
     grid = (num_b_DHHV, num_b_LQ, NC * B * NH)
     # print("grid(num_b_DHHV, num_b_LQ, NC*B*NH)", grid)

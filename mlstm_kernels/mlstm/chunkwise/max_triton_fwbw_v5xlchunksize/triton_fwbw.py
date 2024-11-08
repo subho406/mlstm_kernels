@@ -56,7 +56,6 @@ def _mlstm_chunkwise_fwbw_generator(autocast_kernel_dtype=torch.float16) -> Call
             num_warps_inter: int | None = None,
             num_stages_intra: int | None = None,
             num_stages_inter: int | None = None,
-            compute_delta_n: bool = False,
             RECOMPUTE_STATES_IN_BW: bool = True,
         ) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor]:
             B, NH, S, DHQK = matQ.shape
@@ -111,7 +110,6 @@ def _mlstm_chunkwise_fwbw_generator(autocast_kernel_dtype=torch.float16) -> Call
                 matC_all,
                 vecN_all,
                 scaM_all,
-                matH_out if compute_delta_n else None,
                 vecN_out,
                 vecM_out,
                 torch.tensor(qk_scale),
@@ -119,18 +117,12 @@ def _mlstm_chunkwise_fwbw_generator(autocast_kernel_dtype=torch.float16) -> Call
                 torch.tensor(chunk_size_intra),
                 torch.tensor(siz_b_L_parallel),
                 torch.tensor(siz_b_L_loop),
-                torch.tensor(siz_b_DH_parallel)
-                if siz_b_DH_parallel is not None
-                else None,
+                torch.tensor(siz_b_DH_parallel) if siz_b_DH_parallel is not None else None,
                 torch.tensor(siz_b_DH_loop) if siz_b_DH_loop is not None else None,
                 torch.tensor(num_warps_intra) if num_warps_intra is not None else None,
                 torch.tensor(num_warps_inter) if num_warps_inter is not None else None,
-                torch.tensor(num_stages_intra)
-                if num_stages_intra is not None
-                else None,
-                torch.tensor(num_stages_inter)
-                if num_stages_inter is not None
-                else None,
+                torch.tensor(num_stages_intra) if num_stages_intra is not None else None,
+                torch.tensor(num_stages_inter) if num_stages_inter is not None else None,
                 torch.tensor(eps),
             )
             return matH_out, matC_last, vecN_last, scaM_last
@@ -138,9 +130,7 @@ def _mlstm_chunkwise_fwbw_generator(autocast_kernel_dtype=torch.float16) -> Call
         @staticmethod
         @custom_bwd(device_type="cuda")
         @contiguous
-        def backward(
-            ctx, matDeltaH_out, matDeltaC_last, vecDeltaN_last, scaDeltaM_last
-        ):
+        def backward(ctx, matDeltaH_out, matDeltaC_last, vecDeltaN_last, scaDeltaM_last):
             (
                 matQ,
                 matK,
@@ -153,7 +143,6 @@ def _mlstm_chunkwise_fwbw_generator(autocast_kernel_dtype=torch.float16) -> Call
                 matC_all,
                 vecN_all,
                 scaM_all,
-                matH_out,
                 vecN_out,
                 vecM_out,
                 qk_scale,
@@ -169,8 +158,6 @@ def _mlstm_chunkwise_fwbw_generator(autocast_kernel_dtype=torch.float16) -> Call
                 num_stages_inter,
                 eps,
             ) = ctx.saved_tensors
-            B, NH, S, DHQK = matQ.shape
-            DHV = matV.shape[-1]
 
             (
                 matDeltaQ,
@@ -194,35 +181,21 @@ def _mlstm_chunkwise_fwbw_generator(autocast_kernel_dtype=torch.float16) -> Call
                 matCstate_all=matC_all,
                 vecNstate_all=vecN_all,
                 scaMstate_all=scaM_all,
-                matH_out=matH_out,
                 vecN_out=vecN_out,
                 vecM_out=vecM_out,
                 matDeltaH_out=matDeltaH_out,
                 matDeltaC_last=matDeltaC_last,
-                vecDeltaN_last=vecDeltaN_last,
-                scaDeltaM_last=scaDeltaM_last,
                 chunk_size_inter=int(chunk_size_inter),
                 chunk_size_intra=int(chunk_size_intra),
                 siz_b_L_parallel=int(siz_b_L_parallel),
                 siz_b_L_loop=int(siz_b_L_loop),
-                siz_b_DH_parallel=int(siz_b_DH_parallel)
-                if siz_b_DH_parallel is not None
-                else None,
+                siz_b_DH_parallel=int(siz_b_DH_parallel) if siz_b_DH_parallel is not None else None,
                 siz_b_DH_loop=int(siz_b_DH_loop) if siz_b_DH_loop is not None else None,
-                num_warps_intra=int(num_warps_intra)
-                if num_warps_intra is not None
-                else None,
-                num_warps_inter=int(num_warps_inter)
-                if num_warps_inter is not None
-                else None,
-                num_stages_intra=int(num_stages_intra)
-                if num_stages_intra is not None
-                else None,
-                num_stages_inter=int(num_stages_inter)
-                if num_stages_inter is not None
-                else None,
+                num_warps_intra=int(num_warps_intra) if num_warps_intra is not None else None,
+                num_warps_inter=int(num_warps_inter) if num_warps_inter is not None else None,
+                num_stages_intra=int(num_stages_intra) if num_stages_intra is not None else None,
+                num_stages_inter=int(num_stages_inter) if num_stages_inter is not None else None,
                 eps=float(eps),
-                compute_delta_n=False,  # TODO
             )
 
             return (
@@ -254,15 +227,9 @@ def _mlstm_chunkwise_fwbw_generator(autocast_kernel_dtype=torch.float16) -> Call
     return _mlstm_chunkwise_fwbw
 
 
-_mlstm_chunkwise_fwbw_float32 = _mlstm_chunkwise_fwbw_generator(
-    autocast_kernel_dtype=torch.float32
-)
-_mlstm_chunkwise_fwbw_float16 = _mlstm_chunkwise_fwbw_generator(
-    autocast_kernel_dtype=torch.float16
-)
-_mlstm_chunkwise_fwbw_bfloat16 = _mlstm_chunkwise_fwbw_generator(
-    autocast_kernel_dtype=torch.bfloat16
-)
+_mlstm_chunkwise_fwbw_float32 = _mlstm_chunkwise_fwbw_generator(autocast_kernel_dtype=torch.float32)
+_mlstm_chunkwise_fwbw_float16 = _mlstm_chunkwise_fwbw_generator(autocast_kernel_dtype=torch.float16)
+_mlstm_chunkwise_fwbw_bfloat16 = _mlstm_chunkwise_fwbw_generator(autocast_kernel_dtype=torch.bfloat16)
 
 
 def _get_chunkwise_fwbw_kernel(autocast_kernel_dtype: torch.dtype) -> Callable:
@@ -297,11 +264,8 @@ def mlstm_chunkwise_max_triton(
     num_warps_inter: int | None = None,
     num_stages_intra: int | None = None,
     num_stages_inter: int | None = None,
-    compute_delta_n: bool = False,
     autocast_kernel_dtype: torch.dtype = torch.float32,
-) -> (
-    torch.Tensor | tuple[torch.Tensor, tuple[torch.Tensor, torch.Tensor, torch.Tensor]]
-):
+) -> torch.Tensor | tuple[torch.Tensor, tuple[torch.Tensor, torch.Tensor, torch.Tensor]]:
     _mlstm_chunkwise_fwbw = _get_chunkwise_fwbw_kernel(autocast_kernel_dtype)
     matH_out, matC_last, vecN_last, scaM_last = _mlstm_chunkwise_fwbw.apply(
         q,
@@ -325,7 +289,6 @@ def mlstm_chunkwise_max_triton(
         num_warps_inter,
         num_stages_intra,
         num_stages_inter,
-        compute_delta_n,
         True,
     )
     if return_last_states:
