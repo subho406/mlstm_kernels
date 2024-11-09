@@ -20,7 +20,7 @@ def wrap_pad_inputs(backend, padded_chunk_size: Optional[int] = 64):
             S_padded = ((S - 1) // padded_chunk_size + 1) * padded_chunk_size
             S_unpadded = S
             S = S_padded
-            # actually these should not give NaNs as the model is causal. 
+            # actually these should not give NaNs as the model is causal.
             q_pad = q.new_zeros(B, N, S, q.shape[3])
             k_pad = k.new_zeros(B, N, S, k.shape[3])
             v_pad = (
@@ -65,10 +65,10 @@ def get_kernel(name: str, padded_chunk_size: Optional[int] = 64) -> Callable:
     from .baselines.flash_linear_attention import registry as flash_linear_attention_gla_registry
     from .mlstm.chunkwise import registry as mlstm_chunkwise_registry
     from .mlstm.parallel import registry as mlstm_parallel_registry
-    from .mlstm.recurrent import registry_step as mlstm_recurrent_step_registry
+    from .mlstm.recurrent import registry_sequence as mlstm_recurrent_sequence_registry
 
     module_backend_registry = {
-        "mlstm_recurrent_step": mlstm_recurrent_step_registry,
+        "mlstm_recurrent_sequence": mlstm_recurrent_sequence_registry,
         "mlstm_chunkwise": mlstm_chunkwise_registry,
         "mlstm_parallel": mlstm_parallel_registry,
         "flash_attention": flash_attention_registry,

@@ -13,22 +13,18 @@ def mlstm_interface(
     n_initial: torch.Tensor = None,
     m_initial: torch.Tensor = None,
     return_last_states: bool = False,
-) -> (
-    torch.Tensor | tuple[torch.Tensor, tuple[torch.Tensor, torch.Tensor, torch.Tensor]]
-):
+) -> torch.Tensor | tuple[torch.Tensor, tuple[torch.Tensor, torch.Tensor, torch.Tensor]]:
     pass
 
 
-def _create_module_backend_registry() -> dict[str, dict[str, Callable]]:
+def _create_module_sequence_backend_registry() -> dict[str, dict[str, Callable]]:
     from .chunkwise import registry as mlstm_chunkwise_registry
     from .parallel import registry as mlstm_parallel_registry
     from .recurrent import (
         registry_sequence as mlstm_recurrent_sequence_registry,
-        registry_step as mlstm_recurrent_step_registry,
     )
 
     module_backend_registry = {
-        "recurrent_step": mlstm_recurrent_step_registry,
         "recurrent_sequence": mlstm_recurrent_sequence_registry,
         "chunkwise": mlstm_chunkwise_registry,
         "parallel": mlstm_parallel_registry,
@@ -38,7 +34,7 @@ def _create_module_backend_registry() -> dict[str, dict[str, Callable]]:
 
 def get_mlstm_kernel(name: str) -> Callable:
     """
-    Get a kernel function by name.
+    Get a mlstm sequence kernel function by name.
 
     Naming convention:
     name = "<module_name>--<backend_name>"
@@ -49,7 +45,7 @@ def get_mlstm_kernel(name: str) -> Callable:
     backend_name: The name of the kernel function as defined in the registry in the __init__.py file of the module.
     """
 
-    module_backend_registry = _create_module_backend_registry()
+    module_backend_registry = _create_module_sequence_backend_registry()
 
     module_name, backend_name = name.split("--")
 
@@ -67,7 +63,10 @@ def get_mlstm_kernel(name: str) -> Callable:
 
 
 def get_available_mlstm_kernels() -> list[str]:
-    module_backend_registry = _create_module_backend_registry()
+    """
+    Get a list of available mlstm sequence kernel names.
+    """
+    module_backend_registry = _create_module_sequence_backend_registry()
 
     backend_names = [
         f"{module_key}--{kernel_key}"
@@ -75,3 +74,35 @@ def get_available_mlstm_kernels() -> list[str]:
         for kernel_key in module_backend_registry[module_key].keys()
     ]
     return backend_names
+
+
+def _create_module_step_backend_registry() -> dict[str, dict[str, Callable]]:
+    from .recurrent import registry_step as mlstm_recurrent_step_registry
+
+    return mlstm_recurrent_step_registry
+
+
+def get_available_mlstm_step_kernels() -> list[str]:
+    module_backend_registry = _create_module_step_backend_registry()
+    backend_names = list(module_backend_registry.keys())
+    return backend_names
+
+
+def get_mlstm_step_kernel(name: str) -> Callable:
+    """
+    Get a mlstm step kernel function by name.
+
+    Naming convention:
+    name = "<backend_name>"
+
+    backend_name: The name of the kernel function as defined in the registry in the __init__.py file of the module.
+    """
+
+    module_backend_registry = _create_module_step_backend_registry()
+
+    if name not in module_backend_registry:
+        raise ValueError(
+            f"Unknown backend name: {name}. Available backend names: {list(module_backend_registry.keys())}"
+        )
+
+    return module_backend_registry[name]

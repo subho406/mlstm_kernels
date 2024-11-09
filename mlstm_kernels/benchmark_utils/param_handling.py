@@ -18,14 +18,17 @@ def strip_to_first_chars_of_split(input_str: str, split_str: str = "_") -> str:
 @dataclass
 class KernelSpec:
     kernel_name: str
-    fwbw: bool
     dtype: Literal["float16", "float32", "float64", "bfloat16"]
-    use_torch_compile: bool = False
+    fwbw: bool = False
+    use_torch_compile: bool = None
 
     additional_params: dict[str, Any] = None
 
     def to_string(self, short_param_name: bool = True) -> str:
-        str_name = f"{self.kernel_name}__{self.dtype}__{'fwbw' if self.fwbw else 'fw'}"
+        str_name = f"{self.kernel_name}"
+        if self.use_torch_compile is not None:
+            str_name += f"__{'tc' if self.use_torch_compile else ''}"
+        str_name += f"__{self.dtype}__{'fwbw' if self.fwbw else 'fw'}"
         if self.additional_params is not None:
             str_name += "_"
             for k, v in self.additional_params.items():
@@ -58,9 +61,7 @@ class BenchmarkConfig:
             num_vals = len(list(self.vary_params.values())[0])
             for k, v in self.vary_params.items():
                 if len(v) != num_vals:
-                    raise ValueError(
-                        f"All vary parameters must have the same length. Not matching for {k}"
-                    )
+                    raise ValueError(f"All vary parameters must have the same length. Not matching for {k}")
 
             for val_tuple in zip(*self.vary_params.values()):
                 vary_dict = dict(zip(self.vary_params.keys(), val_tuple))

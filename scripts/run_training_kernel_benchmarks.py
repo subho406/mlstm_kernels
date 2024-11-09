@@ -1,9 +1,12 @@
-from dataclasses import asdict
 from pathlib import Path
 
-from mlstm_kernels.benchmark_utils.benchmark import mLSTMBenchmark, run_benchmarks
+from mlstm_kernels.benchmark_utils.benchmarks.training_kernel_benchmarks import (
+    create_training_kernel_benchmark,
+    mLSTMBenchmark,
+)
 from mlstm_kernels.benchmark_utils.param_handling import BenchmarkConfig
-from mlstm_kernels.benchmark_utils.plot_results import plot_benchmark_result_table
+from mlstm_kernels.benchmark_utils.run_benchmark import run_and_record_benchmarks
+from mlstm_kernels.benchmark_utils.utils import setup_output_folder
 
 from dacite import from_dict
 from omegaconf import OmegaConf
@@ -24,78 +27,7 @@ def debug_single_benchmark():
     print(f"Benchmark finished. time: {time} ms")
 
 
-def setup_output_folder(output_dir: str = "./outputs_kernel_benchmarks") -> Path:
-    import logging
-    import sys
-    from datetime import datetime
-
-    timestamp = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
-
-    output_folder = Path(output_dir) / timestamp
-
-    output_folder.mkdir(parents=True, exist_ok=False)
-
-    logfile = output_folder / "benchmark.log"
-    file_handler = logging.FileHandler(filename=logfile)
-    stdout_handler = logging.StreamHandler(sys.stdout)
-    logging.basicConfig(
-        handlers=[file_handler, stdout_handler],
-        format="%(asctime)s %(levelname)s %(message)s",
-        level=logging.INFO,
-        force=True,
-    )
-    LOGGER = logging.getLogger(__name__)
-    LOGGER.info(f"Logging to {logfile}")
-    return output_folder
-
-
-def perform_single_benchmark(benchmark_config: BenchmarkConfig, output_folder: Path):
-    import logging
-
-    import tabulate
-
-    LOGGER = logging.getLogger(__name__)
-
-    LOGGER.info(f"Running benchmark: {benchmark_config.benchmark_name}")
-
-    benchmark_folder = output_folder / benchmark_config.benchmark_name
-    benchmark_folder.mkdir(parents=True, exist_ok=False)
-
-    OmegaConf.save(
-        OmegaConf.create(asdict(benchmark_config)), benchmark_folder / "config.yaml"
-    )
-
-    result_df = run_benchmarks(benchmark_config, additional_param_name_short=True)
-
-    LOGGER.info(
-        f"Results:\n{tabulate.tabulate(result_df, headers='keys', tablefmt='pretty')}"
-    )
-    LOGGER.info(f"Saving results to {benchmark_folder}")
-    result_df.to_csv(benchmark_folder / "results.csv")
-
-    fig = plot_benchmark_result_table(
-        result_df,
-        benchmark_config.x_axis_param,
-        title=benchmark_config.get_plot_title(),
-    )
-    fig.savefig(
-        benchmark_folder / f"plot_{benchmark_config.benchmark_name}.png",
-        dpi=300,
-        bbox_inches="tight",
-    )
-    fig.savefig(
-        benchmark_folder / f"plot_{benchmark_config.benchmark_name}.pdf",
-        bbox_inches="tight",
-    )
-    fig.savefig(
-        benchmark_folder / f"plot_{benchmark_config.benchmark_name}.svg",
-        bbox_inches="tight",
-    )
-
-
-def _head_dim_benchmark(
-    output_folder: Path, half_qkdim=False, seq_len: int = 8192, batch_size: int = 1
-):
+def _head_dim_benchmark(output_folder: Path, half_qkdim=False, seq_len: int = 8192, batch_size: int = 1):
     ### head dimension benchmark 7B
     head_dims_v = [64, 128, 256, 512, 1024, 2048]
     embedding_dim = 4096
@@ -205,7 +137,7 @@ benchmark_name: {bench_name}
         data=OmegaConf.to_container(OmegaConf.create(cfg_yaml)),
     )
 
-    perform_single_benchmark(cfg, output_folder)
+    run_and_record_benchmarks(cfg, create_training_kernel_benchmark, output_folder)
 
 
 def _head_dim_benchmark_no_slicing(output_folder: Path):
@@ -270,7 +202,7 @@ benchmark_name: "head_dim_no_slicing_7B"
         data=OmegaConf.to_container(OmegaConf.create(cfg_yaml)),
     )
 
-    perform_single_benchmark(cfg, output_folder)
+    run_and_record_benchmarks(cfg, create_training_kernel_benchmark, output_folder)
 
 
 def _sequence_length_benchmark(
@@ -377,7 +309,7 @@ benchmark_name: "sequence_length_7B--{bench_name_params}"
         data=OmegaConf.to_container(OmegaConf.create(cfg_yaml)),
     )
 
-    perform_single_benchmark(cfg, output_folder)
+    run_and_record_benchmarks(cfg, create_training_kernel_benchmark, output_folder)
 
 
 def _batch_size_benchmark(
@@ -483,7 +415,7 @@ benchmark_name: "batch_size_7B--{bench_name_params}"
         data=OmegaConf.to_container(OmegaConf.create(cfg_yaml)),
     )
 
-    perform_single_benchmark(cfg, output_folder)
+    run_and_record_benchmarks(cfg, create_training_kernel_benchmark, output_folder)
 
 
 def run_multiple_benchmarks(output_dir: str = "./outputs_kernel_benchmarks"):
@@ -498,6 +430,9 @@ def run_multiple_benchmarks(output_dir: str = "./outputs_kernel_benchmarks"):
     _head_dim_benchmark(output_folder, half_qkdim=True, seq_len=8192, batch_size=1)
     # _head_dim_benchmark_no_slicing(output_folder)
 
+
+if __name__ == "__main__":
+    run_multiple_benchmarks()
 
 if __name__ == "__main__":
     run_multiple_benchmarks()

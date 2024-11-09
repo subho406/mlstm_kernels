@@ -1,7 +1,5 @@
 {
-  "editor.rulers": [
-    120
-  ],
+  "editor.rulers": [120],
   "[python]": {
     "editor.defaultFormatter": "charliermarsh.ruff",
     "editor.formatOnType": true,
@@ -10,6 +8,7 @@
     }
   },
   "editor.formatOnSave": true,
+  "isort.args": ["--profile", "ruff"],
   "files.watcherExclude": {
     "outputs/**": true,
     "**/*.feather": true,
@@ -23,5 +22,9 @@
   "C_Cpp.clang_format_fallbackStyle": "LLVM",
   "jupyter.debugJustMyCode": false,
   "editor.fastScrollSensitivity": 50,
-  "editor.mouseWheelScrollSensitivity": 3
+  "editor.mouseWheelScrollSensitivity": 3,
+  "python.testing.pytestArgs": ["tests"],
+  "python.testing.unittestEnabled": false,
+  "python.testing.pytestEnabled": true,
+  "files.autoSave": "onFocusChange"
 }
