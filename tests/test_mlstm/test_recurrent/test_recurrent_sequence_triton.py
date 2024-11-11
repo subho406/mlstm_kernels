@@ -8,7 +8,18 @@ from mlstm_kernels.test_utils.test_templates.template_parallel_interface import 
 import pytest
 import torch
 
-from ..test_params import final_combinations
+# from ..test_params import final_combinations
+combinations_long = {
+    "S": [256, 256],  # [8192],
+    "B": [1, 2],  # [2, 2, 2, 2],
+    "NH": [2, 6],  # [3, 3, 3, 3],
+    "DHQK": [64, 512],  # [5, 5, 5, 5],
+    "DHHV": [128, 512],  # [5, 5, 5, 5],
+}
+combinations_long_list = [values for values in zip(*combinations_long.values())]
+
+final_combinations = combinations_long_list
+
 
 LOGGER = logging.getLogger(__name__)
 

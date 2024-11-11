@@ -1,4 +1,5 @@
 from dataclasses import dataclass
+from functools import partial
 from typing import Any, Callable
 
 import torch
@@ -13,6 +14,11 @@ class mLSTMStepKernelBenchmark(BenchmarkInterface):
     num_heads: int = None
     head_dim_qk: int = None
     head_dim_v: int = None
+
+    siz_b_DHQK: int = None
+    siz_b_DHHV: int = None
+    num_warps: int = None
+    num_stages: int = None
 
     use_torch_compile: bool = False
 
@@ -49,6 +55,13 @@ class mLSTMStepKernelBenchmark(BenchmarkInterface):
         self.kernel_inputs = inputs
 
         kernel_fn = self._get_kernel_fn()
+        kernel_fn = partial(
+            kernel_fn,
+            num_warps=self.num_warps,
+            siz_b_DHQK=self.siz_b_DHQK,
+            siz_b_DHHV=self.siz_b_DHHV,
+            num_stages=self.num_stages,
+        )
 
         def benchmark_fn() -> None:
             output = kernel_fn(*self.kernel_inputs)
