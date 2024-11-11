@@ -223,6 +223,8 @@ def recurrent_step_fw(
         matC_new = torch.empty_like(matC_old)
         vecN_new = torch.empty_like(vecN_old)
         scaM_new = torch.empty_like(scaM_old)
+    else:
+        assert vecN_new is not None and scaM_new is not None, "Initial states must be provided together."
 
     min_siz_b_DHQK = 64
     min_siz_b_DHHV = 64
@@ -240,7 +242,7 @@ def recurrent_step_fw(
     # num_b_DHQK = triton.cdiv(DHQK, siz_b_DHQK)
     num_b_DHHV = triton.cdiv(DHHV, siz_b_DHHV)
 
-    grid_C = (1, num_b_DHHV, B * NH)
+    grid = (1, num_b_DHHV, B * NH)
     if num_warps is None:
         num_warps = 4 if siz_b_DHQK >= 64 else 2
 
@@ -249,7 +251,7 @@ def recurrent_step_fw(
     # create output tensors
     vecH = torch.empty_like(vecV)
 
-    _recurrent_step_fw_kernel[grid_C](
+    _recurrent_step_fw_kernel[grid](
         matC_old=matC_old,
         vecN_old=vecN_old,
         scaM_old=scaM_old,
