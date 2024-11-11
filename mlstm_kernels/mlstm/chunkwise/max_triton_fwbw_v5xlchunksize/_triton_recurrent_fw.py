@@ -19,12 +19,12 @@ def _mlstm_chunkwise__recurrent_fw_C_kernel(
     matV,  # (B, NH, S, DHHV)
     vecF,  # (B, NH, NC * L) = (B, NH, S)
     vecI,  # (B, NH, NC * L) = (B, NH, S)
-    matC_states,  # (B, NH, (NC + 1) * DHQK, DHHV)
-    vecN_states,  # (B, NH, (NC + 1) * DHQK)
-    scaMinter_states,  # (B, NH, (NC + 1))
     matC_initial,  # (B, NH, DHQK, DHHV)
     vecN_initial,  # (B, NH, DHQK)
     scaMinter_initial,  # (B, NH)
+    matC_states,  # (B, NH, (NC + 1) * DHQK, DHHV)
+    vecN_states,  # (B, NH, (NC + 1) * DHQK)
+    scaMinter_states,  # (B, NH, (NC + 1))
     str_matK_B_NH: tl.constexpr,
     str_matK_S: tl.constexpr,
     str_matK_DHQK: tl.constexpr,
