@@ -810,68 +810,6 @@ def mLSTMforward(
             (B, H), float("nan"), requires_grad=False, dtype=dtype_states
         )
 
-def mLSTMforward(
-    matQ: torch.Tensor,
-    matK: torch.Tensor,
-    matV: torch.Tensor,
-    vecI: torch.Tensor,
-    vecF: torch.Tensor,
-    matC_initial: torch.Tensor,
-    matN_initial: torch.Tensor,
-    matM_initial: torch.Tensor,
-    dtype_state: torch.dtype | None = torch.float32,
-    dtype_gate: torch.dtype | None = torch.float32,
-    chunk_size: int = 64,
-    return_last_states: bool = False,
-    EPS: float = 1e-6,
-    STABILIZE_CORRECTLY: bool = True,
-    NORM_VAL: float = 1.0,
-) -> tuple[
-    torch.Tensor,
-    torch.Tensor,
-    torch.Tensor,
-    torch.Tensor,
-    torch.Tensor | None,
-    torch.Tensor | None,
-    torch.Tensor | None,
-]:
-    B, H, T, K, V = *matQ.shape, matV.shape[-1]
-    BT = chunk_size
-    BHQK, BHHV = (
-        min(64, triton.next_power_of_2(K)),
-        min(64, triton.next_power_of_2(V)),
-    )
-    NT, siz_K, siz_V = triton.cdiv(T, BT), triton.cdiv(K, BHQK), triton.cdiv(V, BHHV)
-    num_stages = 1
-    num_warps = 4 if BHQK == 64 else 2
-    scale = K**-0.5
-    if dtype_state is None:
-        dtype_states = matQ.dtype
-    else:
-        dtype_states = dtype_state
-    if dtype_gate is None:
-        dtype_gates = matQ.dtype
-    else:
-        dtype_gates = dtype_gate
-    assert T % BT == 0, "sequence length must be divisible by BT"
-    vecF = torch.nn.functional.logsigmoid(vecF.to(dtype_gates))
-    vecF = vecF.reshape(B, H, -1, BT)
-    vecF = vecF * 1.44269504
-    vecF = vecF.reshape(B, H, -1)
-    vecI = (vecI.reshape(B, H, -1) * 1.44269504).to(dtype_gates)
-
-    matC_final, matN_final, matM_final = None, None, None
-    if return_last_states:
-        matC_final = matQ.new_full(
-            (B, H, K, V), float("nan"), requires_grad=False, dtype=dtype_states
-        )
-        matN_final = matQ.new_full(
-            (B, H, K), float("nan"), requires_grad=False, dtype=dtype_states
-        )
-        matM_final = matQ.new_full(
-            (B, H), float("nan"), requires_grad=False, dtype=dtype_states
-        )
-
     matC = matQ.new_full((B, H, NT * K, V), float("nan"), dtype=dtype_states)
     matN = matQ.new_full((B, H, NT, K), float("nan"), dtype=dtype_states)
     matM = matQ.new_full((B, H, NT + 1), float("nan"), dtype=dtype_states)
