@@ -1,33 +1,35 @@
 # Copyright JKU Linz 2024
 # Author: Maximilian Beck
-import torch
-from einops import rearrange
-import torch.nn.functional as F
-from typing import Optional, Callable
-from torch.amp import custom_fwd, custom_bwd
-
-from ....kernel_utils import contiguous
-
-from ._torch_fw import _mlstm_chunkwise__recurrent_fw_C
-
 """PyTorch.
 
-Forward and backward pass of the mLSTM chunkwise formulation.
+# Forward and backward pass of the mLSTM chunkwise formulation.
 
-Notation:
-Dimensions:
-    B: batch size
-    NH: number of heads
-    S: sequence length
-    DH: hidden dimension
-    NC: number of chunks
-    L: chunk size
+# Notation:
+# Dimensions:
+#     B: batch size
+#     NH: number of heads
+#     S: sequence length
+#     DH: hidden dimension
+#     NC: number of chunks
+#     L: chunk size
 
 Variables:
     vecA, a: forward gate contribution, contribution of forget gates from last chunk state C_{k-1} to current timestep t
     vecB, b: backward gate contribution, contribution of forget and input gates up to next chunk state C_k (form current timestep t)
     scaG, g: "go through" gate contribution, contribution of forget gates from C_{k-1} to C_k.
 """
+
+from collections.abc import Callable
+from typing import Optional
+
+import torch
+import torch.nn.functional as F
+from einops import rearrange
+from torch.amp import custom_bwd, custom_fwd
+
+from ....kernel_utils import contiguous
+from ._torch_fw import _mlstm_chunkwise__recurrent_fw_C
+
 
 def _mlstm_chunkwise__recurrent_bw_dC(
     matQ: torch.Tensor,  # (B, NH, S, DHQK)
@@ -125,10 +127,10 @@ def _mlstm_chunkwise__parallel_bw_dQKV(
     vecB: torch.Tensor,  # (B, NH, NC, L)
     vecI: torch.Tensor,  # (B, NH, NC, L)
     vecM_combine: torch.Tensor,  # (B, NH, S) = (B, NH, NC * L)
-    scaM_inter: torch.Tensor,  # (B, NH, NC+1)
-    matC_states: torch.Tensor,  # (B, NH, NC * DHQK, DHV)
-    matDeltaH: torch.Tensor,  # (B, NH, S, DHV)
     vecN_out: torch.Tensor,  # (B, NH, S)
+    matC_states: torch.Tensor,  # (B, NH, NC * DHQK, DHV)
+    scaM_inter: torch.Tensor,  # (B, NH, NC+1)
+    matDeltaH: torch.Tensor,  # (B, NH, S, DHV)
     matDeltaC_states: torch.Tensor,  # (B, NH, NC * DHQK, DHV)
     qk_scale: float = None,
     CHUNK_SIZE: int = 64,
@@ -141,6 +143,9 @@ def _mlstm_chunkwise__parallel_bw_dQKV(
     NC = NUM_CHUNKS
     L = CHUNK_SIZE
     _dtype, _device = matQ.dtype, matQ.device
+
+    if qk_scale is None:
+        qk_scale = DHQK**-0.5
 
     #! intra chunk gradients
     # load / prepare the inputs
@@ -399,4 +404,3 @@ def _mlstm_chunkwise_bw(
         vecDeltaN_initial,
         scaDeltaM_initial,
     )
-

@@ -1,14 +1,5 @@
 # Copyright JKU Linz 2024
 # Author: Maximilian Beck
-import math
-
-import torch
-import torch.nn.functional as F
-import triton
-import triton.language as tl
-
-from ...kernel_utils import contiguous_noctx, torch2triton_dtype
-
 """
 Triton.
 
@@ -19,10 +10,56 @@ We want to compare this to the torch implementation in mlstm_kernels/mlstm/recur
 This is a fused forward decoding step kernel for the mLSTM. Factor of 2 speedup compared to torch.compile.
 Ca. 30% faster than non-fused version.
 
-TODO this kernel still does not use tensor cores. 
-Not sure how to use tensor cores with triton in this case. One needs to pad a block with zeros in SRAM. 
+TODO this kernel still does not use tensor cores.
+Not sure how to use tensor cores with triton in this case. One needs to pad a block with zeros in SRAM.
 I don't know how to do this with triton, yet.
 """
+
+import math
+
+import torch
+import torch.nn.functional as F
+import triton
+import triton.language as tl
+
+from ...kernel_utils import contiguous_noctx, torch2triton_dtype
+from .sequence_loop import recurrent_sequence_fw
+
+
+def mlstm_recurrent_sequence_torch_step_triton_fused(
+    q: torch.Tensor,
+    k: torch.Tensor,
+    v: torch.Tensor,
+    i: torch.Tensor,
+    f: torch.Tensor,
+    c_initial: torch.Tensor = None,
+    n_initial: torch.Tensor = None,
+    m_initial: torch.Tensor = None,
+    return_last_states: bool = False,
+    eps: float = 1e-6,
+    **kwargs,
+) -> (
+    torch.Tensor | tuple[torch.Tensor, tuple[torch.Tensor, torch.Tensor, torch.Tensor]]
+):
+    ret_tuple = recurrent_sequence_fw(
+        mlstm_step_fn=recurrent_step_fw,
+        matQ=q,
+        matK=k,
+        matV=v,
+        vecI=i,
+        vecF=f,
+        matC_initial=c_initial,
+        vecN_initial=n_initial,
+        scaM_initial=m_initial,
+        return_last_states=return_last_states,
+        EPS=eps,
+        return_all_states=False,
+    )
+    if return_last_states:
+        return ret_tuple[0], ret_tuple[3]
+    else:
+        return ret_tuple[0]
+
 
 ENABLE_AUTOTUNING = True
 
@@ -75,7 +112,7 @@ def _recurrent_step_fw_kernel(
     vecQ,  # (B, NH, DHQK)
     vecK,  # (B, NH, DHQK)
     vecV,  # (B, NH, DHV)
-    vecH,  # (B, NH, DHV)
+    vecH,  # (B, NH, DHV) # TODO organize outputs to the end of argument list
     scaI,  # (B, NH, 1)
     scaF,  # (B, NH, 1)
     matC_new,  # (B, NH, DHQK, DHV)
@@ -152,9 +189,7 @@ def _recurrent_step_fw_kernel(
     scaFlog_val = tl.log2(tl.sigmoid(scaF_val)) * 0.6931471805599453
 
     scaM_old_val = tl.load(scaM_old_ptr)
-    scaM_new_val = tl.maximum(
-        scaFlog_val + scaM_old_val, scaI_val
-    ) 
+    scaM_new_val = tl.maximum(scaFlog_val + scaM_old_val, scaI_val)
     tl.store(scaM_new_ptr, scaM_new_val.to(DTYPE))
 
     max_val = tl.exp2((-scaM_new_val.to(tl.float32)) * 1.4426950408889634).to(DTYPE)
@@ -172,7 +207,6 @@ def _recurrent_step_fw_kernel(
     NUM_BLOCKS_DQK = triton.cdiv(DHQK, BLOCK_DQK)
 
     for i_dhqk in range(NUM_BLOCKS_DQK):
-
         vecN_old_ptr = (
             vecN_old
             + i_bnh * s_vecN_nh
@@ -207,7 +241,7 @@ def _recurrent_step_fw_kernel(
 
         # update rule
         # TODO add masking to avoid out of bound access
-        vecK_val = tl.load(vecK_ptr) 
+        vecK_val = tl.load(vecK_ptr)
         vecV_val = tl.load(vecV_ptr)
         # tl.static_print("vecK_val_scaled", vecK_val_scaled)
         # tl.static_print("vecV_val", vecV_val)
@@ -238,7 +272,7 @@ def _recurrent_step_fw_kernel(
         matC_new_bptr = tl.advance(matC_new_bptr, (BLOCK_DQK, 0))
 
         # ? accumulate h_num & qn_dotproduct
-        vecQ_val = tl.load(vecQ_ptr) * qk_scale.to(DTYPE) # TODO add masking to avoid out of bound access
+        vecQ_val = tl.load(vecQ_ptr) * qk_scale
         # outputs
         h_num_temp = vecQ_val[:, None] * matC_new_val
         # tl.static_print("h_num_temp", h_num_temp)

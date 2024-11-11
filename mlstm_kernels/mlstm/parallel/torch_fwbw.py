@@ -1,21 +1,19 @@
-# Copyright JKU Linz 2024
-# Author: Maximilian Beck
-import math
-from typing import Callable
-import torch
-import torch.nn.functional as F
-
-
-from torch.amp import custom_fwd, custom_bwd
-
-from ...kernel_utils import contiguous
-
-
 """
 PyTorch
 
 mLSTM forward and backward pass. Parallel formulation.
 """
+
+# Copyright JKU Linz 2024
+# Author: Maximilian Beck
+import math
+from collections.abc import Callable
+
+import torch
+import torch.nn.functional as F
+from torch.amp import custom_bwd, custom_fwd
+
+from ...kernel_utils import contiguous
 
 
 def _mlstm_fw(
@@ -66,7 +64,10 @@ def _mlstm_fw(
 
     matH = matC @ matV  # (B, NH, S, DH)
 
-    return matH, vecM.squeeze(-1), vecN.squeeze(-1)
+    vecN = vecN.squeeze(-1)
+    vecM = vecM.squeeze(-1)
+
+    return (matH, vecN, vecM)
 
 
 def _mlstm_bw(
@@ -157,7 +158,7 @@ def _mlstm_parallel_fwbw_generator(autocast_kernel_dtype=torch.float32) -> Calla
             vecF: torch.Tensor,
             eps: float = 1e-6,
         ) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
-            matH, vecM, vecN = _mlstm_fw(
+            matH, vecN, vecM = _mlstm_fw(
                 matQ=matQ,
                 matK=matK,
                 matV=matV,
@@ -174,8 +175,8 @@ def _mlstm_parallel_fwbw_generator(autocast_kernel_dtype=torch.float32) -> Calla
         def backward(
             ctx,
             matDeltaHtilde: torch.Tensor,
-            vecDeltaM_unused: torch.Tensor,
             vecDeltaN_unused: torch.Tensor,
+            vecDeltaM_unused: torch.Tensor,
         ) -> tuple[torch.Tensor, ...]:
             (matQ, matK, matV, vecI, vecF, vecM, vecN) = ctx.saved_tensors
             matDeltaQ, matDeltaK, matDeltaV, vecDeltaI, vecDeltaF = _mlstm_bw(
@@ -193,9 +194,15 @@ def _mlstm_parallel_fwbw_generator(autocast_kernel_dtype=torch.float32) -> Calla
     return _mlstm_parallel_fwbw
 
 
-_mlstm_parallel_fwbw_float32 = _mlstm_parallel_fwbw_generator(autocast_kernel_dtype=torch.float32)
-_mlstm_parallel_fwbw_float16 = _mlstm_parallel_fwbw_generator(autocast_kernel_dtype=torch.float16)
-_mlstm_parallel_fwbw_bfloat16 = _mlstm_parallel_fwbw_generator(autocast_kernel_dtype=torch.bfloat16)
+_mlstm_parallel_fwbw_float32 = _mlstm_parallel_fwbw_generator(
+    autocast_kernel_dtype=torch.float32
+)
+_mlstm_parallel_fwbw_float16 = _mlstm_parallel_fwbw_generator(
+    autocast_kernel_dtype=torch.float16
+)
+_mlstm_parallel_fwbw_bfloat16 = _mlstm_parallel_fwbw_generator(
+    autocast_kernel_dtype=torch.bfloat16
+)
 
 
 def _get_parallel_fwbw_kernel(autocast_kernel_dtype: torch.dtype) -> Callable:

@@ -34,6 +34,7 @@ def mlstm_interface(
 ## Kernel variants
 
 The mLSTM repo contains the following kernel variants:
+
 - `chunkwise`: chunkwise kernels like flash linear attention (sub-quadratic)
 - `parallel`: parallel kernels like flash attention (quadratic)
 - `recurrent`: recurrent kernels (mostly for inference) (linear)
@@ -42,15 +43,49 @@ Not all variants support all features of the interface. Only the chunkwise and r
 
 ### Kernel naming
 
-#### External names of kernel functions in chunkwise, parallel and recurrent modules:
+#### External names of kernel functions in chunkwise, parallel and recurrent modules
+
 - Python function: `mlstm_[recurrent|parallel|chunkwise]_[specifier]_[triton|torch]_[[autograd|ownbw]]`
 - Registry name (within module): `[specifier]_[triton|torch]_[[autograd|ownbw]]`
 
+### Available Kernels
+
+You can view all available kernels for the mLSTM by calling
+
+```python
+from mlstm_kernels.mlstm import get_available_mlstm_kernels
+
+get_available_mlstm_kernels()
+```
+
+Currently available kernels are:
+
+```
+['recurrent_step--step_torch_autograd',
+ 'recurrent_step--step_triton',
+ 'recurrent_step--step_fused_triton',
+ 'recurrent_sequence--sequence_torch_autograd',
+ 'recurrent_sequence--sequence_triton',
+ 'chunkwise--torch_autograd',
+ 'chunkwise--torch_ownbw',
+ 'chunkwise--max_triton',
+ 'chunkwise--max_triton_v1',
+ 'chunkwise--max_triton_v2',
+ 'chunkwise--max_triton_v3',
+ 'chunkwise--triton',
+ 'chunkwise--stable_triton',
+ 'parallel--torch_autograd',
+ 'parallel--torch_ownbw',
+ 'parallel--stable_torch_autograd',
+ 'parallel--stable_torch_ownbw',
+ 'parallel--triton']
+```
 
 ## Running the unit tests
 
 The unit tests cross-check the different kernel implementations on numerical deviations for different dtypes.
 You can run all of them with the following command:
+
 ```bash
 pytest -s tests/test_mlstm/
 ```
@@ -64,25 +99,35 @@ Each test starts with the line
 
 This test tests the chunkwise triton kernel `max_triton_v3` against the `parallel_stable_ag` baseline and runs the `max_triton_v3` in dtype float32. It will compare the errors against the baseline in the same dtype (i.e. float32 here) and in float64.
 
+### Unit Test structure
 
+Our ground truth kernels are the parallel torch mLSTM implementations:
 
----
----
----
-# Working Notes:
+- `'parallel--stable_torch_autograd'`: No subtraction when the forget gate matrix is computed. This is numerically more stable.
+- `'parallel--torch_autograd'`: Forget gate matrix is computed with subtraction.
 
-## TODOs
-- write unit tests
-- adapt f i m shape of recurrent step kernels
-- run training with different kernels
+We then compare all our chunkwise kernels and recurrent kernels with these baselines.
 
-## Next steps
+We use the recurrent kernels to check for numerical correctness of the initial state and the last state.
 
-- [ ] integrate memory tracker for kernels for measuring GPU memory during speed tests
+## Profiling Kernels with Nsight Systems & Nsight Compute
 
+### Nsight Systems
 
+Documentation: <https://docs.nvidia.com/nsight-systems/UserGuide/#cli-profiling>
 
-## Questions about Nsight Systems & Nsight Compute
+Command:
 
-- How can I organize the workflow efficiently in project.
-- How can I compare to baselines efficiently.
+```bash
+PYTHONPATH=. nsys profile -t cuda,osrt,nvtx,cudnn,cublas -w true -o ./nvidia_nsight/nsys_mlstm_v5xlchunksize python scripts/run_mlstm_max_triton_v5xlchunksize.py
+```
+
+### Nsight Compute
+
+Documentation: <https://docs.nvidia.com/nsight-compute/NsightComputeCli/index.html>
+
+Command:
+
+```bash
+PYTHONPATH=. ncu -o kernel_prof -f -c 1 -k _mlstm_chunkwise__parallel_fw_Hintra_kernel --set=full python ./scripts/run_mlstm_max_triton_v5xlchunksize_fwbw.p
+```

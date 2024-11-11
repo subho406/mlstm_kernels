@@ -15,16 +15,14 @@ from itertools import product
 #     "DHHV": [16,16,16,16], #[5, 5, 5, 5],
 # }
 combinations_long = {
-    "S": [4096],  # [8192],
+    "S": [256],  # [8192],
     "B": [1],  # [2, 2, 2, 2],
-    "NH": [1],  # [3, 3, 3, 3],
-    "DHQK": [16],  # [5, 5, 5, 5],
-    "DHHV": [16],  # [5, 5, 5, 5],
+    "NH": [2],  # [3, 3, 3, 3],
+    "DHQK": [64],  # [5, 5, 5, 5],
+    "DHHV": [128],  # [5, 5, 5, 5],
 }
 combinations_long_list = [values for values in zip(*combinations_long.values())]
-target_dtypes = ["float16", "bfloat16", "float32", "float64"]
+target_dtypes = ["bfloat16", "float32"]
 
-final_combinations = [
-    (*combinations, dtype)
-    for combinations, dtype in product(combinations_long_list, target_dtypes)
-]
+# final_combinations = [(*combinations, dtype) for combinations, dtype in product(combinations_long_list, target_dtypes)]
+final_combinations = combinations_long_list

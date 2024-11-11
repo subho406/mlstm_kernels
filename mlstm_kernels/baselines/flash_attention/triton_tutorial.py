@@ -1,5 +1,5 @@
 # @mbeck: This is a copy from: https://github.com/triton-lang/triton/blob/main/python/tutorials/06-fused-attention.py
-
+# @mbeck: This kernel does not support bfloat16.
 """
 Fused Attention
 ===============
@@ -267,12 +267,8 @@ def _attn_bwd_preprocess(
     off_hz = tl.program_id(1)
     off_n = tl.arange(0, HEAD_DIM)
     # load
-    o = tl.load(
-        O + off_hz * HEAD_DIM * N_CTX + off_m[:, None] * HEAD_DIM + off_n[None, :]
-    )
-    do = tl.load(
-        DO + off_hz * HEAD_DIM * N_CTX + off_m[:, None] * HEAD_DIM + off_n[None, :]
-    ).to(tl.float32)
+    o = tl.load(O + off_hz * HEAD_DIM * N_CTX + off_m[:, None] * HEAD_DIM + off_n[None, :])
+    do = tl.load(DO + off_hz * HEAD_DIM * N_CTX + off_m[:, None] * HEAD_DIM + off_n[None, :]).to(tl.float32)
     delta = tl.sum(o * do, axis=1)
     # write-back
     tl.store(Delta + off_hz * N_CTX + off_m, delta)
@@ -593,7 +589,7 @@ def _attn_bwd(
 
 class _attention(torch.autograd.Function):
     @staticmethod
-    def forward(ctx, q, k, v, causal, scale):
+    def forward(ctx, q, k, v, causal, scale=None):
         # shape constraints
         HEAD_DIM_Q, HEAD_DIM_K = q.shape[-1], k.shape[-1]
         # when v is in float8_e5m2 it is transposed.
@@ -615,9 +611,7 @@ class _attention(torch.autograd.Function):
             q.shape[0] * q.shape[1],
             1,
         )
-        M = torch.empty(
-            (q.shape[0], q.shape[1], q.shape[2]), device=q.device, dtype=torch.float32
-        )
+        M = torch.empty((q.shape[0], q.shape[1], q.shape[2]), device=q.device, dtype=torch.float32)
         _attn_fwd[grid](
             q,
             k,

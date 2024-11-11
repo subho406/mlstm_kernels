@@ -1,11 +1,5 @@
 # Copyright JKU Linz 2024
 # Author: Maximilian Beck
-import math
-
-import torch
-import triton
-import triton.language as tl
-
 """
 Triton
 
@@ -13,11 +7,17 @@ mLSTM backward pass. Parallel formulation.
 
 The backward pass is implemented in two kernels in order to avoid the the necessity of synchronisation between two blocks.
 
-The first loop computes the delta errors for the keys, values and the input gates. 
+The first loop computes the delta errors for the keys, values and the input gates.
 The second loop computes the delta errors for the queries.
 
 After these two loops we compute the delta errors for the forget gates.
 """
+
+import math
+
+import torch
+import triton
+import triton.language as tl
 
 ENABLE_AUTOTUNING = True
 
@@ -26,14 +26,14 @@ if ENABLE_AUTOTUNING:
         triton.Config({"BLOCK_Q": BQ, "BLOCK_KV": BKV}, num_stages=s, num_warps=w)
         for BQ, BKV in [
             (128, 128),
-            (128, 64),
-            (128, 32),
-            (128, 16),
+            # (128, 64),
+            # (128, 32),
+            # (128, 16),
             (64, 64),
-            (64, 32),
-            (64, 16),
+            # (64, 32),
+            # (64, 16),
             (32, 32),
-            (32, 16),
+            # (32, 16),
             (16, 16),
         ]
         for s in [3, 4, 7]
@@ -68,8 +68,8 @@ def keep(conf):
     return True
 
 
-BLOCK_Q = 16
-BLOCK_KV = 16
+# BLOCK_Q = 16
+# BLOCK_KV = 16
 
 
 @triton.autotune(list(filter(keep, configs)), key=["N_CTX", "HEAD_DIM"])
@@ -612,11 +612,9 @@ def mlstm_bw(
     vecF_cs = torch.nn.functional.logsigmoid(vecF.to(dtype=torch.float32)).cumsum(-1)
     ## ? end preprocessing
 
-    grid_dKdV = lambda args: (
-        triton.cdiv(SL, args["BLOCK_KV"]),
-        BS * NH,
-        1,
-    )
+    def grid_dKdV(args):
+        return triton.cdiv(SL, args["BLOCK_KV"]), BS * NH, 1
+
     # fix grid for debugging
     # grid_dKdV = lambda args: (
     #     triton.cdiv(SL, BLOCK_KV_dKdV),
@@ -668,11 +666,9 @@ def mlstm_bw(
         # BLOCK_KV=BLOCK_KV_dKdV,
     )
 
-    grid_dQ = lambda args: (
-        triton.cdiv(SL, args["BLOCK_Q"]),
-        BS * NH,
-        1,
-    )
+    def grid_dQ(args):
+        return triton.cdiv(SL, args["BLOCK_Q"]), BS * NH, 1
+
     # fix grid for debugging
     # grid_dQ = lambda args: (
     #     triton.cdiv(SL, BLOCK_Q_dQ),
@@ -729,7 +725,7 @@ def mlstm_bw(
     # No! this causes loading and casting all the data again.
     vecDeltaFbar_acc = (matQ * matDeltaQ - matK * matDeltaK).sum(-1)
     vecDeltaFbar = vecDeltaFbar_acc.flip(-1).cumsum(-1).flip(-1)
-    vecDeltaF = (vecDeltaFbar * torch.sigmoid(-vecF))
+    vecDeltaF = vecDeltaFbar * torch.sigmoid(-vecF)
     ## ? end postprocessing
 
     return matDeltaQ, matDeltaK, matDeltaV, vecDeltaI, vecDeltaF

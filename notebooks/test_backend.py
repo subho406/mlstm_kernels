@@ -1,16 +1,18 @@
-import matplotlib.pyplot as plt
-import torch
-from mlstm_kernels.test_utils.test_fwbw import test_forward, test_backward
+import os
+from math import sqrt
 
 from mlstm_kernels.mlstm.chunkwise.triton_fwbw import mlstm_fwbw as mlstm_fwbw_chunk
 from mlstm_kernels.mlstm.parallel.stable_torch_fwbw import mlstm_parallel_torch_ownbw
 from mlstm_kernels.mlstm.chunkwise.triton_fwbw_stablef import (
     mlstm_fwbw as mlstm_fwbw_chunkstab,
 )
-
+from mlstm_kernels.mlstm.parallel.stable_torch_fwbw import mlstm_parallel_torch_ownbw
+from mlstm_kernels.test_utils.test_fwbw import test_backward, test_forward
 
 from math import sqrt
 import os
+import matplotlib.pyplot as plt
+import torch
 
 # options
 _ = (mlstm_parallel_torch_ownbw, mlstm_fwbw_chunk, mlstm_fwbw_chunkstab)

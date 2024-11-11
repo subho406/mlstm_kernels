@@ -1,11 +1,5 @@
 # Copyright JKU Linz 2024
 # Author: Maximilian Beck
-import math
-
-import torch
-import triton
-import triton.language as tl
-
 """
 Triton
 
@@ -16,6 +10,12 @@ Similar work partitioning as Flash-Attention2.
 # TODO adapt to notation of backward pass in _triton_bw.py
 """
 
+import math
+
+import torch
+import triton
+import triton.language as tl
+
 ENABLE_AUTOTUNING = True
 
 if ENABLE_AUTOTUNING:
@@ -23,17 +23,17 @@ if ENABLE_AUTOTUNING:
         triton.Config({"BLOCK_Q": BQ, "BLOCK_KV": BKV}, num_stages=s, num_warps=w)
         for BQ, BKV in [
             (128, 128),
-            (128, 64),
-            (128, 32),
-            (128, 16),
+            # (128, 64),
+            # (128, 32),
+            # (128, 16),
             (64, 64),
-            (64, 32),
-            (64, 16),
+            # (64, 32),
+            # (64, 16),
             (32, 32),
-            (32, 16),
+            # (32, 16),
             (16, 16),
         ]
-        for s in [3, 4, 7]
+        for s in [4]
         for w in [4, 8]
     ]
 else:
@@ -64,8 +64,8 @@ def keep(conf):
     return True
 
 
-BLOCK_Q = 16
-BLOCK_KV = 16
+# BLOCK_Q = 16
+# BLOCK_KV = 16
 
 MINIMUM_MAX_VAL = -10  # -float("inf")  # -10.0
 
@@ -272,6 +272,7 @@ def _mlstm_fwd(
     tl.store(vecN_ptr, n_old.to(vecN.type.element_ty))
 
 
+# TODO: enable different head dimensions for qk and v
 def mlstm_fw(
     matQ: torch.Tensor,
     matK: torch.Tensor,
@@ -283,15 +284,18 @@ def mlstm_fw(
     # BLOCK_KV: int = BLOCK_KV,
 ) -> torch.Tensor:
     # batch size, number of heads, sequence length, head dimension
-    BS, NH, SL, DH = matQ.shape
-    assert vecI.shape == (BS, NH, SL)
-    assert vecF.shape == (BS, NH, SL)
+    BS, NH, S, DHQK = matQ.shape
+    _, _, _, DHHV = matV.shape
+    assert vecI.shape == (BS, NH, S)
+    assert vecF.shape == (BS, NH, S)
 
     # shape constraints
     HEAD_DIM_Q, HEAD_DIM_K = matQ.shape[-1], matK.shape[-1]
     # when v is in float8_e5m2 it is transposed.
     HEAD_DIM_V = matV.shape[-1]
-    assert HEAD_DIM_Q == HEAD_DIM_K and HEAD_DIM_K == HEAD_DIM_V
+    assert (
+        HEAD_DIM_Q == HEAD_DIM_K and HEAD_DIM_K == HEAD_DIM_V
+    ), f"Q, K, V must have the same head dimension"
     assert HEAD_DIM_K in {
         16,
         32,
@@ -300,17 +304,17 @@ def mlstm_fw(
         256,
     }, f"Only head dimensions 16, 32, 64, 128, 256 are supported, got {HEAD_DIM_K}"
 
-    grid = lambda args: (
-        triton.cdiv(matQ.shape[2], args["BLOCK_Q"]),
-        matQ.shape[0] * matQ.shape[1],
-        1,
-    )
+    def grid(args):
+        return (
+            triton.cdiv(matQ.shape[2], args["BLOCK_Q"]),
+            matQ.shape[0] * matQ.shape[1],
+            1,
+        )
+
     # fix grid for debugging
-    # grid = lambda args: (
-    #     triton.cdiv(matQ.shape[2], BLOCK_Q),
-    #     matQ.shape[0] * matQ.shape[1],
-    #     1,
-    # )
+    # def grid(args):
+    #     return triton.cdiv(S, BLOCK_Q), BS * NH, 1
+
     # print(f"Triton grid: {grid(None)}, BLOCK_Q: {BLOCK_Q}, BLOCK_KV: {BLOCK_KV}")
 
     matH = torch.empty_like(matQ)
@@ -361,7 +365,7 @@ def mlstm_fw(
         stride_ifmn_m=vecF_cs.stride(2),
         Z=BS,
         H=NH,
-        N_CTX=SL,
+        N_CTX=S,
         HEAD_DIM=HEAD_DIM_K,
         # BLOCK_Q=BLOCK_Q,
         # BLOCK_KV=BLOCK_KV,
@@ -369,4 +373,4 @@ def mlstm_fw(
         EPS=eps,
     )
 
-    return matH, vecM, vecN
+    return matH, vecN, vecM

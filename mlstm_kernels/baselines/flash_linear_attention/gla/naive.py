@@ -2,7 +2,6 @@
 
 import torch
 import torch.nn.functional as F
-
 from fla.ops.gla.recurrent_fuse import fused_recurrent_gla
 
 

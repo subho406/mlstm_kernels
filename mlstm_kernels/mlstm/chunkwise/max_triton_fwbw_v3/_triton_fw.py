@@ -1,11 +1,13 @@
 # Copyright JKU Linz 2024
 # Author: Maximilian Beck
+from typing import Optional
+
 import torch
 import torch.nn.functional as F
 import triton
 import triton.language as tl
-from typing import Optional
 from einops import rearrange
+
 from ....kernel_utils import contiguous_noctx, is_power_of_2, torch2triton_dtype
 
 # Triton.
@@ -589,7 +591,6 @@ def _mlstm_chunkwise__parallel_fw_H(
     num_stages = 1
     num_warps = 4 if siz_b_DHQK == 64 else 2
 
-    # TODO make these empty
     matH_out = torch.empty(B, NH, S, DHHV, device=matQ.device, dtype=matQ.dtype)
     vecN_out = torch.empty(B, NH, S, device=matQ.device, dtype=torch.float32)
     vecM_out = torch.empty(B, NH, S, device=matQ.device, dtype=torch.float32)
