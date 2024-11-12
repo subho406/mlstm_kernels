@@ -3,7 +3,7 @@ from .stable_torch_fwbw import (
     mlstm_parallel_torch_ownbw as mlstm_parallel_stable_torch_ownbw,
 )
 from .torch_fwbw import mlstm_parallel_torch_autograd, mlstm_parallel_torch_ownbw
-from .triton_fwbw.triton_fwbw import mlstm_parallel_triton
+from .triton_fwbw_v2.triton_fwbw import mlstm_parallel_triton
 
 registry = {
     "torch_autograd": mlstm_parallel_torch_autograd,
