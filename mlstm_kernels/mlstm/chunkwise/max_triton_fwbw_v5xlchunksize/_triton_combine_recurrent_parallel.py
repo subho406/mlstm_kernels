@@ -146,7 +146,6 @@ def mlstm_chunkwise_bw(
     matC_initial: torch.Tensor = None,  # (B, NH, DHQK, DHV)
     vecN_initial: torch.Tensor = None,  # (B, NH, DHQK)
     scaM_initial: torch.Tensor = None,  # (B, NH)
-    qk_scale: float = None,
     ## Backward arguments
     matCstate_all: torch.Tensor = None,  # (B, NH, (NCsaved+1) * DHQK, DHV)
     vecNstate_all: torch.Tensor = None,  # (B, NH, (NCsaved+1) * DHQK)
@@ -156,6 +155,7 @@ def mlstm_chunkwise_bw(
     matDeltaH_out: torch.Tensor = None,  # (B, NH, S, DHV)
     matDeltaC_last: torch.Tensor = None,  # (B, NH, DHQK, DHV)
     ## Other arguments
+    qk_scale: float = None,
     chunk_size_inter: int = 64,
     chunk_size_intra: int = 64,
     siz_b_L_parallel: int = 32,

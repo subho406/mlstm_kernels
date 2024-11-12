@@ -28,7 +28,7 @@ from ._triton_combine_recurrent_parallel import mlstm_chunkwise_bw, mlstm_chunkw
 
 
 ## PyTorch Autograd Function - Boilerplate
-def _mlstm_chunkwise_fwbw_generator(autocast_kernel_dtype=torch.float16) -> Callable:
+def _mlstm_chunkwise_fwbw_generator(autocast_kernel_dtype=torch.bfloat16) -> Callable:
     class _mlstm_chunkwise_fwbw(torch.autograd.Function):
         @staticmethod
         @custom_fwd(device_type="cuda", cast_inputs=autocast_kernel_dtype)
@@ -177,7 +177,6 @@ def _mlstm_chunkwise_fwbw_generator(autocast_kernel_dtype=torch.float16) -> Call
                 matC_initial=matC_initial,
                 vecN_initial=vecN_initial,
                 scaM_initial=scaM_initial,
-                qk_scale=float(qk_scale),
                 matCstate_all=matC_all,
                 vecNstate_all=vecN_all,
                 scaMstate_all=scaM_all,
@@ -185,6 +184,7 @@ def _mlstm_chunkwise_fwbw_generator(autocast_kernel_dtype=torch.float16) -> Call
                 vecM_out=vecM_out,
                 matDeltaH_out=matDeltaH_out,
                 matDeltaC_last=matDeltaC_last,
+                qk_scale=float(qk_scale),
                 chunk_size_inter=int(chunk_size_inter),
                 chunk_size_intra=int(chunk_size_intra),
                 siz_b_L_parallel=int(siz_b_L_parallel),
