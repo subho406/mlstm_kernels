@@ -50,7 +50,7 @@ def mlstm_recurrent_sequence_torch_step_triton_fused(
         vecN_initial=n_initial,
         scaM_initial=m_initial,
         return_last_states=return_last_states,
-        EPS=eps,
+        eps=eps,
         return_all_states=False,
     )
     if return_last_states:

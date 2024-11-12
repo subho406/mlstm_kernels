@@ -39,7 +39,7 @@ def mlstm_recurrent_sequence_torch_autograd(
         vecN_initial=n_initial,
         scaM_initial=m_initial,
         return_last_states=return_last_states,
-        EPS=eps,
+        eps=eps,
         return_all_states=False,
     )
     if return_last_states:
@@ -57,7 +57,7 @@ def recurrent_step_fw(
     vecV: torch.Tensor,  # (B, NH, DHV)
     scaI: torch.Tensor,  # (B, NH, 1)
     scaF: torch.Tensor,  # (B, NH, 1)
-    EPS: float = 1e-6,
+    eps: float = 1e-6,
     **kwargs,
 ) -> tuple[
     torch.Tensor, tuple[torch.Tensor, torch.Tensor, torch.Tensor]
@@ -103,7 +103,7 @@ def recurrent_step_fw(
     qn_dotproduct = vecQ_scaled[:, :, None, :] @ vecN_state_new[:, :, :, None]  # (B, NH, 1, 1)
     qn_dotproduct = qn_dotproduct.squeeze(2)  # (B, NH, 1)
     max_val = torch.exp(-scaM_state_new)  # (B, NH, 1)
-    h_denom = torch.maximum(qn_dotproduct.abs(), max_val) + EPS  # (B, NH, 1)
+    h_denom = torch.maximum(qn_dotproduct.abs(), max_val) + eps  # (B, NH, 1)
     h = h_num / h_denom  # (B, NH, DHV) / (B, NH, 1) = (B, NH, DHV)
 
     return h, (matC_state_new, vecN_state_new, scaM_state_new)

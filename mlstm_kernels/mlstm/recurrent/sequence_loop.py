@@ -16,7 +16,7 @@ def recurrent_sequence_fw(
     scaM_initial: torch.Tensor = None,  # (B, NH)
     return_last_states: bool = False,
     return_all_states: bool = False,
-    EPS: float = 1e-6,
+    eps: float = 1e-6,
     **kwargs,
 ) -> tuple[
     torch.Tensor,  # (B, NH, S, DHV)
@@ -83,7 +83,7 @@ def recurrent_sequence_fw(
             vecV=vecV_t,
             scaI=vecI_t,
             scaF=vecF_t,
-            EPS=EPS,
+            eps=eps,
         )
         vecH_list.append(vecH)
         vecN_list.append(vecN_state)
