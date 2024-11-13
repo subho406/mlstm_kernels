@@ -1,13 +1,14 @@
 # Copyright JKU Linz 2024
 # Author: Maximilian Beck
+from typing import Optional
+
 import torch
 import torch.nn.functional as F
 import triton
 import triton.language as tl
-from typing import Optional
 from einops import rearrange
-from ....kernel_utils import contiguous_noctx, is_power_of_2, torch2triton_dtype
 
+from ....kernel_utils import contiguous_noctx, is_power_of_2, torch2triton_dtype
 from ._triton_fw import _mlstm_chunkwise__recurrent_fw_C
 
 # Triton.
@@ -406,7 +407,7 @@ def _mlstm_chunkwise__parallel_bw_dQKV_kernel(
         order=(1, 0),
     )
     matQ_val = tl.load(matQ_ptr, boundary_check=(0, 1)).to(DTYPE)  # (L, siz_b_DHQK)
-    matK_val = tl.load(matK_ptr, boundary_check=(0, 1)).to(DTYPE)  # (siz_b_DHQK, L)
+    matK_val = tl.load(matK_ptr, boundary_check=(0, 1)).to(DTYPE)  # (L, siz_b_DHQK)
     matS_val = tl.dot(matQ_val, tl.trans(matK_val)) * qk_scale
     matSbar_val = (matS_val * matDbar_val).to(DTYPE)  # (L, L)
 

@@ -1,7 +1,9 @@
-from .torch_fw import recurrent_step_fw as mlstm_recurrent_step_torch_autograd
-from .torch_fw import mlstm_recurrent_sequence_torch_autograd
+from .torch_fw import mlstm_recurrent_sequence_torch_autograd, recurrent_step_fw as mlstm_recurrent_step_torch_autograd
+from .triton_fused_fw import (
+    mlstm_recurrent_sequence_torch_step_triton_fused,
+    recurrent_step_fw as mlstm_recurrent_step_fused_triton,
+)
 from .triton_fw import recurrent_step_fw as mlstm_recurrent_step_triton
-from .triton_fused_fw import recurrent_step_fw as mlstm_recurrent_step_fused_triton
 
 registry_step = {
     "step_torch_autograd": mlstm_recurrent_step_torch_autograd,
@@ -11,4 +13,5 @@ registry_step = {
 
 registry_sequence = {
     "sequence_torch_autograd": mlstm_recurrent_sequence_torch_autograd,
+    "sequence_triton": mlstm_recurrent_sequence_torch_step_triton_fused,
 }

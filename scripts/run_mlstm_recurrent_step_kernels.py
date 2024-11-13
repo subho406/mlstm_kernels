@@ -1,13 +1,10 @@
 import sys
 
 sys.path.append("../..")
+import argparse
 import os
 
-import argparse
-
 os.environ["TRITON_PRINT_AUTOTUNING"] = "1"
-import torch
-
 from mlstm_kernels.components.ln import MultiHeadLayerNorm
 from mlstm_kernels.mlstm.parallel import mlstm_parallel_torch_autograd
 from mlstm_kernels.mlstm.recurrent._torch_fw_legacy import (
@@ -16,15 +13,16 @@ from mlstm_kernels.mlstm.recurrent._torch_fw_legacy import (
 from mlstm_kernels.mlstm.recurrent.torch_fw import (
     recurrent_step_fw as recurrent_step_fw_torch,
 )
-from mlstm_kernels.mlstm.recurrent.triton_fw import (
-    recurrent_step_fw as mlstm_recurrent_step_triton,
-)
 from mlstm_kernels.mlstm.recurrent.triton_fused_fw import (
     recurrent_step_fw as mlstm_recurrent_step_fused_triton,
 )
-from tqdm import tqdm
-import triton
+from mlstm_kernels.mlstm.recurrent.triton_fw import (
+    recurrent_step_fw as mlstm_recurrent_step_triton,
+)
 
+import torch
+import triton
+from tqdm import tqdm
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()

@@ -9,6 +9,7 @@ import triton.language as tl
 
 from ...kernel_utils import contiguous
 
+
 @triton.autotune(
     configs=[
         triton.Config({'BT': 16}, num_warps=2),

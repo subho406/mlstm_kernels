@@ -13,10 +13,11 @@ This is a Triton implementation of the Flash Attention algorithm
 @mbeck: In contrast to the triton_tutorial.py this version does not compute dQ separately with a second kernel.
 """
 
+import math
+
 import torch
 import triton
 import triton.language as tl
-import math
 
 
 @triton.jit
@@ -58,15 +59,9 @@ def _fwd_kernel(
     offs_m = start_m * BLOCK_M + tl.arange(0, BLOCK_M)
     offs_n = tl.arange(0, BLOCK_N)
     offs_d = tl.arange(0, BLOCK_DMODEL)
-    off_q = (
-        off_hz * stride_qh + offs_m[:, None] * stride_qm + offs_d[None, :] * stride_qk
-    )
-    off_k = (
-        off_hz * stride_qh + offs_n[:, None] * stride_kn + offs_d[None, :] * stride_kk
-    )
-    off_v = (
-        off_hz * stride_qh + offs_n[:, None] * stride_qm + offs_d[None, :] * stride_qk
-    )
+    off_q = off_hz * stride_qh + offs_m[:, None] * stride_qm + offs_d[None, :] * stride_qk
+    off_k = off_hz * stride_qh + offs_n[:, None] * stride_kn + offs_d[None, :] * stride_kk
+    off_v = off_hz * stride_qh + offs_n[:, None] * stride_qm + offs_d[None, :] * stride_qk
     # Initialize pointers to Q, K, V
     q_ptrs = Q + off_q
     k_ptrs = K + off_k
@@ -123,9 +118,7 @@ def _fwd_kernel(
     tl.store(m_ptrs, m_i)
     # initialize pointers to output
     offs_n = tl.arange(0, BLOCK_DMODEL)
-    off_o = (
-        off_hz * stride_oh + offs_m[:, None] * stride_om + offs_n[None, :] * stride_on
-    )
+    off_o = off_hz * stride_oh + offs_m[:, None] * stride_om + offs_n[None, :] * stride_on
     out_ptrs = Out + off_o
     tl.store(out_ptrs, acc)
 
@@ -231,7 +224,7 @@ def _bwd_kernel(
 
             k_trans = tl.trans(k)
             qk = tl.dot(q, k_trans)
-            
+
             qk = tl.where(offs_m_curr[:, None] >= (offs_n[None, :]), qk, float("-inf"))
             m = tl.load(m_ptrs + offs_m_curr)
             p = tl.exp(qk * sm_scale - m[:, None])
@@ -270,7 +263,7 @@ def _bwd_kernel(
 
 class _attention(torch.autograd.Function):
     @staticmethod
-    def forward(ctx, q, k, v, scale):
+    def forward(ctx, q, k, v, scale=None):
         BLOCK = 128
         # shape constraints
         Lq, Lk, Lv = q.shape[-1], k.shape[-1], v.shape[-1]
@@ -278,17 +271,11 @@ class _attention(torch.autograd.Function):
         assert Lk in {16, 32, 64, 128}
         o = torch.empty_like(q)
         grid = (triton.cdiv(q.shape[2], BLOCK), q.shape[0] * q.shape[1])
-        tmp = torch.empty(
-            (q.shape[0] * q.shape[1], q.shape[2]), device=q.device, dtype=torch.float32
-        )
-        L = torch.empty(
-            (q.shape[0] * q.shape[1], q.shape[2]), device=q.device, dtype=torch.float32
-        )
-        m = torch.empty(
-            (q.shape[0] * q.shape[1], q.shape[2]), device=q.device, dtype=torch.float32
-        )
+        tmp = torch.empty((q.shape[0] * q.shape[1], q.shape[2]), device=q.device, dtype=torch.float32)
+        L = torch.empty((q.shape[0] * q.shape[1], q.shape[2]), device=q.device, dtype=torch.float32)
+        m = torch.empty((q.shape[0] * q.shape[1], q.shape[2]), device=q.device, dtype=torch.float32)
         num_warps = 4 if Lk <= 64 else 8
-        
+
         sm_scale = scale if scale is not None else 1 / math.sqrt(q.size(-1))
 
         _fwd_kernel[grid](

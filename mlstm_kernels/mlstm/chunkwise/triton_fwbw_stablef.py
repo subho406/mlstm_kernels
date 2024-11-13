@@ -1,11 +1,11 @@
 # Author Korbinian Poeppel
+from dataclasses import dataclass
 from typing import Literal
 
 import torch
 import triton
 import triton.language as tl
-from torch.amp import custom_fwd, custom_bwd
-from dataclasses import dataclass
+from torch.amp import custom_bwd, custom_fwd
 
 from ...kernel_utils import contiguous
 

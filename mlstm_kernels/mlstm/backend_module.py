@@ -1,7 +1,8 @@
-import torch
-from torch import nn
 from dataclasses import dataclass
 from typing import Literal
+
+import torch
+from torch import nn
 
 from . import get_mlstm_kernel
 
@@ -14,6 +15,9 @@ class mLSTMBackendConfig:
         "chunkwise--torch_autograd",
         "chunkwise--torch_ownbw",
         "chunkwise--max_triton",
+        "chunkwise--max_triton_v1",
+        "chunkwise--max_triton_v2",
+        "chunkwise--max_triton_v3",
         "chunkwise--triton",
         "parallel--torch_autograd",
         "parallel--torch_ownbw",

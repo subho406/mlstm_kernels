@@ -1,16 +1,15 @@
+import os
+from math import sqrt
+
 import matplotlib.pyplot as plt
 import torch
-from mlstm_kernels.test_utils.test_fwbw import test_forward, test_backward
 
 from mlstm_kernels.mlstm.chunkwise.triton_fwbw import mlstm_fwbw as mlstm_fwbw_chunk
-from mlstm_kernels.mlstm.parallel.stable_torch_fwbw import mlstm_parallel_torch_ownbw
 from mlstm_kernels.mlstm.chunkwise.triton_fwbw_stablef import (
     mlstm_fwbw as mlstm_fwbw_chunkstab,
 )
-
-
-from math import sqrt
-import os
+from mlstm_kernels.mlstm.parallel.stable_torch_fwbw import mlstm_parallel_torch_ownbw
+from mlstm_kernels.test_utils.test_fwbw import test_backward, test_forward
 
 # options
 _ = (mlstm_parallel_torch_ownbw, mlstm_fwbw_chunk, mlstm_fwbw_chunkstab)
@@ -87,6 +86,7 @@ def layer_norm(x, ndim=16):
 
 if __name__ == "__main__":
     import sys
+
     import numpy as np
 
     include_initial = True  # False

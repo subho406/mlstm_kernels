@@ -23,6 +23,27 @@
                 "CUDA_VISIBLE_DEVICES": "0",
                 "LOGLEVEL": "DEBUG"
             }
-        }
+        },
+        {
+            "name": "kernel_benchmark",
+            "type": "debugpy",
+            "request": "launch",
+            "stopOnEntry": false,
+            "python": "${command:python.interpreterPath}",
+            "program": "${workspaceFolder}/scripts/run_kernel_benchmark.py",
+            "cwd": "${workspaceFolder}",
+            "console": "integratedTerminal",
+            "justMyCode": false,
+            "args": [
+                // "-cn",
+                // "${workspaceFolder}/scripts/run_kernel_benchmark.py",
+            ],
+            "env": {
+                "CUDA_VISIBLE_DEVICES": "0",
+                "LOGLEVEL": "DEBUG",
+                "PYTHONPATH": "${workspaceFolder}"
+            }
+        },
+
     ]
 }

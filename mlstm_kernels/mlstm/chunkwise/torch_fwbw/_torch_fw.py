@@ -1,32 +1,32 @@
 # Copyright JKU Linz 2024
 # Author: Maximilian Beck
+from collections.abc import Callable
+from typing import Optional
+
 import torch
-from einops import rearrange
 import torch.nn.functional as F
-from typing import Optional, Callable
-from torch.amp import custom_fwd, custom_bwd
+from einops import rearrange
+from torch.amp import custom_bwd, custom_fwd
 
 from ....kernel_utils import contiguous
 
+# PyTorch.
 
-"""PyTorch.
+# Forward and backward pass of the mLSTM chunkwise formulation.
 
-Forward and backward pass of the mLSTM chunkwise formulation.
+# Notation:
+# Dimensions:
+#     B: batch size
+#     NH: number of heads
+#     S: sequence length
+#     DH: hidden dimension
+#     NC: number of chunks
+#     L: chunk size
 
-Notation:
-Dimensions:
-    B: batch size
-    NH: number of heads
-    S: sequence length
-    DH: hidden dimension
-    NC: number of chunks
-    L: chunk size
-
-Variables:
-    vecA, a: forward gate contribution, contribution of forget gates from last chunk state C_{k-1} to current timestep t
-    vecB, b: backward gate contribution, contribution of forget and input gates up to next chunk state C_k (form current timestep t)
-    scaG, g: "go through" gate contribution, contribution of forget gates from C_{k-1} to C_k.
-"""
+# Variables:
+#     vecA, a: forward gate contribution, contribution of forget gates from last chunk state C_{k-1} to current timestep t
+#     vecB, b: backward gate contribution, contribution of forget and input gates up to next chunk state C_k (form current timestep t)
+#     scaG, g: "go through" gate contribution, contribution of forget gates from C_{k-1} to C_k.
 
 
 def _mlstm_chunkwise__recurrent_fw_C(
@@ -81,9 +81,11 @@ def _mlstm_chunkwise__recurrent_fw_C(
         if scaMinter_initial is None
         else scaMinter_initial
     )
-    vecA = (vecB[..., -1, None] - vecB) + vecI
+    vecA = vecB[..., -1, None] - vecB + vecI
     scaG = vecB[..., -1]
     scaA_max = vecA.max(-1).values
+    # print(f"fw_C: vecA: {vecA}, {vecA.shape}")
+    # print(f"fw_C: scaG: {scaG}, {scaG.shape}")
 
     for k in range(0, NUM_CHUNKS):
         # store the states from the previous iteration before updating them
@@ -181,6 +183,7 @@ def _mlstm_chunkwise__parallel_fw_H(
     #! compute the H_states in parallel
 
     # ? Compute intra chunk contribution: H_intra
+    # print("vecB", vecB)
     matF_logsig_chunk = vecB[:, :, :, :, None] - vecB[:, :, :, None, :]
 
     matF_logsig_mask_chunk = torch.where(ltr, matF_logsig_chunk, -float("inf"))
@@ -253,12 +256,14 @@ def _mlstm_chunkwise_fw(
     torch.Tensor,  # matH_out (B, NH, S, DHV)
     torch.Tensor,  # vecN_out (B, NH, S)
     torch.Tensor,  # vecM_out (B, NH, S)
-    Optional[
+    None
+    | (
         tuple[torch.Tensor, torch.Tensor, torch.Tensor]
-    ],  # last_states (matC_states (B, NH, DHQK, DHV), vecN_states (B, NH, DHQK), scaMinter_states (B, NH))
-    Optional[
+    ),  # last_states (matC_states (B, NH, DHQK, DHV), vecN_states (B, NH, DHQK), scaMinter_states (B, NH))
+    None
+    | (
         tuple[torch.Tensor, torch.Tensor, torch.Tensor]
-    ],  # all_states (matC_states (B, NH, (NC+1) * DHQK, DHV), vecN_states (B, NH, (NC+1) * DHQK), scaMinter_states (B, NH, (NC+1)))
+    ),  # all_states (matC_states (B, NH, (NC+1) * DHQK, DHV), vecN_states (B, NH, (NC+1) * DHQK), scaMinter_states (B, NH, (NC+1)))
 ]:
     B, NH, S, DHQK = matQ.shape
     DHV = matV.shape[-1]
@@ -330,6 +335,7 @@ def _mlstm_chunkwise_fw(
 
     return ret_tuple  # (matH_out, vecN_out, vecM_out, optional(last_states), optional(all_states))
 
+
 def mlstm_chunkwise_fw(
     matQ: torch.Tensor,  # (B, NH, S, DHQK)
     matK: torch.Tensor,  # (B, NH, S, DHQK)
@@ -364,4 +370,5 @@ def mlstm_chunkwise_fw(
     if return_last_states:
         return matH_out, last_states
     else:
+        return matH_out
         return matH_out
