@@ -50,9 +50,7 @@ def parallel_stabilized_simple(
         ltr = torch.tril(torch.ones((S, S), dtype=torch.bool, device=_device))
     else:
         ltr = lower_triangular_matrix
-    assert (
-        ltr.dtype == torch.bool
-    ), f"lower_triangular_matrix must be of dtype bool, got {ltr.dtype}"
+    assert ltr.dtype == torch.bool, f"lower_triangular_matrix must be of dtype bool, got {ltr.dtype}"
 
     log_fgates_cumsum = torch.cat(
         [
@@ -64,19 +62,13 @@ def parallel_stabilized_simple(
     # for each batch/head this is a matrix of shape (S+1, S+1) containing the cumsum of the log forget gate values
     # in the second dimension (colum dimension). Each row has the same is a copy of the first row.
     # First entry of each row is zero.
-    rep_log_fgates_cumsum = log_fgates_cumsum.repeat(
-        1, 1, 1, S + 1
-    )  # (B, NH, S+1, S+1)
+    rep_log_fgates_cumsum = log_fgates_cumsum.repeat(1, 1, 1, S + 1)  # (B, NH, S+1, S+1)
     # Now in each row cut off / subtract the forgetgate values of the later timesteps
     # where col j > row i
-    _log_fg_matrix = rep_log_fgates_cumsum - rep_log_fgates_cumsum.transpose(
-        -2, -1
-    )  # (B, NH, S+1, S+1)
+    _log_fg_matrix = rep_log_fgates_cumsum - rep_log_fgates_cumsum.transpose(-2, -1)  # (B, NH, S+1, S+1)
     # Causal masking & selection of the correct submatrix, such that forgetgate at timestep t is not applied
     # to the input at timestep t
-    log_fg_matrix = torch.where(
-        ltr, _log_fg_matrix[:, :, 1:, 1:], -float("inf")
-    )  # (B, NH, S, S)
+    log_fg_matrix = torch.where(ltr, _log_fg_matrix[:, :, 1:, 1:], -float("inf"))  # (B, NH, S, S)
 
     # gate decay matrix D (combination of forget gate and input gate)
     log_D_matrix = log_fg_matrix + igate_preact.transpose(-2, -1)  # (B, NH, S, S)
@@ -84,9 +76,7 @@ def parallel_stabilized_simple(
     if stabilize_rowwise:
         max_log_D, _ = torch.max(log_D_matrix, dim=-1, keepdim=True)  # (B, NH, S, 1)
     else:
-        max_log_D = torch.max(log_D_matrix.view(B, NH, -1), dim=-1, keepdim=True)[
-            0
-        ].unsqueeze(-1)
+        max_log_D = torch.max(log_D_matrix.view(B, NH, -1), dim=-1, keepdim=True)[0].unsqueeze(-1)
         # (B, NH, 1, 1)
     log_D_matrix_stabilized = log_D_matrix - max_log_D  # (B, NH, S, S)
     D_matrix = torch.exp(log_D_matrix_stabilized)  # (B, NH, S, S)
@@ -96,9 +86,7 @@ def parallel_stabilized_simple(
     # combination matrix C
     qk_matrix = queries @ keys_scaled.transpose(-2, -1)  # (B, NH, S, S)
     C_matrix = qk_matrix * D_matrix  # (B, NH, S, S)
-    normalizer = torch.maximum(
-        C_matrix.sum(dim=-1, keepdim=True).abs(), torch.exp(-max_log_D)
-    )  # (B, NH, S, 1)
+    normalizer = torch.maximum(C_matrix.sum(dim=-1, keepdim=True).abs(), torch.exp(-max_log_D))  # (B, NH, S, 1)
     # (B, NH, S, S)
     C_matrix_normalized = C_matrix / (normalizer + eps)
 

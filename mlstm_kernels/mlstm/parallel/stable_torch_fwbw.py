@@ -53,9 +53,7 @@ def _mlstm_fw(
     matS = (matQ @ matK.transpose(-2, -1)) / math.sqrt(DHQK)  # (B, NH, S, S)
 
     matCtilde = matS * matD  # (B, NH, S, S)
-    vecN = torch.maximum(
-        matCtilde.sum(dim=-1, keepdim=True).abs(), torch.exp(-vecM)
-    )  # (B, NH, S, 1)
+    vecN = torch.maximum(matCtilde.sum(dim=-1, keepdim=True).abs(), torch.exp(-vecM))  # (B, NH, S, 1)
     # (B, NH, S, S)
     matC = matCtilde / (vecN + eps)
 
@@ -119,9 +117,7 @@ def _mlstm_bw(
     matDeltaK = (matP.transpose(-2, -1) @ matQ) / math.sqrt(DHQK)
 
     matCtilde = matS * matD
-    matDeltaV = matCtilde.transpose(-2, -1) @ (
-        matDeltaHtilde / (vecN[:, :, :, None] + eps)
-    )
+    matDeltaV = matCtilde.transpose(-2, -1) @ (matDeltaHtilde / (vecN[:, :, :, None] + eps))
 
     # EFFICIENT LINEAR ATTENTION TRICK
     # compute the vecDeltaFbar values with dfbar = rev_cumsum((q*dq - k*dk).sum(-1))
@@ -188,15 +184,9 @@ def _mlstm_parallel_fwbw_generator(autocast_kernel_dtype=torch.float32) -> Calla
     return _mlstm_parallel_fwbw
 
 
-_mlstm_parallel_fwbw_float32 = _mlstm_parallel_fwbw_generator(
-    autocast_kernel_dtype=torch.float32
-)
-_mlstm_parallel_fwbw_float16 = _mlstm_parallel_fwbw_generator(
-    autocast_kernel_dtype=torch.float16
-)
-_mlstm_parallel_fwbw_bfloat16 = _mlstm_parallel_fwbw_generator(
-    autocast_kernel_dtype=torch.bfloat16
-)
+_mlstm_parallel_fwbw_float32 = _mlstm_parallel_fwbw_generator(autocast_kernel_dtype=torch.float32)
+_mlstm_parallel_fwbw_float16 = _mlstm_parallel_fwbw_generator(autocast_kernel_dtype=torch.float16)
+_mlstm_parallel_fwbw_bfloat16 = _mlstm_parallel_fwbw_generator(autocast_kernel_dtype=torch.bfloat16)
 
 
 def _get_parallel_fwbw_kernel(autocast_kernel_dtype: torch.dtype) -> Callable:
@@ -258,9 +248,7 @@ def mlstm_parallel_torch_ownbw(
     assert m_initial is None, "m_initial is not supported"
     assert return_last_states is False, "return_last_states is not supported"
 
-    _mlstm_parallel_fwbw = _get_parallel_fwbw_kernel(
-        autocast_kernel_dtype=autocast_kernel_dtype
-    )
+    _mlstm_parallel_fwbw = _get_parallel_fwbw_kernel(autocast_kernel_dtype=autocast_kernel_dtype)
 
     matH, _, _ = _mlstm_parallel_fwbw.apply(q, k, v, i, f, eps)
     return matH

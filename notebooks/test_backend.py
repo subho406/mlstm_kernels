@@ -31,15 +31,7 @@ def shape_to_rect(shape):
 
 
 def plot_diff(x, y, title=""):
-    dat = (
-        (x - y)
-        .abs()
-        .float()
-        .cpu()
-        .detach()
-        .reshape(shape_to_rect(x.shape))
-        .transpose(0, 1)
-    )
+    dat = (x - y).abs().float().cpu().detach().reshape(shape_to_rect(x.shape)).transpose(0, 1)
     fig, ax = plt.subplots(figsize=(20, 20))
 
     im = ax.imshow(
@@ -58,16 +50,7 @@ def plot_diff(x, y, title=""):
     fig, ax = plt.subplots(figsize=(20, 20))
 
     im = ax.imshow(
-        dat.numpy()
-        / (
-            x.abs()
-            .float()
-            .cpu()
-            .detach()
-            .reshape(shape_to_rect(x.shape))
-            .transpose(0, 1)
-            + 1e-8
-        ),
+        dat.numpy() / (x.abs().float().cpu().detach().reshape(shape_to_rect(x.shape)).transpose(0, 1) + 1e-8),
     )
     fig.colorbar(im, ax=ax)
     if title:
@@ -159,9 +142,7 @@ if __name__ == "__main__":
                 cm,
                 (q, k, v, i, f, C_i, n_i, m_i),
                 comp_func_kwargs={"atol": 0.01, "rtol": 0.01},
-                show_diff_func=lambda x, y: plot_diff(
-                    x, y, f"{bl_name}-{cm_name}-FW-B{B}H{H}T{T}K{K}V{V}"
-                ),
+                show_diff_func=lambda x, y: plot_diff(x, y, f"{bl_name}-{cm_name}-FW-B{B}H{H}T{T}K{K}V{V}"),
             )
             if not "--skip-backward" in sys.argv:
                 test_backward(
@@ -170,7 +151,5 @@ if __name__ == "__main__":
                     (q, k, v, i, f, C_i, n_i, m_i),
                     mask=mask,
                     comp_func_kwargs={"atol": 0.01, "rtol": 0.01},
-                    show_diff_func=lambda x, y: plot_diff(
-                        x, y, f"{bl_name}-{cm_name}-BW-B{B}H{H}T{T}K{K}V{V}"
-                    ),
+                    show_diff_func=lambda x, y: plot_diff(x, y, f"{bl_name}-{cm_name}-BW-B{B}H{H}T{T}K{K}V{V}"),
                 )

@@ -55,31 +55,17 @@ def _mlstm_chunkwise__recurrent_fw_C(
 
     # initialize the states tensors
     if matC_states is None:
-        matC_states = torch.zeros(
-            (B, NH, (NC + 1) * DHQK, DHV), dtype=_dtype, device=_device
-        )
+        matC_states = torch.zeros((B, NH, (NC + 1) * DHQK, DHV), dtype=_dtype, device=_device)
     if vecN_states is None:
-        vecN_states = torch.zeros(
-            (B, NH, (NC + 1) * DHQK), dtype=_dtype, device=_device
-        )
+        vecN_states = torch.zeros((B, NH, (NC + 1) * DHQK), dtype=_dtype, device=_device)
     if scaMinter_states is None:
         scaMinter_states = torch.zeros((B, NH, (NC + 1)), dtype=_dtype, device=_device)
 
     # assign the initial states to the running states
-    matC_k = (
-        torch.zeros((B, NH, DHQK, DHV), dtype=_dtype, device=_device)
-        if matC_initial is None
-        else matC_initial
-    )
-    vecN_k = (
-        torch.zeros((B, NH, DHQK), dtype=_dtype, device=_device)
-        if vecN_initial is None
-        else vecN_initial
-    )
+    matC_k = torch.zeros((B, NH, DHQK, DHV), dtype=_dtype, device=_device) if matC_initial is None else matC_initial
+    vecN_k = torch.zeros((B, NH, DHQK), dtype=_dtype, device=_device) if vecN_initial is None else vecN_initial
     scaM_inter_k = (
-        torch.zeros((B, NH), dtype=_dtype, device=_device)
-        if scaMinter_initial is None
-        else scaMinter_initial
+        torch.zeros((B, NH), dtype=_dtype, device=_device) if scaMinter_initial is None else scaMinter_initial
     )
     vecA = vecB[..., -1, None] - vecB + vecI
     scaG = vecB[..., -1]
@@ -123,9 +109,7 @@ def _mlstm_chunkwise__recurrent_fw_C(
         # )
 
         # NOTE: no update in-place (i.e. +=) as this gives error for autograd backward
-        matC_k_next = scaGbar_k[..., None] * matC_k + matK_chunk_gated.transpose(
-            -2, -1
-        ) @ (matV_chunk)
+        matC_k_next = scaGbar_k[..., None] * matC_k + matK_chunk_gated.transpose(-2, -1) @ (matV_chunk)
 
         # n_k update
         vecN_k_next = scaGbar_k * vecN_k + matK_chunk_gated.transpose(-2, -1).sum(-1)
@@ -157,14 +141,10 @@ def _mlstm_chunkwise__parallel_fw_H(
     CHUNK_SIZE: int = 64,
     NUM_CHUNKS: int = 1,
     EPS: float = 1e-6,
-) -> tuple[
-    torch.Tensor, torch.Tensor
-]:  # matH_out (B, NH, S, DHV), vecN_out (B, NH, S), vecM_out (B, NH, S)
+) -> tuple[torch.Tensor, torch.Tensor]:  # matH_out (B, NH, S, DHV), vecN_out (B, NH, S), vecM_out (B, NH, S)
     _device = matQ.device
     NC, L = NUM_CHUNKS, CHUNK_SIZE
-    matC_k_states = rearrange(
-        matC_states, "b nh (nc dhqk) dhv -> b nh nc dhqk dhv", nc=NC
-    )
+    matC_k_states = rearrange(matC_states, "b nh (nc dhqk) dhv -> b nh nc dhqk dhv", nc=NC)
     vecN_k_states = rearrange(vecN_states, "b nh (nc dhqk) -> b nh nc dhqk", nc=NC)
     scaMinter_k_states = scaMinter_states
 
@@ -191,9 +171,7 @@ def _mlstm_chunkwise__parallel_fw_H(
     matLogD_chunk = matF_logsig_mask_chunk + vecI[:, :, :, None, :]
 
     # max_state intra
-    vecMintra_k = torch.max(
-        matLogD_chunk, dim=-1, keepdim=False
-    ).values  # (B, NH, NC, L)
+    vecMintra_k = torch.max(matLogD_chunk, dim=-1, keepdim=False).values  # (B, NH, NC, L)
 
     # max_state combined
     vecM_b_inter = vecB + scaMinter_k_states[:, :, :, None]  # (B, NH, NC, L)
@@ -214,26 +192,20 @@ def _mlstm_chunkwise__parallel_fw_H(
     # print(f"p_fw, vecBbar: {vecBbar}, {vecBbar.shape}")
     matQ_chunk_gated = matQ * vecBbar * qk_scale
 
-    matNumerator_common = (
-        matQ_chunk_gated @ matC_k_states + matM_chunk @ matV
-    )  # (B, NH, NC, L, DHV)
+    matNumerator_common = matQ_chunk_gated @ matC_k_states + matM_chunk @ matV  # (B, NH, NC, L, DHV)
 
     vecDenom_l_common = matQ_chunk_gated @ vecN_k_states.unsqueeze(-1) + matM_chunk.sum(
         dim=-1, keepdim=True
     )  # (B, NH, NC, L, 1)
 
-    vecDenom_max_common = torch.maximum(
-        torch.abs(vecDenom_l_common), torch.exp(-vecM_k_combine)
-    )
+    vecDenom_max_common = torch.maximum(torch.abs(vecDenom_l_common), torch.exp(-vecM_k_combine))
 
     matH_k_chunk = matNumerator_common / (vecDenom_max_common + EPS)
 
     matH_out = rearrange(matH_k_chunk, "b nh nc l dh -> b nh (nc l) dh")
 
     # we need the denominator and the overall max state for the backward pass
-    vecN_out = rearrange(
-        vecDenom_max_common, "b nh nc l 1 -> b nh (nc l)"
-    )  # (B, NH, S)
+    vecN_out = rearrange(vecDenom_max_common, "b nh nc l 1 -> b nh (nc l)")  # (B, NH, S)
     vecM_out = rearrange(vecM_k_combine, "b nh nc l 1 -> b nh (nc l)")  # (B, NH, S)
     return matH_out, vecN_out, vecM_out
 
@@ -267,9 +239,7 @@ def _mlstm_chunkwise_fw(
 ]:
     B, NH, S, DHQK = matQ.shape
     DHV = matV.shape[-1]
-    assert (
-        S % CHUNK_SIZE == 0
-    ), f"Sequence length {S} is not divisible by chunk size {CHUNK_SIZE}."
+    assert S % CHUNK_SIZE == 0, f"Sequence length {S} is not divisible by chunk size {CHUNK_SIZE}."
     NC = S // CHUNK_SIZE
 
     vecI = rearrange(vecI, "b nh (nc l) -> b nh nc l", l=CHUNK_SIZE)
@@ -349,9 +319,7 @@ def mlstm_chunkwise_fw(
     return_last_states: bool = False,
     CHUNK_SIZE: int = 64,
     EPS: float = 1e-6,
-) -> (
-    torch.Tensor | tuple[torch.Tensor, tuple[torch.Tensor, torch.Tensor, torch.Tensor]]
-):
+) -> torch.Tensor | tuple[torch.Tensor, tuple[torch.Tensor, torch.Tensor, torch.Tensor]]:
     matH_out, _, _, last_states, _ = _mlstm_chunkwise_fw(
         matQ=matQ,
         matK=matK,

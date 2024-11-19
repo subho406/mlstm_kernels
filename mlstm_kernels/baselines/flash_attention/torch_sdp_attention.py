@@ -11,7 +11,8 @@ def attention_causal_pt_fa2(
 ) -> torch.Tensor:
     with sdpa_kernel(SDPBackend.FLASH_ATTENTION):
         return scaled_dot_product_attention(query, key, value, scale=scale)
-    
+
+
 def attention_causal_pt_cudnn(
     query: torch.Tensor,
     key: torch.Tensor,
@@ -20,7 +21,8 @@ def attention_causal_pt_cudnn(
 ) -> torch.Tensor:
     with sdpa_kernel(SDPBackend.CUDNN_ATTENTION):
         return scaled_dot_product_attention(query, key, value, scale=scale)
-    
+
+
 def attention_causal_pt_math(
     query: torch.Tensor,
     key: torch.Tensor,
@@ -29,7 +31,8 @@ def attention_causal_pt_math(
 ) -> torch.Tensor:
     with sdpa_kernel(SDPBackend.MATH):
         return scaled_dot_product_attention(query, key, value, scale=scale)
-    
+
+
 def attention_causal_pt_efficient(
     query: torch.Tensor,
     key: torch.Tensor,

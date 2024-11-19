@@ -1,6 +1,6 @@
 # Copyright JKU Linz 2024
 # Author: Maximilian Beck
-from typing import Callable
+from collections.abc import Callable
 
 import torch
 from torch.amp import custom_bwd, custom_fwd

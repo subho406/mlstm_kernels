@@ -46,10 +46,7 @@ class mLSTMBackend(nn.Module):
         n_initial: torch.Tensor = None,
         m_initial: torch.Tensor = None,
         return_last_states: bool = False,
-    ) -> (
-        torch.Tensor
-        | tuple[torch.Tensor, tuple[torch.Tensor, torch.Tensor, torch.Tensor]]
-    ):
+    ) -> torch.Tensor | tuple[torch.Tensor, tuple[torch.Tensor, torch.Tensor, torch.Tensor]]:
         return self.backend_fn(
             q=q,
             k=k,

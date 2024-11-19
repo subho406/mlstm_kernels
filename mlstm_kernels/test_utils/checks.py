@@ -42,9 +42,7 @@ def check_correctness(
     dtype_str = dtype2str(dtype)
 
     errors = (baseline.detach() - target.detach()).abs()
-    rel_errors = (baseline.detach() - target.detach()).abs() / (
-        (baseline.detach()).abs() + 1e-6
-    )
+    rel_errors = (baseline.detach() - target.detach()).abs() / ((baseline.detach()).abs() + 1e-6)
     errors_np = errors.cpu().numpy()
 
     error_percentiles = np.percentile(errors_np, percentiles)

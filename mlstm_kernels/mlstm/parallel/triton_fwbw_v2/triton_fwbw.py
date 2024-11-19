@@ -60,15 +60,9 @@ def _mlstm_parallel_fwbw_generator(autocast_kernel_dtype=torch.float16) -> Calla
     return _mlstm_parallel_fwbw
 
 
-_mlstm_parallel_fwbw_float32 = _mlstm_parallel_fwbw_generator(
-    autocast_kernel_dtype=torch.float32
-)
-_mlstm_parallel_fwbw_float16 = _mlstm_parallel_fwbw_generator(
-    autocast_kernel_dtype=torch.float16
-)
-_mlstm_parallel_fwbw_bfloat16 = _mlstm_parallel_fwbw_generator(
-    autocast_kernel_dtype=torch.bfloat16
-)
+_mlstm_parallel_fwbw_float32 = _mlstm_parallel_fwbw_generator(autocast_kernel_dtype=torch.float32)
+_mlstm_parallel_fwbw_float16 = _mlstm_parallel_fwbw_generator(autocast_kernel_dtype=torch.float16)
+_mlstm_parallel_fwbw_bfloat16 = _mlstm_parallel_fwbw_generator(autocast_kernel_dtype=torch.bfloat16)
 
 
 def _get_parallel_fwbw_kernel(autocast_kernel_dtype: torch.dtype) -> Callable:
@@ -101,9 +95,7 @@ def mlstm_parallel_triton(
     assert m_initial is None, "m_initial is not supported"
     assert return_last_states is False, "return_last_states is not supported"
 
-    _mlstm_parallel_fwbw = _get_parallel_fwbw_kernel(
-        autocast_kernel_dtype=autocast_kernel_dtype
-    )
+    _mlstm_parallel_fwbw = _get_parallel_fwbw_kernel(autocast_kernel_dtype=autocast_kernel_dtype)
 
     matH, _, _ = _mlstm_parallel_fwbw.apply(q, k, v, i, f, eps)
     return matH

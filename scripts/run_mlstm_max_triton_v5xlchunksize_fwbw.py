@@ -152,11 +152,7 @@ if __name__ == "__main__":
                 with record_function("bw"):
                     loss_tr_v5.backward()
 
-        print(
-            prof.key_averages().table(
-                sort_by=sort_by_keyword, row_limit=50, max_name_column_width=100
-            )
-        )
+        print(prof.key_averages().table(sort_by=sort_by_keyword, row_limit=50, max_name_column_width=100))
     else:
         for i in tqdm(range(warmup_iters), desc="warmup"):
             (matH_tr_v5, _) = kernel_fn(**inputs)

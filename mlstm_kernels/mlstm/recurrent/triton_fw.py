@@ -17,7 +17,7 @@ This module contains the recurrent step of the mLSTM in triton.
 We want to compare this to the torch implementation in mlstm_kernels/mlstm/recurrent/torch_fw.py.
 
 This is a non-fused forward decoding step triton kernel for the mLSTM.
-Ca. 30% faster than the torch.compile version. 
+Ca. 30% faster than the torch.compile version.
 
 First kernel computes the next dC, dN, dM states. Second kernel computes the output H.
 """
@@ -55,6 +55,7 @@ else:
         for s in [1]
     ]
 
+
 def keep(conf):
     BQ = conf.kwargs["BLOCK_DQK"]
     BV = conf.kwargs["BLOCK_DV"]
@@ -62,7 +63,8 @@ def keep(conf):
         return False
     return True
 
-@triton.autotune(list(filter(keep,configs)), key=["DHQK", "DHV"])
+
+@triton.autotune(list(filter(keep, configs)), key=["DHQK", "DHV"])
 @triton.jit
 def _recurrent_step_fw_kernel_C(
     matC_old,  # (B, NH, DHQK, DHV)
@@ -121,34 +123,14 @@ def _recurrent_step_fw_kernel_C(
         order=(0, 1),
     )
 
-    vecN_old_ptr = (
-        vecN_old
-        + i_bnh * s_vecN_nh
-        + i_dhqk * BLOCK_DQK * s_vecN_dhqk
-        + tl.arange(0, BLOCK_DQK)
-    )
-    vecN_new_ptr = (
-        vecN_new
-        + i_bnh * s_vecN_nh
-        + i_dhqk * BLOCK_DQK * s_vecN_dhqk
-        + tl.arange(0, BLOCK_DQK)
-    )
+    vecN_old_ptr = vecN_old + i_bnh * s_vecN_nh + i_dhqk * BLOCK_DQK * s_vecN_dhqk + tl.arange(0, BLOCK_DQK)
+    vecN_new_ptr = vecN_new + i_bnh * s_vecN_nh + i_dhqk * BLOCK_DQK * s_vecN_dhqk + tl.arange(0, BLOCK_DQK)
 
     scaM_old_ptr = scaM_old + i_bnh * s_scaM_nh
     scaM_new_ptr = scaM_new + i_bnh * s_scaM_nh
 
-    vecK_ptr = (
-        vecK
-        + i_bnh * s_vecQK_nh
-        + i_dhqk * BLOCK_DQK * s_vecQK_dhqk
-        + tl.arange(0, BLOCK_DQK)
-    )
-    vecV_ptr = (
-        vecV
-        + i_bnh * s_vecVH_nh
-        + i_dhv * BLOCK_DV * s_vecVH_dhv
-        + tl.arange(0, BLOCK_DV)
-    )
+    vecK_ptr = vecK + i_bnh * s_vecQK_nh + i_dhqk * BLOCK_DQK * s_vecQK_dhqk + tl.arange(0, BLOCK_DQK)
+    vecV_ptr = vecV + i_bnh * s_vecVH_nh + i_dhv * BLOCK_DV * s_vecVH_dhv + tl.arange(0, BLOCK_DV)
 
     scaI_ptr = scaI + i_bnh * s_scaIF_nh
     scaF_ptr = scaF + i_bnh * s_scaIF_nh
@@ -165,7 +147,7 @@ def _recurrent_step_fw_kernel_C(
 
     # update rule
     # cast back to state type
-    scaM_new_val = tl.maximum(scaFlog_val + scaM_old_val, scaI_val)#.to(scaM_old.type.element_ty)
+    scaM_new_val = tl.maximum(scaFlog_val + scaM_old_val, scaI_val)  # .to(scaM_old.type.element_ty)
 
     scaF_act = tl.exp(scaFlog_val + scaM_old_val - scaM_new_val).to(scaM_old.type.element_ty)
     scaI_act = tl.exp(scaI_val - scaM_new_val).to(scaM_old.type.element_ty)
@@ -176,20 +158,17 @@ def _recurrent_step_fw_kernel_C(
 
     matC_old_val = tl.load(matC_old_bptr, boundary_check=(0, 1), padding_option="zero")
 
-    matC_new_val = scaF_act * matC_old_val + scaI_act * (
-        vecK_val[:, None] * vecV_val[None, :]
-    )
+    matC_new_val = scaF_act * matC_old_val + scaI_act * (vecK_val[:, None] * vecV_val[None, :])
 
     vecN_new_val = scaF_act * tl.load(vecN_old_ptr) + scaI_act * vecK_val
 
     # ? Store data
     tl.store(matC_new_bptr, matC_new_val.to(matC_new.type.element_ty), boundary_check=(0, 1))
-    tl.store(
-        vecN_new_ptr, vecN_new_val.to(vecN_new.type.element_ty)
-    )  # TODO add masking to avoid out of bound access
+    tl.store(vecN_new_ptr, vecN_new_val.to(vecN_new.type.element_ty))  # TODO add masking to avoid out of bound access
     tl.store(scaM_new_ptr, scaM_new_val.to(scaM_new.type.element_ty))
 
-@triton.autotune(list(filter(keep,configs)), key=["DHQK", "DHV"])
+
+@triton.autotune(list(filter(keep, configs)), key=["DHQK", "DHV"])
 @triton.jit
 def _recurrent_step_fw_kernel_h(
     vecQ,  # (B, NH, DHQK)
@@ -236,33 +215,17 @@ def _recurrent_step_fw_kernel_h(
     )
     scaM_new_ptr = scaM_new + i_bnh * s_scaM_nh
     scaM_new_val = tl.load(scaM_new_ptr)
-    vecH_ptr = (
-        vecH
-        + i_bnh * s_vecVH_nh
-        + i_dhv * BLOCK_DV * s_vecVH_dhv
-        + tl.arange(0, BLOCK_DV)
-    )
+    vecH_ptr = vecH + i_bnh * s_vecVH_nh + i_dhv * BLOCK_DV * s_vecVH_dhv + tl.arange(0, BLOCK_DV)
 
     h_num = tl.zeros((BLOCK_DV,), dtype=tl.float32)
     qn_dotproduct = tl.zeros((1,), dtype=tl.float32)
-    
+
     NUM_BLOCKS_DQK = triton.cdiv(DHQK, BLOCK_DQK)
 
     for i_dhqk in range(NUM_BLOCKS_DQK):
+        vecN_new_ptr = vecN_new + i_bnh * s_vecN_nh + i_dhqk * BLOCK_DQK * s_vecN_dhqk + tl.arange(0, BLOCK_DQK)
 
-        vecN_new_ptr = (
-            vecN_new
-            + i_bnh * s_vecN_nh
-            + i_dhqk * BLOCK_DQK * s_vecN_dhqk
-            + tl.arange(0, BLOCK_DQK)
-        )
-
-        vecQ_ptr = (
-            vecQ
-            + i_bnh * s_vecQK_nh
-            + i_dhqk * BLOCK_DQK * s_vecQK_dhqk
-            + tl.arange(0, BLOCK_DQK)
-        )
+        vecQ_ptr = vecQ + i_bnh * s_vecQK_nh + i_dhqk * BLOCK_DQK * s_vecQK_dhqk + tl.arange(0, BLOCK_DQK)
 
         # ? Load data
         matC_new_val = tl.load(matC_new_bptr, boundary_check=(0, 1), padding_option="zero")
@@ -276,7 +239,7 @@ def _recurrent_step_fw_kernel_h(
         h_num += tl.sum(h_num_temp, axis=0)
 
         qn_dotproduct += tl.sum(vecQ_val * vecN_new_val)
-        matC_new_bptr = tl.advance(matC_new_bptr, (BLOCK_DQK,0))
+        matC_new_bptr = tl.advance(matC_new_bptr, (BLOCK_DQK, 0))
 
     max_val = tl.exp(-scaM_new_val.to(tl.float32)).to(scaM_new.type.element_ty)
     h_denom = tl.maximum(tl.abs(qn_dotproduct), max_val) + EPS
@@ -288,6 +251,7 @@ def _recurrent_step_fw_kernel_h(
 
     # ? Store data
     tl.store(vecH_ptr, h.to(vecH.type.element_ty))
+
 
 @contiguous_noctx
 def recurrent_step_fw(
@@ -315,13 +279,10 @@ def recurrent_step_fw(
         qk_scale = 1 / math.sqrt(DHQK)
 
     if matC_new is None:
-        assert (
-            vecN_new is None and scaM_new is None
-        ), "Initial states must be provided together."
+        assert vecN_new is None and scaM_new is None, "Initial states must be provided together."
         matC_new = torch.empty_like(matC_old)
         vecN_new = torch.empty_like(vecN_old)
         scaM_new = torch.empty_like(scaM_old)
-
 
     def grid_fn_C(args):
         NUM_BLOCKS_DQK = triton.cdiv(DHQK, args["BLOCK_DQK"])
@@ -395,7 +356,7 @@ def recurrent_step_fw(
     #     grid = (1, NUM_BLOCKS_DV_H, NUM_BATCH_HEAD)
     #     print(grid)
     #     return grid
-    
+
     grid_h = grid_fn_h
 
     _recurrent_step_fw_kernel_h[grid_h](

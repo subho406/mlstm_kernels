@@ -64,12 +64,6 @@ def keep(conf):
     return True
 
 
-# BLOCK_Q = 16
-# BLOCK_KV = 16
-
-MINIMUM_MAX_VAL = -10  # -float("inf")  # -10.0
-
-
 @triton.autotune(list(filter(keep, configs)), key=["N_CTX", "HEAD_DIM"])
 @triton.jit
 def _mlstm_fwd(
@@ -116,9 +110,7 @@ def _mlstm_fwd(
     off_z = off_hz // H
     off_h = off_hz % H
     qkv_offset = off_z.to(tl.int64) * stride_qz + off_h.to(tl.int64) * stride_qh
-    ifmn_offset = (
-        off_z.to(tl.int64) * stride_ifmn_z + off_h.to(tl.int64) * stride_ifmn_h
-    )
+    ifmn_offset = off_z.to(tl.int64) * stride_ifmn_z + off_h.to(tl.int64) * stride_ifmn_h
 
     # block pointers
     # Note on order argument:
@@ -218,7 +210,7 @@ def _mlstm_fwd(
         matD = matD_log_fgates + vecI_chunkKV[None, :]
 
         # ? -- causal masking --
-        #! TODO with this if I get a weird error: operation scheduled before its operands
+        # TODO with this if I get a weird error: operation scheduled before its operands
         if start_n >= q_offset:
             # we are on diagonal
             kv_block_idxes = start_n + tl.arange(0, BLOCK_KV)
@@ -293,9 +285,7 @@ def mlstm_fw(
     HEAD_DIM_Q, HEAD_DIM_K = matQ.shape[-1], matK.shape[-1]
     # when v is in float8_e5m2 it is transposed.
     HEAD_DIM_V = matV.shape[-1]
-    assert (
-        HEAD_DIM_Q == HEAD_DIM_K and HEAD_DIM_K == HEAD_DIM_V
-    ), f"Q, K, V must have the same head dimension"
+    assert HEAD_DIM_Q == HEAD_DIM_K and HEAD_DIM_K == HEAD_DIM_V, f"Q, K, V must have the same head dimension"
     assert HEAD_DIM_K in {
         16,
         32,

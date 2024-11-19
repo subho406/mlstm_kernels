@@ -50,7 +50,7 @@ kernel_specs:
     use_torch_compile: True
   - kernel_name: "step_torch_autograd"
     dtype: float32
-    use_torch_compile: True  
+    use_torch_compile: True
   - kernel_name: "step_torch_autograd"
     dtype: bfloat16
     use_torch_compile: False
@@ -105,7 +105,7 @@ kernel_specs:
     use_torch_compile: True
   - kernel_name: "step_torch_autograd"
     dtype: float32
-    use_torch_compile: True  
+    use_torch_compile: True
   - kernel_name: "step_torch_autograd"
     dtype: bfloat16
     use_torch_compile: False

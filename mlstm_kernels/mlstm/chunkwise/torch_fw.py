@@ -7,7 +7,7 @@ from einops import rearrange
 
 """PyTorch
 
-mLSTM chunkwise parallel. 
+mLSTM chunkwise parallel.
 
 Different versions of mLSTM chunkwise parallel forward pass.
 
@@ -38,9 +38,7 @@ def mlstm_chunkwise_parallel_fw_looped(
 ):
     B, NH, S, DH = matQ.shape
     _dtype, _device = matQ.dtype, matQ.device
-    matQ = rearrange(matQ, "b nh (nc l) dh -> b nh nc l dh", l=seq_chunk_size) * (
-        DH**-0.5
-    )
+    matQ = rearrange(matQ, "b nh (nc l) dh -> b nh nc l dh", l=seq_chunk_size) * (DH**-0.5)
     matK = rearrange(matK, "b nh (nc l) dh -> b nh nc l dh", l=seq_chunk_size)
     matV = rearrange(matV, "b nh (nc l) dh -> b nh nc l dh", l=seq_chunk_size)
     _, _, NC, L, _ = matQ.shape
@@ -73,7 +71,6 @@ def mlstm_chunkwise_parallel_fw_looped(
     n_k = torch.zeros((B, NH, DH), dtype=_dtype, device=_device)
     n_prev_k = torch.zeros((B, NH, DH), dtype=_dtype, device=_device)
     for k in range(1, NC):
-
         # m_k
         m_a_k = vecA_max[:, :, k - 1]
         g_k = vecG[:, :, k - 1]
@@ -87,16 +84,11 @@ def mlstm_chunkwise_parallel_fw_looped(
 
         matK_chunk_gated = matK_chunk * torch.exp(a_k - m_k_inter).unsqueeze(-1)
 
-        C_k = (
-            torch.exp(g_k + m_prev_k - m_k_inter) * C_prev_k
-            + matK_chunk_gated.transpose(-2, -1) @ matV_chunk
-        )
+        C_k = torch.exp(g_k + m_prev_k - m_k_inter) * C_prev_k + matK_chunk_gated.transpose(-2, -1) @ matV_chunk
         matC_k_states[:, :, k] = C_k
 
         # n_k
-        n_k = torch.exp(
-            g_k + m_prev_k - m_k_inter
-        ) * n_prev_k + matK_chunk_gated.transpose(-2, -1).sum(-1)
+        n_k = torch.exp(g_k + m_prev_k - m_k_inter) * n_prev_k + matK_chunk_gated.transpose(-2, -1).sum(-1)
         vecN_k_states[:, :, k] = n_k
 
         # move to the next iteration
@@ -115,7 +107,6 @@ def mlstm_chunkwise_parallel_fw_looped(
     # loop 2: compute the H_states
     H_states = torch.zeros((B, NH, NC, L, DH), dtype=_dtype, device=_device)
     for k in range(1, NC + 1):
-
         # load C_k, n_k, m_k
         C_k = matC_k_states[:, :, k - 1]
         n_k_inter = vecN_k_states[:, :, k - 1]
@@ -132,18 +123,14 @@ def mlstm_chunkwise_parallel_fw_looped(
 
         vecI_chunk = vecI[:, :, k - 1]
 
-        matF_logsig_chunk = (
-            vecF_logsig_cs_chunk[:, :, :, None] - vecF_logsig_cs_chunk[:, :, None, :]
-        )
+        matF_logsig_chunk = vecF_logsig_cs_chunk[:, :, :, None] - vecF_logsig_cs_chunk[:, :, None, :]
 
         matF_logsig_mask_chunk = torch.where(ltr, matF_logsig_chunk, -float("inf"))
 
         matLogD_chunk = matF_logsig_mask_chunk + vecI_chunk[:, :, None, :]
 
         # max_state intra
-        vecMintra_k = torch.max(
-            matLogD_chunk, dim=-1, keepdim=False
-        ).values  # (B, NH, L)
+        vecMintra_k = torch.max(matLogD_chunk, dim=-1, keepdim=False).values  # (B, NH, L)
 
         # max_state inter
         vecB_k_chunk = vecB[:, :, k - 1]  # (B, NH, L)
@@ -168,13 +155,9 @@ def mlstm_chunkwise_parallel_fw_looped(
 
         numerator_common = matQ_chunk_gated @ C_k + matM_chunk @ matV_chunk
 
-        denom_common = matQ_chunk_gated @ n_k_inter.unsqueeze(-1) + matM_chunk.sum(
-            dim=-1, keepdim=True
-        )
+        denom_common = matQ_chunk_gated @ n_k_inter.unsqueeze(-1) + matM_chunk.sum(dim=-1, keepdim=True)
 
-        matH_k_chunk = numerator_common / torch.maximum(
-            torch.abs(denom_common), torch.exp(-vecM_k_inter_intra)
-        )
+        matH_k_chunk = numerator_common / torch.maximum(torch.abs(denom_common), torch.exp(-vecM_k_inter_intra))
 
         H_states[:, :, k - 1, :, :] = matH_k_chunk
 
@@ -193,9 +176,7 @@ def mlstm_chunkwise_parallel_fw_parallel(
 ):
     B, NH, S, DH = matQ.shape
     _dtype, _device = matQ.dtype, matQ.device
-    matQ = rearrange(matQ, "b nh (nc l) dh -> b nh nc l dh", l=seq_chunk_size) * (
-        DH**-0.5
-    )
+    matQ = rearrange(matQ, "b nh (nc l) dh -> b nh nc l dh", l=seq_chunk_size) * (DH**-0.5)
     matK = rearrange(matK, "b nh (nc l) dh -> b nh nc l dh", l=seq_chunk_size)
     matV = rearrange(matV, "b nh (nc l) dh -> b nh nc l dh", l=seq_chunk_size)
     _, _, NC, L, _ = matQ.shape
@@ -230,7 +211,6 @@ def mlstm_chunkwise_parallel_fw_parallel(
     # C_k = torch.zeros((B, NH, DH, DH), dtype=_dtype, device=_device)
     # n_k = torch.zeros((B, NH, DH), dtype=_dtype, device=_device)
     for k in range(1, NC):
-
         # m_k
         m_a_k = vecA_max[:, :, k - 1]
         g_k = vecG[:, :, k - 1]
@@ -244,16 +224,11 @@ def mlstm_chunkwise_parallel_fw_parallel(
 
         matK_chunk_gated = matK_chunk * torch.exp(a_k - m_k_inter).unsqueeze(-1)
 
-        C_k = (
-            torch.exp(g_k + m_prev_k - m_k_inter) * C_prev_k
-            + matK_chunk_gated.transpose(-2, -1) @ matV_chunk
-        )
+        C_k = torch.exp(g_k + m_prev_k - m_k_inter) * C_prev_k + matK_chunk_gated.transpose(-2, -1) @ matV_chunk
         matC_k_states[:, :, k] = C_k
 
         # n_k
-        n_k = torch.exp(
-            g_k + m_prev_k - m_k_inter
-        ) * n_prev_k + matK_chunk_gated.transpose(-2, -1).sum(-1)
+        n_k = torch.exp(g_k + m_prev_k - m_k_inter) * n_prev_k + matK_chunk_gated.transpose(-2, -1).sum(-1)
         vecN_k_states[:, :, k] = n_k
 
         # move to the next iteration
@@ -274,18 +249,14 @@ def mlstm_chunkwise_parallel_fw_parallel(
     # ? Compute intra chunk contribution: H_intra
     vecF_logsig_cs_chunk = vecF_logsig.cumsum(-1)
 
-    matF_logsig_chunk = (
-        vecF_logsig_cs_chunk[:, :, :, :, None] - vecF_logsig_cs_chunk[:, :, :, None, :]
-    )
+    matF_logsig_chunk = vecF_logsig_cs_chunk[:, :, :, :, None] - vecF_logsig_cs_chunk[:, :, :, None, :]
 
     matF_logsig_mask_chunk = torch.where(ltr, matF_logsig_chunk, -float("inf"))
 
     matLogD_chunk = matF_logsig_mask_chunk + vecI[:, :, :, None, :]
 
     # max_state intra
-    vecMintra_k = torch.max(
-        matLogD_chunk, dim=-1, keepdim=False
-    ).values  # (B, NH, NC, L)
+    vecMintra_k = torch.max(matLogD_chunk, dim=-1, keepdim=False).values  # (B, NH, NC, L)
 
     # max_state combined
     vecM_b_inter = vecB + scaMinter_k_states  # (B, NH, NC, L)
@@ -307,13 +278,9 @@ def mlstm_chunkwise_parallel_fw_parallel(
 
     numerator_common = matQ_chunk_gated @ matC_k_states + matM_chunk @ matV
 
-    denom_common = matQ_chunk_gated @ vecN_k_states.unsqueeze(-1) + matM_chunk.sum(
-        dim=-1, keepdim=True
-    )
+    denom_common = matQ_chunk_gated @ vecN_k_states.unsqueeze(-1) + matM_chunk.sum(dim=-1, keepdim=True)
 
-    max_denom_common = torch.maximum(
-        torch.abs(denom_common), torch.exp(-vecM_k_inter_intra)
-    )
+    max_denom_common = torch.maximum(torch.abs(denom_common), torch.exp(-vecM_k_inter_intra))
 
     if detach_denominator:
         max_denom_common = max_denom_common.detach()

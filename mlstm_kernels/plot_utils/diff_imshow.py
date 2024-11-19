@@ -16,12 +16,7 @@ def convert_to_diff_imarray(target: torch.Tensor, baseline: torch.Tensor = None)
     if baseline is None:
         imarr = target.detach().float().abs().squeeze().cpu().numpy()
     else:
-        imarr = (
-            (target.detach().float() - baseline.detach().float())
-            .abs()
-            .cpu()
-            .numpy()
-        )
+        imarr = (target.detach().float() - baseline.detach().float()).abs().cpu().numpy()
     if imarr.ndim < 2:
         imarr = imarr[:, None]
     return imarr
@@ -64,9 +59,7 @@ def plot_numerical_diffs(
     return fig
 
 
-def plot_numerical_diffs_single(
-    baseline, target=None, title="", vmin=0.0, vmax=1e-2, figsize=(10, 6)
-):
+def plot_numerical_diffs_single(baseline, target=None, title="", vmin=0.0, vmax=1e-2, figsize=(10, 6)):
     fig, ax1 = plt.subplots(figsize=figsize)
     pos1 = ax1.imshow(
         convert_to_diff_imarray(baseline=baseline, target=target),
@@ -87,7 +80,7 @@ def plot_numerical_diffs_per_batchhead(
     figsize=(10, 6),
     rtol: float = None,
     atol: float = None,
-    max_num_batchhead_plots: int = -1, # -1 means all
+    max_num_batchhead_plots: int = -1,  # -1 means all
 ):
     baseline = baseline.reshape(-1, baseline.shape[-2], baseline.shape[-1])
     if target is not None:
@@ -103,9 +96,7 @@ def plot_numerical_diffs_per_batchhead(
         max_diff = (baseline[i, ...] - target[i, ...]).abs().max()
         title_i = f"BH({i}):{title}|max_diff:{max_diff}"
         if rtol is not None and atol is not None:
-            allclose = torch.allclose(
-                baseline[i, ...], target[i, ...], rtol=rtol, atol=atol
-            )
+            allclose = torch.allclose(baseline[i, ...], target[i, ...], rtol=rtol, atol=atol)
             title_i += f"|allclose(atol={atol},rtol={rtol}):{allclose}"
         fig = plot_numerical_diffs_single(
             baseline=baseline[i, ...],

@@ -1,10 +1,11 @@
 import logging
-from typing import Callable, Optional
+from typing import Optional
+from collections.abc import Callable
 
 LOGGER = logging.getLogger(__name__)
 
 
-def wrap_pad_inputs(backend, padded_chunk_size: Optional[int] = 64):
+def wrap_pad_inputs(backend, padded_chunk_size: int | None = 64):
     import torch
 
     if padded_chunk_size is None:
@@ -48,7 +49,7 @@ def wrap_pad_inputs(backend, padded_chunk_size: Optional[int] = 64):
     return _backend
 
 
-def get_kernel(name: str, padded_chunk_size: Optional[int] = 64) -> Callable:
+def get_kernel(name: str, padded_chunk_size: int | None = 64) -> Callable:
     """
     Get a kernel function by name.
 
@@ -92,7 +93,7 @@ def get_kernel(name: str, padded_chunk_size: Optional[int] = 64) -> Callable:
     return wrap_pad_inputs(backend, padded_chunk_size=padded_chunk_size)
 
 
-def get_whole_registry(padded_chunk_size: Optional[int] = 64):
+def get_whole_registry(padded_chunk_size: int | None = 64):
     from .baselines.flash_attention import registry as flash_attention_registry
     from .baselines.flash_linear_attention import registry as flash_linear_attention_gla_registry
     from .mlstm.chunkwise import registry as mlstm_chunkwise_registry

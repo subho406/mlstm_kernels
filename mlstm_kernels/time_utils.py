@@ -33,7 +33,7 @@ class Stopwatch:
 
     def __init__(self, time_provider=None):
         self._start_time: float = None
-        self._lap_elapsed_seconds: List[float] = []
+        self._lap_elapsed_seconds: list[float] = []
         self._total_elapsed_seconds: float = 0.0
         self._lap_start_time: float = None
         self._time_provider: TimeProvider = time_provider or TimeProvider()
@@ -90,7 +90,7 @@ class Stopwatch:
         return self._total_elapsed_seconds
 
     @property
-    def lap_times_seconds(self) -> List[float]:
+    def lap_times_seconds(self) -> list[float]:
         return self._lap_elapsed_seconds
 
     @property

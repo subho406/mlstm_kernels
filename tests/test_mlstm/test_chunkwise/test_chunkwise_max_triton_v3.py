@@ -25,9 +25,7 @@ TEST_FOLDER_NAME_PREFIX = "chunkwise-triton"
 class TestChunkwiseTritonVsStableTorch:
     @pytest.mark.skipif(not torch.cuda.is_available(), reason="No GPU available.")
     @pytest.mark.parametrize(["S", "B", "NH", "DHQK", "DHHV"], final_combinations)
-    def test_chunkwise_triton_vs_stable_torch_fp32(
-        self, test_session_folder, S, B, NH, DHQK, DHHV
-    ):
+    def test_chunkwise_triton_vs_stable_torch_fp32(self, test_session_folder, S, B, NH, DHQK, DHHV):
         print(f"S{S}B{B}NH{NH}DHQK{DHQK}DHHV{DHHV}")
         template_test_parallel_interface(
             baseline_fn=mlstm_parallel_stable_torch_autograd,
@@ -52,9 +50,7 @@ class TestChunkwiseTritonVsStableTorch:
 
     @pytest.mark.skipif(not torch.cuda.is_available(), reason="No GPU available.")
     @pytest.mark.parametrize(["S", "B", "NH", "DHQK", "DHHV"], final_combinations)
-    def test_chunkwise_triton_vs_unstable_torch_fp32(
-        self, test_session_folder, S, B, NH, DHQK, DHHV
-    ):
+    def test_chunkwise_triton_vs_unstable_torch_fp32(self, test_session_folder, S, B, NH, DHQK, DHHV):
         print(f"S{S}B{B}NH{NH}DHQK{DHQK}DHHV{DHHV}")
         template_test_parallel_interface(
             baseline_fn=mlstm_parallel_torch_autograd,
@@ -79,9 +75,7 @@ class TestChunkwiseTritonVsStableTorch:
 
     @pytest.mark.skipif(not torch.cuda.is_available(), reason="No GPU available.")
     @pytest.mark.parametrize(["S", "B", "NH", "DHQK", "DHHV"], final_combinations)
-    def test_chunkwise_triton_vs_stable_torch_bf16(
-        self, test_session_folder, S, B, NH, DHQK, DHHV
-    ):
+    def test_chunkwise_triton_vs_stable_torch_bf16(self, test_session_folder, S, B, NH, DHQK, DHHV):
         print(f"S{S}B{B}NH{NH}DHQK{DHQK}DHHV{DHHV}")
         template_test_parallel_interface(
             baseline_fn=mlstm_parallel_stable_torch_autograd,
@@ -106,9 +100,7 @@ class TestChunkwiseTritonVsStableTorch:
 
     @pytest.mark.skipif(not torch.cuda.is_available(), reason="No GPU available.")
     @pytest.mark.parametrize(["S", "B", "NH", "DHQK", "DHHV"], final_combinations)
-    def test_chunkwise_triton_vs_unstable_torch_bf16(
-        self, test_session_folder, S, B, NH, DHQK, DHHV
-    ):
+    def test_chunkwise_triton_vs_unstable_torch_bf16(self, test_session_folder, S, B, NH, DHQK, DHHV):
         print(f"S{S}B{B}NH{NH}DHQK{DHQK}DHHV{DHHV}")
         template_test_parallel_interface(
             baseline_fn=mlstm_parallel_torch_autograd,

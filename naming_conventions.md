@@ -28,7 +28,7 @@ Warp-Internal Index (C): Index within a warp -->
 
 ### Main naming conventions:
 
-What defines a point in memory: __Pointer__ (ptr) + where it lies (_shd shared, _glb global, _reg register, can be omitted in triton) 
+What defines a point in memory: __Pointer__ (ptr) + where it lies (_shd shared, _glb global, _reg register, can be omitted in triton)
 
 What is added to a pointer: __Offset__ (off)
 An offset is tied to a single pointer (unless one does pointwise operations of exactly same-sized objects)
@@ -41,7 +41,7 @@ An index is virtually defined and tells you the position in a Tensor along one d
 One dimension / direction can be divided into multiple levels for patches (i.e. HBM / Shared Memory / Warp ...)
 There is a __LevelIndex__ and a __LevelSize__, the lowest __LevelSize__ is typically 1. The __FullIndex__ is defined as:
 
-__FullIndex__ = \sum_{levels} __LevelIndex__ * __LevelSize__ 
+__FullIndex__ = \sum_{levels} __LevelIndex__ * __LevelSize__
 
 The FullIndex is partly dependent on where something is stored, because it might only describe a position within a Patch instead of a full matrix.
 An offset is now defined as the sum of products of __FullIndices__ times __Strides__ along multiple directions:
@@ -89,7 +89,7 @@ p_ : Pointer with indexing
 r_ : Raw data
 
 
-Shape type: 
+Shape type:
 - vec, mat, sca
 
 Along one logical direction:
@@ -140,7 +140,7 @@ Examples:
 Triton:
 The pointer to C matrix inside thread block:
 matC_cta_ptr
-Loop 
+Loop
 
 Index along T dimension in forward kernel within block:
 idxT_cta
@@ -151,5 +151,3 @@ idxT_lop
 CUDA:
 The pointer to C in shared memory:
 matC_smm_ptr
-
-

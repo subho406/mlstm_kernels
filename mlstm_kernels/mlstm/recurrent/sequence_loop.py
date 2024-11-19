@@ -37,9 +37,7 @@ def recurrent_sequence_fw(
     dtype = matQ.dtype
 
     if matC_initial is not None:
-        assert (
-            vecN_initial is not None and scaM_initial is not None
-        ), "Initial states must be provided together."
+        assert vecN_initial is not None and scaM_initial is not None, "Initial states must be provided together."
         assert scaM_initial.dim() == 2, "Initial states must be 2D."
         matC_state, vecN_state, vecM_state = (
             matC_initial,

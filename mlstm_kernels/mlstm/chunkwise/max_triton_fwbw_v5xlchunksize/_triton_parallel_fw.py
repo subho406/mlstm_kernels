@@ -8,7 +8,7 @@ import triton
 import triton.language as tl
 
 from ....kernel_utils import is_power_of_2, torch2triton_dtype
-from ._torch_chunkwise_gates import compute_chunkwise_log_gates_vecB_vecA
+from ._torch_chunkwise_gates import compute_chunkwise_log_gates_vecB
 
 
 @triton.jit
@@ -357,9 +357,7 @@ def mlstm_chunkwise__parallel_fw_Hintra(
     vecN_out = torch.empty(B, NH, S, device=matQ.device, dtype=output_dtype)
     vecM_out = torch.empty(B, NH, S, device=matQ.device, dtype=output_dtype)
 
-    vecB = compute_chunkwise_log_gates_vecB_vecA(
-        vecI=vecI, vecF=vecF, chunk_size=chunk_size, return_vecB_only=True
-    )
+    vecB = compute_chunkwise_log_gates_vecB(vecF=vecF, chunk_size=chunk_size)
 
     grid = (num_b_DHHV, num_b_LQ, NC * B * NH)
     # print("grid(num_b_DHHV, num_b_LQ, NC*B*NH)", grid)

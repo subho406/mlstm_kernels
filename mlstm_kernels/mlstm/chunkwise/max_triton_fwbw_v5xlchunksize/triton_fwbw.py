@@ -264,6 +264,7 @@ def mlstm_chunkwise_max_triton(
     num_warps_inter: int | None = None,
     num_stages_intra: int | None = None,
     num_stages_inter: int | None = None,
+    recompute_states_in_bw: bool = True,
     autocast_kernel_dtype: torch.dtype = torch.float32,
 ) -> torch.Tensor | tuple[torch.Tensor, tuple[torch.Tensor, torch.Tensor, torch.Tensor]]:
     _mlstm_chunkwise_fwbw = _get_chunkwise_fwbw_kernel(autocast_kernel_dtype)
@@ -289,7 +290,7 @@ def mlstm_chunkwise_max_triton(
         num_warps_inter,
         num_stages_intra,
         num_stages_inter,
-        True,
+        recompute_states_in_bw,
     )
     if return_last_states:
         return matH_out, (matC_last, vecN_last, scaM_last)

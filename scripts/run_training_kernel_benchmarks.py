@@ -433,6 +433,3 @@ def run_multiple_benchmarks(output_dir: str = "./outputs_kernel_benchmarks"):
 
 if __name__ == "__main__":
     run_multiple_benchmarks()
-
-if __name__ == "__main__":
-    run_multiple_benchmarks()

@@ -6,7 +6,7 @@ import torch.nn.functional as F
 """
 PyTorch
 
-mLSTM forward and backward pass. Parallel formulation. 
+mLSTM forward and backward pass. Parallel formulation.
 Implemented in a tiled fashion as template for kernels.
 
 TODO adapt to notation of torch_fwbw.py
@@ -14,9 +14,7 @@ TODO add numerical test notebook.
 """
 
 
-def construct_log_gate_matrix_paper(
-    fgs: torch.Tensor, igs: torch.Tensor
-) -> torch.Tensor:
+def construct_log_gate_matrix_paper(fgs: torch.Tensor, igs: torch.Tensor) -> torch.Tensor:
     _device = fgs.device
     _dtype = fgs.dtype
     B, NH, S, _ = fgs.shape
@@ -37,19 +35,13 @@ def construct_log_gate_matrix_paper(
     # for each batch/head this is a matrix of shape (S+1, S+1) containing the cumsum of the log forget gate values
     # in the second dimension (colum dimension). Each row has the same is a copy of the first row.
     # First entry of each row is zero.
-    rep_log_fgates_cumsum = log_fgates_cumsum.repeat(
-        1, 1, 1, S + 1
-    )  # (B, NH, S+1, S+1)
+    rep_log_fgates_cumsum = log_fgates_cumsum.repeat(1, 1, 1, S + 1)  # (B, NH, S+1, S+1)
     # Now in each row cut off / subtract the forgetgate values of the later timesteps
     # where col j > row i
-    _log_fg_matrix = rep_log_fgates_cumsum - rep_log_fgates_cumsum.transpose(
-        -2, -1
-    )  # (B, NH, S+1, S+1)
+    _log_fg_matrix = rep_log_fgates_cumsum - rep_log_fgates_cumsum.transpose(-2, -1)  # (B, NH, S+1, S+1)
     # Causal masking & selection of the correct submatrix, such that forgetgate at timestep t is not applied
     # to the input at timestep t
-    log_fg_matrix = torch.where(
-        ltr, _log_fg_matrix[:, :, 1:, 1:], -float("inf")
-    )  # (B, NH, S, S)
+    log_fg_matrix = torch.where(ltr, _log_fg_matrix[:, :, 1:, 1:], -float("inf"))  # (B, NH, S, S)
 
     # gate decay matrix D (combination of forget gate and input gate)
     log_D_matrix = log_fg_matrix + igs.transpose(-2, -1)  # (B, NH, S, S)
@@ -80,9 +72,7 @@ def construct_log_gate_matrix_tiled(
     if idx_BKV * BKV >= idx_BQ * BQ:
         bq_idxes = torch.arange(idx_BQ * BQ, (idx_BQ + 1) * BQ)
         kv_idxes = torch.arange(idx_BKV * BKV, (idx_BKV + 1) * BKV)
-        idx_mask = (
-            bq_idxes[:, None] - kv_idxes[None, :]
-        )  # or bq_idxes[:, None] >= kv_idxes[None, :]
+        idx_mask = bq_idxes[:, None] - kv_idxes[None, :]  # or bq_idxes[:, None] >= kv_idxes[None, :]
         log_D_matrix = torch.where(idx_mask < 0, -float("inf"), log_D_matrix)
     return log_D_matrix
 
@@ -149,19 +139,13 @@ def _mlstm_fw(
     # for each batch/head this is a matrix of shape (S+1, S+1) containing the cumsum of the log forget gate values
     # in the second dimension (colum dimension). Each row has the same is a copy of the first row.
     # First entry of each row is zero.
-    rep_log_fgates_cumsum = log_fgates_cumsum.repeat(
-        1, 1, 1, S + 1
-    )  # (B, NH, S+1, S+1)
+    rep_log_fgates_cumsum = log_fgates_cumsum.repeat(1, 1, 1, S + 1)  # (B, NH, S+1, S+1)
     # Now in each row cut off / subtract the forgetgate values of the later timesteps
     # where col j > row i
-    _log_fg_matrix = rep_log_fgates_cumsum - rep_log_fgates_cumsum.transpose(
-        -2, -1
-    )  # (B, NH, S+1, S+1)
+    _log_fg_matrix = rep_log_fgates_cumsum - rep_log_fgates_cumsum.transpose(-2, -1)  # (B, NH, S+1, S+1)
     # Causal masking & selection of the correct submatrix, such that forgetgate at timestep t is not applied
     # to the input at timestep t
-    log_fg_matrix = torch.where(
-        ltr, _log_fg_matrix[:, :, 1:, 1:], -float("inf")
-    )  # (B, NH, S, S)
+    log_fg_matrix = torch.where(ltr, _log_fg_matrix[:, :, 1:, 1:], -float("inf"))  # (B, NH, S, S)
 
     # gate decay matrix D (combination of forget gate and input gate)
     log_D_matrix = log_fg_matrix + igate_preact.transpose(-2, -1)  # (B, NH, S, S)
@@ -198,9 +182,7 @@ def _mlstm_fw(
             )
 
             m = torch.maximum(m_prev, m_temp)
-            l = torch.exp(m_prev - m) * l_prev + (s_tile * torch.exp(d_tile - m)).sum(
-                dim=-1, keepdim=True
-            )
+            l = torch.exp(m_prev - m) * l_prev + (s_tile * torch.exp(d_tile - m)).sum(dim=-1, keepdim=True)
 
             n = torch.maximum(torch.abs(l), torch.exp(-m))
             c_tile = (s_tile * torch.exp(d_tile - m)) / (n + eps)
@@ -236,7 +218,6 @@ def _mlstm_bw(
     BLOCK_KV: int = 32,
     eps: float = 1e-6,
 ) -> tuple[torch.Tensor, ...]:
-
     B, NH, S, DH = matQ.shape
     _dtype, _device = matQ.dtype, matQ.device
     assert BLOCK_KV <= BLOCK_Q
@@ -283,9 +264,7 @@ def _mlstm_bw(
     #! KV dim loop
     # we will parallelize over this loop later
     # we start at the leftmost block of the KV dimension and work our way right
-    for kvIdx, (matK_tile, matV_tile, vecI_chunk) in enumerate(
-        zip(matK_tiles, matV_tiles, vecI_chunks)
-    ):
+    for kvIdx, (matK_tile, matV_tile, vecI_chunk) in enumerate(zip(matK_tiles, matV_tiles, vecI_chunks)):
         # init matDeltaK_tile, matDeltaV_tile to zero
         matDeltaK_tile = torch.zeros_like(matK_tile)
         matDeltaV_tile = torch.zeros_like(matV_tile)
@@ -306,27 +285,19 @@ def _mlstm_bw(
             vecN_chunk = vecN_chunks[qIdx]
             vecF_cs_chunk_Q = vecF_cs_chunks[qIdx]
 
-            matDeltaC = (
-                matDeltaHtilde_tile @ matV_tile.transpose(-2, -1) / (vecN_chunk + eps)
-            )
+            matDeltaC = matDeltaHtilde_tile @ matV_tile.transpose(-2, -1) / (vecN_chunk + eps)
 
             # ? recomputation of S & D matrices
             matS = (matQ_tile @ matK_tile.transpose(-2, -1)) / math.sqrt(DH)
 
             # construct D matrix
-            vecF_cs_tile = (
-                vecF_cs_chunk_Q[:, :, :, None] - vecF_cs_chunk_KV[:, :, None, :]
-            )
+            vecF_cs_tile = vecF_cs_chunk_Q[:, :, :, None] - vecF_cs_chunk_KV[:, :, None, :]
             matLogD_tile = vecF_cs_tile + vecI_chunk
 
             # causal masking of matLogD_tile
             if kvIdx * BLOCK_KV >= qIdx * BLOCK_Q:
-                bq_idxes = torch.arange(
-                    qIdx * BLOCK_Q, (qIdx + 1) * BLOCK_Q, device=vecI.device
-                )
-                kv_idxes = torch.arange(
-                    kvIdx * BLOCK_KV, (kvIdx + 1) * BLOCK_KV, device=vecI.device
-                )
+                bq_idxes = torch.arange(qIdx * BLOCK_Q, (qIdx + 1) * BLOCK_Q, device=vecI.device)
+                kv_idxes = torch.arange(kvIdx * BLOCK_KV, (kvIdx + 1) * BLOCK_KV, device=vecI.device)
                 idx_mask = bq_idxes[:, None] - kv_idxes[None, :]
                 matLogD_tile = torch.where(idx_mask < 0, -float("inf"), matLogD_tile)
 
@@ -365,9 +336,7 @@ def _mlstm_bw(
 
             matDeltaK_tile += (matP.transpose(-2, -1) @ matQ_tile) / math.sqrt(DH)
 
-            matDeltaV_tile += matR.transpose(-2, -1) @ (
-                matDeltaHtilde_tile / (vecN_chunk + eps)
-            )
+            matDeltaV_tile += matR.transpose(-2, -1) @ (matDeltaHtilde_tile / (vecN_chunk + eps))
             #! end Q dim loop
 
         # * store matDeltaK_tile & matDeltaV_tile in HBM (every thread block writes to a different HBM location)
@@ -375,9 +344,7 @@ def _mlstm_bw(
         matDeltaV[:, :, kvIdx * BLOCK_KV : (kvIdx + 1) * BLOCK_KV] = matDeltaV_tile
 
         # * store vecDeltaIF_sum_chunk_KV in HBM (every thread block writes to a different HBM location)
-        vecDeltaI[:, :, kvIdx * BLOCK_KV : (kvIdx + 1) * BLOCK_KV] = (
-            vecDeltaI_sum_chunk_KV
-        )
+        vecDeltaI[:, :, kvIdx * BLOCK_KV : (kvIdx + 1) * BLOCK_KV] = vecDeltaI_sum_chunk_KV
         #! end KV dim loop
 
     ## ? end the backward pass kernel
@@ -407,7 +374,6 @@ def mlstm_fwbw(
 
 
 class _mlstm_fwbw(torch.autograd.Function):
-
     @staticmethod
     def forward(
         ctx,
@@ -428,9 +394,7 @@ class _mlstm_fwbw(torch.autograd.Function):
             vecF,
             eps=eps,
         )
-        ctx.save_for_backward(
-            matQ, matK, matV, vecI, vecF, vecM, vecN, BLOCK_Q, BLOCK_KV, eps
-        )
+        ctx.save_for_backward(matQ, matK, matV, vecI, vecF, vecM, vecN, BLOCK_Q, BLOCK_KV, eps)
         return matH, vecM, vecN
 
     @staticmethod
@@ -440,9 +404,7 @@ class _mlstm_fwbw(torch.autograd.Function):
         vecDeltaM_unused: torch.Tensor,
         vecDeltaN_unused: torch.Tensor,
     ) -> tuple[torch.Tensor, ...]:
-        (matQ, matK, matV, vecI, vecF, vecM, vecN, BLOCK_Q, BLOCK_KV, eps) = (
-            ctx.saved_tensors
-        )
+        (matQ, matK, matV, vecI, vecF, vecM, vecN, BLOCK_Q, BLOCK_KV, eps) = ctx.saved_tensors
         matDeltaQ, matDeltaK, matDeltaV, vecDeltaI, vecDeltaF = _mlstm_bw(
             matDeltaHtilde=matDeltaHtilde,
             matQ=matQ,

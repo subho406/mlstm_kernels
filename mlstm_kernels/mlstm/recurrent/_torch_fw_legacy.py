@@ -52,11 +52,7 @@ def mlstm_recurrent_sequence_stabilized(
     hidden_states = []
     for t in range(S):
         # gates
-        fg, ig = fgate_preact[:, :, t, :].unsqueeze(2), igate_preact[
-            :, :, t, :
-        ].unsqueeze(
-            2
-        )  # (B, NH, 1)
+        fg, ig = fgate_preact[:, :, t, :].unsqueeze(2), igate_preact[:, :, t, :].unsqueeze(2)  # (B, NH, 1)
         # projections
         q, k, v = (
             queries[:, :, t, :].unsqueeze(2),
@@ -129,9 +125,7 @@ def mlstm_recurrent_step_stabilized(
 
     k_scaled = k / math.sqrt(DH)
 
-    c_state_new = fg_act * c_state + ig_act * (
-        k_scaled @ v.transpose(-1, -2)
-    )  # (B, NH, DH, DH)
+    c_state_new = fg_act * c_state + ig_act * (k_scaled @ v.transpose(-1, -2))  # (B, NH, DH, DH)
     n_state_new = fg_act * n_state + ig_act * k_scaled  # (B, NH, DH, 1)
 
     h_num = q.transpose(-1, -2) @ c_state_new  # (B, NH, 1, DH)

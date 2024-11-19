@@ -48,19 +48,13 @@ def mlstm_fw_legacy(
     # for each batch/head this is a matrix of shape (S+1, S+1) containing the cumsum of the log forget gate values
     # in the second dimension (colum dimension). Each row has the same is a copy of the first row.
     # First entry of each row is zero.
-    rep_log_fgates_cumsum = log_fgates_cumsum.repeat(
-        1, 1, 1, S + 1
-    )  # (B, NH, S+1, S+1)
+    rep_log_fgates_cumsum = log_fgates_cumsum.repeat(1, 1, 1, S + 1)  # (B, NH, S+1, S+1)
     # Now in each row cut off / subtract the forgetgate values of the later timesteps
     # where col j > row i
-    _log_fg_matrix = rep_log_fgates_cumsum - rep_log_fgates_cumsum.transpose(
-        -2, -1
-    )  # (B, NH, S+1, S+1)
+    _log_fg_matrix = rep_log_fgates_cumsum - rep_log_fgates_cumsum.transpose(-2, -1)  # (B, NH, S+1, S+1)
     # Causal masking & selection of the correct submatrix, such that forgetgate at timestep t is not applied
     # to the input at timestep t
-    log_fg_matrix = torch.where(
-        ltr, _log_fg_matrix[:, :, 1:, 1:], -float("inf")
-    )  # (B, NH, S, S)
+    log_fg_matrix = torch.where(ltr, _log_fg_matrix[:, :, 1:, 1:], -float("inf"))  # (B, NH, S, S)
 
     # gate decay matrix D (combination of forget gate and input gate)
     log_D_matrix = log_fg_matrix + vecI.transpose(-2, -1)  # (B, NH, S, S)
@@ -95,7 +89,6 @@ def mlstm_fw(
     vecF: torch.Tensor,
     eps: float = 1e-6,
 ) -> torch.Tensor:
-
     B, NH, S, DH = matQ.shape
     assert matK.shape == (B, NH, S, DH)
     assert matV.shape == (B, NH, S, DH)
@@ -129,9 +122,7 @@ def mlstm_fw(
     matS = (matQ @ matK.transpose(-2, -1)) / math.sqrt(DH)  # (B, NH, S, S)
 
     matCtilde = matS * matD  # (B, NH, S, S)
-    vecN = torch.maximum(
-        matCtilde.sum(dim=-1, keepdim=True).abs(), torch.exp(-vecM)
-    )  # (B, NH, S, 1)
+    vecN = torch.maximum(matCtilde.sum(dim=-1, keepdim=True).abs(), torch.exp(-vecM))  # (B, NH, S, 1)
     # (B, NH, S, S)
     matC = matCtilde / (vecN + eps)
 
@@ -174,19 +165,13 @@ def mlstm_bw_legacy(
     # for each batch/head this is a matrix of shape (S+1, S+1) containing the cumsum of the log forget gate values
     # in the second dimension (colum dimension). Each row has the same is a copy of the first row.
     # First entry of each row is zero.
-    rep_log_fgates_cumsum = log_fgates_cumsum.repeat(
-        1, 1, 1, S + 1
-    )  # (B, NH, S+1, S+1)
+    rep_log_fgates_cumsum = log_fgates_cumsum.repeat(1, 1, 1, S + 1)  # (B, NH, S+1, S+1)
     # Now in each row cut off / subtract the forgetgate values of the later timesteps
     # where col j > row i
-    _log_fg_matrix = rep_log_fgates_cumsum - rep_log_fgates_cumsum.transpose(
-        -2, -1
-    )  # (B, NH, S+1, S+1)
+    _log_fg_matrix = rep_log_fgates_cumsum - rep_log_fgates_cumsum.transpose(-2, -1)  # (B, NH, S+1, S+1)
     # Causal masking & selection of the correct submatrix, such that forgetgate at timestep t is not applied
     # to the input at timestep t
-    log_fg_matrix = torch.where(
-        ltr, _log_fg_matrix[:, :, 1:, 1:], -float("inf")
-    )  # (B, NH, S, S)
+    log_fg_matrix = torch.where(ltr, _log_fg_matrix[:, :, 1:, 1:], -float("inf"))  # (B, NH, S, S)
     ltr_ig = torch.where(ltr, 0.0, -float("inf"))
     ig_matrix = vecI.transpose(-2, -1) + ltr_ig  # (B, NH, S, S)
     var_Dtilde = log_fg_matrix + ig_matrix
@@ -321,9 +306,7 @@ def mlstm_bw(
     matDeltaK = (matP.transpose(-2, -1) @ matQ) / math.sqrt(DH)
 
     matCtilde = matS * matD
-    matDeltaV = matCtilde.transpose(-2, -1) @ (
-        matDeltaHtilde / (vecN[:, :, :, None] + eps)
-    )
+    matDeltaV = matCtilde.transpose(-2, -1) @ (matDeltaHtilde / (vecN[:, :, :, None] + eps))
 
     # EFFICIENT LINEAR ATTENTION TRICK
     # compute the vecDeltaFbar values with dfbar = rev_cumsum((q*dq - k*dk).sum(-1))
@@ -352,14 +335,11 @@ def vlstm_parallel_fwbw_torch_w_groupnorm(
     fgate_preact: torch.Tensor,
     eps: float = 1e-6,
 ) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
-    hiddens, var_n, var_m = vLSTMParallelFwBwWithGroupNorm.apply(
-        queries, keys, values, igate_preact, fgate_preact, eps
-    )
+    hiddens, var_n, var_m = vLSTMParallelFwBwWithGroupNorm.apply(queries, keys, values, igate_preact, fgate_preact, eps)
     return hiddens, var_n, var_m
 
 
 class vLSTMParallelFwBwWithGroupNorm(torch.autograd.Function):
-
     @staticmethod
     def forward(
         ctx,
@@ -378,9 +358,7 @@ class vLSTMParallelFwBwWithGroupNorm(torch.autograd.Function):
             fgate_preact=fgate_preact,
             eps=eps,
         )
-        ctx.save_for_backward(
-            queries, keys, values, igate_preact, fgate_preact, var_n, var_m
-        )
+        ctx.save_for_backward(queries, keys, values, igate_preact, fgate_preact, var_n, var_m)
         return hiddens, var_n, var_m
 
     @staticmethod
@@ -390,19 +368,15 @@ class vLSTMParallelFwBwWithGroupNorm(torch.autograd.Function):
         grad_var_n_unused: torch.Tensor,
         grad_var_m_unused: torch.Tensor,
     ) -> tuple[torch.Tensor, ...]:
-        (queries, keys, values, igate_preact, fgate_preact, var_n, var_m) = (
-            ctx.saved_tensors
-        )
-        delta_Q, delta_K, delta_V, delta_i, delta_f, _, _, _, _, _ = (
-            vlstm_parallel_w_groupnorm_torch_bw(
-                matDeltaHtilde=delta_Htilde,
-                matQ=queries,
-                matK=keys,
-                matV=values,
-                vecI=igate_preact,
-                vecF=fgate_preact,
-                vecN=var_n,
-                vecM=var_m,
-            )
+        (queries, keys, values, igate_preact, fgate_preact, var_n, var_m) = ctx.saved_tensors
+        delta_Q, delta_K, delta_V, delta_i, delta_f, _, _, _, _, _ = vlstm_parallel_w_groupnorm_torch_bw(
+            matDeltaHtilde=delta_Htilde,
+            matQ=queries,
+            matK=keys,
+            matV=values,
+            vecI=igate_preact,
+            vecF=fgate_preact,
+            vecN=var_n,
+            vecM=var_m,
         )
         return delta_Q, delta_K, delta_V, delta_i, delta_f, None

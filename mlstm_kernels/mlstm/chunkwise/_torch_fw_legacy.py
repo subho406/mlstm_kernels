@@ -74,16 +74,11 @@ def mlstm_chunkwise_parallel_legacy(
         q_k = q_vec[:, :, i, :].clone()
         k_chunk_gated = k_chunk * torch.exp(q_k - m_k).unsqueeze(-1)
 
-        C_k = (
-            torch.exp(g_k + m_prev_k - m_k) * C_prev_k
-            + k_chunk_gated.transpose(-2, -1) @ v_chunk
-        )
+        C_k = torch.exp(g_k + m_prev_k - m_k) * C_prev_k + k_chunk_gated.transpose(-2, -1) @ v_chunk
         C_states[:, :, k] = C_k
 
         # n_k
-        n_k = torch.exp(g_k + m_prev_k - m_k) * n_prev_k + k_chunk_gated.transpose(
-            -2, -1
-        ).sum(-1)
+        n_k = torch.exp(g_k + m_prev_k - m_k) * n_prev_k + k_chunk_gated.transpose(-2, -1).sum(-1)
         n_states[:, :, k] = n_k
 
         # move to the next iteration
@@ -127,19 +122,13 @@ def mlstm_chunkwise_parallel_legacy(
         # for each batch/head this is a matrix of shape (L+1, L+1) containing the cumsum of the log forget gate values
         # in the second dimension (colum dimension). Each row has the same is a copy of the first row.
         # First entry of each row is zero.
-        rep_log_fg_k_cumsum = log_fg_k_cumsum.repeat(
-            1, 1, 1, L + 1
-        )  # (B, NH, L+1, L+1)
+        rep_log_fg_k_cumsum = log_fg_k_cumsum.repeat(1, 1, 1, L + 1)  # (B, NH, L+1, L+1)
         # Now in each row cut off / subtract the forgetgate values of the later timesteps
         # where col j > row i
-        _log_fg_k_matrix = rep_log_fg_k_cumsum - rep_log_fg_k_cumsum.transpose(
-            -2, -1
-        )  # (B, NH, L+1, L+1)
+        _log_fg_k_matrix = rep_log_fg_k_cumsum - rep_log_fg_k_cumsum.transpose(-2, -1)  # (B, NH, L+1, L+1)
         # Causal masking & selection of the correct submatrix, such that forgetgate at timestep t is not applied
         # to the input at timestep t
-        log_fg_k_matrix = torch.where(
-            ltr, _log_fg_k_matrix[:, :, 1:, 1:], -float("inf")
-        )  # (B, NH, L, L)
+        log_fg_k_matrix = torch.where(ltr, _log_fg_k_matrix[:, :, 1:, 1:], -float("inf"))  # (B, NH, L, L)
         # print(f"log_fg_k_matrix: {log_fg_k_matrix.shape}\n{log_fg_k_matrix}")
         log_D_k = log_fg_k_matrix + log_ig_k.transpose(-2, -1)  # (B, NH, L, L)
 
@@ -162,13 +151,9 @@ def mlstm_chunkwise_parallel_legacy(
         q_chunk_gated = q_chunk * torch.exp(p_k + m_k - m_state_combined)
         numerator_common = q_chunk_gated @ C_k + C_k_matrix @ v_chunk
 
-        denom_common = q_chunk_gated @ n_k_inter.unsqueeze(-1) + C_k_matrix.sum(
-            dim=-1, keepdim=True
-        )
+        denom_common = q_chunk_gated @ n_k_inter.unsqueeze(-1) + C_k_matrix.sum(dim=-1, keepdim=True)
 
-        H_k_state = numerator_common / torch.maximum(
-            torch.abs(denom_common), torch.exp(-m_state_combined)
-        )
+        H_k_state = numerator_common / torch.maximum(torch.abs(denom_common), torch.exp(-m_state_combined))
         H_states[:, :, i, :, :] = H_k_state
 
     H_out = rearrange(H_states, "b nh nc l dh -> b nh (nc l) dh")

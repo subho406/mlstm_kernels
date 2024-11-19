@@ -52,9 +52,7 @@ def _mlstm_chunkwise__recurrent_bw_dC(
     L = CHUNK_SIZE
     _dtype, _device = matQ.dtype, matQ.device
 
-    matDeltaC_states = torch.zeros(
-        (B, NH, (NC + 1) * DHQK, DHV), dtype=_dtype, device=_device
-    )
+    matDeltaC_states = torch.zeros((B, NH, (NC + 1) * DHQK, DHV), dtype=_dtype, device=_device)
 
     if qk_scale is None:
         qk_scale = DHQK**-0.5
@@ -82,9 +80,7 @@ def _mlstm_chunkwise__recurrent_bw_dC(
 
         vecB_k = vecB[:, :, (k - 1), :]  # (B, NH, L)
         vecM_combine_k = vecM_combine[:, :, (k - 1) * L : k * L]  # (B, NH, L)
-        vecBbar_k = torch.exp(vecB_k + scaM_inter_kminus1 - vecM_combine_k)[
-            :, :, :, None
-        ]  # (B, NH, L, 1)
+        vecBbar_k = torch.exp(vecB_k + scaM_inter_kminus1 - vecM_combine_k)[:, :, :, None]  # (B, NH, L, 1)
 
         # print(
         #     "bw_dC, k:",
@@ -103,14 +99,10 @@ def _mlstm_chunkwise__recurrent_bw_dC(
         matQbar_k = matQ_k * vecBbar_k * qk_scale
 
         vecN_k = vecN_out[:, :, (k - 1) * L : k * L, None]  # (B, NH, L, 1)
-        matDeltaH_k = matDeltaH[:, :, (k - 1) * L : k * L, :] / (
-            vecN_k + EPS
-        )  # (B, NH, L, DHV)
+        matDeltaH_k = matDeltaH[:, :, (k - 1) * L : k * L, :] / (vecN_k + EPS)  # (B, NH, L, DHV)
 
         # matDeltaC_k-1 update
-        matDeltaC_kminus1 = (
-            scaGbar_k * matDeltaC_k + matQbar_k.transpose(-2, -1) @ matDeltaH_k
-        )  # (B, NH, DHQK, DHV)
+        matDeltaC_kminus1 = scaGbar_k * matDeltaC_k + matQbar_k.transpose(-2, -1) @ matDeltaH_k  # (B, NH, DHQK, DHV)
 
         # move to the next iteration
         matDeltaC_k = matDeltaC_kminus1
@@ -199,12 +191,8 @@ def _mlstm_chunkwise__parallel_bw_dQKV(
 
     #! inter chunk gradients
     # load / prepare the inputs
-    matDeltaC_states = rearrange(
-        matDeltaC_states, "b nh (nc dhqk) dhv -> b nh nc dhqk dhv", nc=NC
-    )
-    matC_states = rearrange(
-        matC_states, "b nh (nc dhqk) dhv -> b nh nc dhqk dhv", nc=NC
-    )
+    matDeltaC_states = rearrange(matDeltaC_states, "b nh (nc dhqk) dhv -> b nh nc dhqk dhv", nc=NC)
+    matC_states = rearrange(matC_states, "b nh (nc dhqk) dhv -> b nh nc dhqk dhv", nc=NC)
 
     # unstable vecA computation:
     # vecA = (vecB[..., -1, None] - vecB) + vecI  # (B, NH, NC, L)
@@ -228,9 +216,7 @@ def _mlstm_chunkwise__parallel_bw_dQKV(
     # compute the gates vecA, vecB
     scaM_inter_kminus1 = scaM_inter[:, :, :-1, None]
     scaM_inter_k = scaM_inter[:, :, 1:, None]
-    vecBbar = torch.exp(vecB + scaM_inter_kminus1 - vecM_combine)[
-        :, :, :, :, None
-    ]  # (B, NH, NC, L, 1)
+    vecBbar = torch.exp(vecB + scaM_inter_kminus1 - vecM_combine)[:, :, :, :, None]  # (B, NH, NC, L, 1)
     vecAbar = torch.exp(vecA - scaM_inter_k)[:, :, :, :, None]
     scaGbar = torch.exp(scaG + scaM_inter_kminus1 - scaM_inter_k)  # (B, NH, NC, 1)
 
@@ -238,15 +224,11 @@ def _mlstm_chunkwise__parallel_bw_dQKV(
     matDeltaV_inter = (matK * vecAbar) @ matDeltaC_states
 
     matDeltaKbar = matV @ (matDeltaC_states.transpose(-2, -1))
-    matDeltaK_inter = (
-        matDeltaKbar * vecAbar
-    )  # (matV * vecAbar) @ (matDeltaC_states.transpose(-2, -1))
+    matDeltaK_inter = matDeltaKbar * vecAbar  # (matV * vecAbar) @ (matDeltaC_states.transpose(-2, -1))
 
     matDeltaQbar = matDeltaH @ (matC_states * qk_scale).transpose(-2, -1)
     # matDeltaQbar2 = matDeltaH @ (matC_states).transpose(-2, -1)
-    matDeltaQ_inter = (
-        matDeltaQbar * vecBbar
-    )  # (matDeltaH * vecBbar) @ (matC_states * qk_scale).transpose(-2, -1)
+    matDeltaQ_inter = matDeltaQbar * vecBbar  # (matDeltaH * vecBbar) @ (matC_states * qk_scale).transpose(-2, -1)
 
     # combine the delta gradients
     matDeltaQ = matDeltaQ_intra + matDeltaQ_inter
@@ -259,23 +241,17 @@ def _mlstm_chunkwise__parallel_bw_dQKV(
 
     # inter gate contributions
     # fgate grads + igate grads:
-    vecDeltaA = (matDeltaKbar * matK).sum(
-        -1, keepdim=True
-    ) * vecAbar  # (B, NH, NC, L, 1)
+    vecDeltaA = (matDeltaKbar * matK).sum(-1, keepdim=True) * vecAbar  # (B, NH, NC, L, 1)
     vecDeltaA = vecDeltaA.squeeze(-1)
     # fgate grads only:
     scaDeltaGbar = matC_states * matDeltaC_states  # (B, NH, NC, DHQK, DHV)
     scaDeltaG = scaDeltaGbar.sum(-1).sum(-1, keepdim=True) * scaGbar  # (B, NH, NC, 1)
-    vecDeltaB = (matDeltaQbar * matQ).sum(
-        -1, keepdim=True
-    ) * vecBbar  # (B, NH, NC, L, 1)
+    vecDeltaB = (matDeltaQbar * matQ).sum(-1, keepdim=True) * vecBbar  # (B, NH, NC, L, 1)
     vecDeltaB = vecDeltaB.squeeze(-1)
     print("vecDeltaB\n", vecDeltaB, vecDeltaB.shape)
 
     # intra forgetgate contributions from matDeltaD
-    vecDeltaF_f2onw_intra = (
-        matDeltaD.cumsum(-1).tril(-1).sum(-2)[..., :-1]
-    )  # (B, NH, NC, L-1) # only from f2 onwards
+    vecDeltaF_f2onw_intra = matDeltaD.cumsum(-1).tril(-1).sum(-2)[..., :-1]  # (B, NH, NC, L-1) # only from f2 onwards
 
     # inter forgetgate contributions from matDeltaD
     # vecDeltaG is added to all
@@ -348,9 +324,7 @@ def _mlstm_chunkwise_bw(
     B, NH, S, DHQK = matQ.shape
     DHV = matV.shape[-1]
 
-    assert (
-        S % CHUNK_SIZE == 0
-    ), f"Sequence length {S} is not divisible by chunk size {CHUNK_SIZE}."
+    assert S % CHUNK_SIZE == 0, f"Sequence length {S} is not divisible by chunk size {CHUNK_SIZE}."
 
     NC = S // CHUNK_SIZE
 
@@ -446,24 +420,22 @@ def _mlstm_chunkwise_bw(
 
     # torch.save(inp_dict_bw_dQKV, "./inputs_bw_dQKV")
 
-    matDeltaQ, matDeltaK, matDeltaV, vecDeltaI, vecDeltaF = (
-        _mlstm_chunkwise__parallel_bw_dQKV(
-            matQ=matQ,
-            matK=matK,
-            matV=matV,
-            vecF=vecF,
-            vecI=vecI,
-            vecM_combine=vecM_out,
-            scaM_inter=scaM_all,  # (B, NH, NC)
-            matC_states=matC_k_states,  # (B, NH, NC * DHQK, DHV)
-            matDeltaH=matDeltaH,  # (B, NH, S, DHV)
-            vecN_out=vecN_out,  # (B, NH, S)
-            matDeltaC_states=matDeltaC_k_states,  # (B, NH, NC * DHQK, DHV)
-            qk_scale=qk_scale,
-            CHUNK_SIZE=CHUNK_SIZE,
-            NUM_CHUNKS=NC,
-            EPS=EPS,
-        )
+    matDeltaQ, matDeltaK, matDeltaV, vecDeltaI, vecDeltaF = _mlstm_chunkwise__parallel_bw_dQKV(
+        matQ=matQ,
+        matK=matK,
+        matV=matV,
+        vecF=vecF,
+        vecI=vecI,
+        vecM_combine=vecM_out,
+        scaM_inter=scaM_all,  # (B, NH, NC)
+        matC_states=matC_k_states,  # (B, NH, NC * DHQK, DHV)
+        matDeltaH=matDeltaH,  # (B, NH, S, DHV)
+        vecN_out=vecN_out,  # (B, NH, S)
+        matDeltaC_states=matDeltaC_k_states,  # (B, NH, NC * DHQK, DHV)
+        qk_scale=qk_scale,
+        CHUNK_SIZE=CHUNK_SIZE,
+        NUM_CHUNKS=NC,
+        EPS=EPS,
     )
 
     # #! postprocessing: compute deltaF and deltaI gradients
@@ -479,15 +451,9 @@ def _mlstm_chunkwise_bw(
     # vecDeltaI = (matV * matDeltaV).sum(-1)
     # # vecDeltaI = (matK * matDeltaK).sum(-1)
 
-    matDeltaC_initial = (
-        matDeltaC_states[:, :, :DHQK, :] if matC_initial is not None else None
-    )
-    vecDeltaN_initial = (
-        torch.zeros_like(vecN_initial) if vecN_initial is not None else None
-    )
-    scaDeltaM_initial = (
-        torch.zeros_like(scaM_initial) if scaM_initial is not None else None
-    )
+    matDeltaC_initial = matDeltaC_states[:, :, :DHQK, :] if matC_initial is not None else None
+    vecDeltaN_initial = torch.zeros_like(vecN_initial) if vecN_initial is not None else None
+    scaDeltaM_initial = torch.zeros_like(scaM_initial) if scaM_initial is not None else None
 
     return (
         matDeltaQ,

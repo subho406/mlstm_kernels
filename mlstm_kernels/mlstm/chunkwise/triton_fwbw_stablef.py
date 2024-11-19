@@ -107,9 +107,7 @@ def chunk_mlstm_fwd_kernel_C(
             (BHQK,),
             (0,),
         )
-        tl.store(
-            matC_ptr, matC_val.to(matC_ptr.dtype.element_ty), boundary_check=(0, 1)
-        )
+        tl.store(matC_ptr, matC_val.to(matC_ptr.dtype.element_ty), boundary_check=(0, 1))
         tl.store(matN_ptr, matN_val.to(matN_ptr.dtype.element_ty), boundary_check=(0,))
         tl.store(matM + idx_BC * (NT + 1) + idx_t, matM_val)
         # [BHQK, BT]
@@ -132,21 +130,16 @@ def chunk_mlstm_fwd_kernel_C(
 
         matM_next_val, _ = tl.max(vecG_val)
         matM_next_val = tl.maximum(scaF_all_val + matM_val, matM_next_val)
-        matC_val *= tl.math.exp2(scaF_all_val - matM_next_val + matM_val).to(
-            matC_val.dtype
-        )
-        matN_val *= tl.math.exp2(scaF_all_val - matM_next_val + matM_val).to(
-            matN_val.dtype
-        )
+        matC_val *= tl.math.exp2(scaF_all_val - matM_next_val + matM_val).to(matC_val.dtype)
+        matN_val *= tl.math.exp2(scaF_all_val - matM_next_val + matM_val).to(matN_val.dtype)
         matC_val += tl.dot(
             matK_val,
-            matV_val
-            * (tl.math.exp2(vecG_val - matM_next_val)[:, None]).to(matK_val.dtype),
+            matV_val * (tl.math.exp2(vecG_val - matM_next_val)[:, None]).to(matK_val.dtype),
             allow_tf32=False,
         ).to(matC_val.dtype)
-        matN_val += tl.sum(
-            matK_val * tl.math.exp2(vecG_val - matM_next_val).to(matK_val.dtype), axis=1
-        ).to(matN_val.dtype)
+        matN_val += tl.sum(matK_val * tl.math.exp2(vecG_val - matM_next_val).to(matK_val.dtype), axis=1).to(
+            matN_val.dtype
+        )
         matM_val = matM_next_val
 
     tl.store(matM + idx_BC * (NT + 1) + NT, matM_val)
@@ -159,12 +152,8 @@ def chunk_mlstm_fwd_kernel_C(
             (BHQK, BHHV),
             (1, 0),
         )
-        matN_ptr = tl.make_block_ptr(
-            matN_final + idx_BC * K, (K,), (1,), (idx_K * BHQK,), (BHQK,), (0,)
-        )
-        tl.store(
-            matC_ptr, matC_val.to(matC_ptr.dtype.element_ty), boundary_check=(0, 1)
-        )
+        matN_ptr = tl.make_block_ptr(matN_final + idx_BC * K, (K,), (1,), (idx_K * BHQK,), (BHQK,), (0,))
+        tl.store(matC_ptr, matC_val.to(matC_ptr.dtype.element_ty), boundary_check=(0, 1))
         tl.store(matN_ptr, matN_val.to(matN_ptr.dtype.element_ty), boundary_check=(0,))
         tl.store(matM_final + idx_BC, matM_val)
 
@@ -256,13 +245,9 @@ def chunk_mlstm_fwd_kernel_h(
         # [BHQK, BHHV]
         matC_val = tl.load(matC_ptr, boundary_check=(0, 1))
         matN_val = tl.load(matN_ptr, boundary_check=(0,))
-        matH_val += tl.dot(matQ_val, matC_val.to(matQ_val.dtype), allow_tf32=False).to(
-            matH_val.dtype
-        )
+        matH_val += tl.dot(matQ_val, matC_val.to(matQ_val.dtype), allow_tf32=False).to(matH_val.dtype)
         matS_val += tl.dot(matQ_val, matK_val, allow_tf32=False).to(matS_val.dtype)
-        vecN2_val = tl.dot(matQ_val, matN_val.to(matQ_val.dtype), allow_tf32=False).to(
-            vecNorm_val.dtype
-        )
+        vecN2_val = tl.dot(matQ_val, matN_val.to(matQ_val.dtype), allow_tf32=False).to(vecNorm_val.dtype)
         vecNorm_val += vecN2_val
 
     vecF_ptr = vecF + idx_BC * T + idx_t * BT + idx_t_cta
@@ -273,18 +258,14 @@ def chunk_mlstm_fwd_kernel_h(
     vecI_val = tl.load(vecI_ptr)
     matM_val = tl.load(matM + idx_BC * (NT + 1) + idx_t)
 
-    vecF_bottom_cum_val = tl.cumsum(
-        tl.where(idx_t_cta > idx_s_cta, vecF_val.broadcast_to(BT, BS), 0.0)
-    )
+    vecF_bottom_cum_val = tl.cumsum(tl.where(idx_t_cta > idx_s_cta, vecF_val.broadcast_to(BT, BS), 0.0))
     matlogD_val = vecI_val + vecF_bottom_cum_val
     matlogD_val = tl.where(matM_s, vecI_val + vecF_bottom_cum_val, -float("inf"))
 
     matmlogD_val = tl.max(matlogD_val, axis=1)
 
     matM_total_val = tl.maximum(tl.max(vecF_val, axis=1) + matM_val, matmlogD_val)
-    matM_total_ptr = tl.make_block_ptr(
-        matM_total + T * idx_BC, (T,), (1,), (idx_t * BT,), (BT,), (0,)
-    )
+    matM_total_ptr = tl.make_block_ptr(matM_total + T * idx_BC, (T,), (1,), (idx_t * BT,), (BT,), (0,))
     tl.store(
         matM_total_ptr,
         matM_total_val.to(matM_total_ptr.dtype.element_ty),
@@ -292,15 +273,9 @@ def chunk_mlstm_fwd_kernel_h(
     )
 
     matD_val = tl.math.exp2(matlogD_val - matM_total_val[:, None])
-    matH_val = (
-        matH_val * tl.math.exp2(vecFc_val + matM_val - matM_total_val[:, None]) * scale
-    )
+    matH_val = matH_val * tl.math.exp2(vecFc_val + matM_val - matM_total_val[:, None]) * scale
     matS_val = matS_val * matD_val * scale
-    vecNorm_val = (
-        vecNorm_val
-        * tl.math.exp2(vecFc_val + matM_val - matM_total_val[:, None])
-        * scale
-    )
+    vecNorm_val = vecNorm_val * tl.math.exp2(vecFc_val + matM_val - matM_total_val[:, None]) * scale
 
     matS_val = tl.where(matM_s, matS_val, 0)
     vecNorm_val += tl.sum(matS_val, axis=1)[:, None]
@@ -337,9 +312,7 @@ def chunk_mlstm_fwd_kernel_h(
         (1, 0),
     )
     matV_val = tl.load(matV_ptr, boundary_check=(0, 1))
-    matH_val = (
-        matH_val + tl.dot(matS_val.to(matV_val.dtype), matV_val, allow_tf32=False)
-    ) / vecNorm_val
+    matH_val = (matH_val + tl.dot(matS_val.to(matV_val.dtype), matV_val, allow_tf32=False)) / vecNorm_val
     matH_ptr = tl.make_block_ptr(
         matH + idx_BC * str_VH_H,
         (T, V),
@@ -427,35 +400,25 @@ def chunk_mlstm_bwd_kernel_dC(
             (1, 0),
         )
 
-        tl.store(
-            matdC_ptr, matdC_val.to(matdC_ptr.dtype.element_ty), boundary_check=(0, 1)
-        )
+        tl.store(matdC_ptr, matdC_val.to(matdC_ptr.dtype.element_ty), boundary_check=(0, 1))
         vecF_val = tl.load(vecF + idx_BC * T + idx_t * BT + tl.arange(0, BT))
         scaF_all_val = tl.sum(vecF_val)
 
         matM_p_val = tl.load(matM + idx_BC * (NT + 1) + idx_t)
-        matM_total_val = tl.load(
-            matM_total + idx_BC * T + idx_t * BT + tl.arange(0, BT)
-        )
+        matM_total_val = tl.load(matM_total + idx_BC * T + idx_t * BT + tl.arange(0, BT))
         vecNorm_val = tl.load(vecNorm + idx_BC * T + idx_t * BT + tl.arange(0, BT))
 
         # [BHQK, BT]
         matQ_val = tl.load(matQ_ptr, boundary_check=(0, 1))
-        matQ_val = (
-            matQ_val
-            * scale
-            * tl.math.exp2(tl.cumsum(vecF_val) + matM_p_val - matM_total_val)[None, :]
-        ).to(matQ_val.dtype)
+        matQ_val = (matQ_val * scale * tl.math.exp2(tl.cumsum(vecF_val) + matM_p_val - matM_total_val)[None, :]).to(
+            matQ_val.dtype
+        )
         # [BT, V]
         matdH_val = tl.load(matdH_ptr, boundary_check=(0, 1))
         matdH_val /= vecNorm_val[:, None]
         # [BHQK, BHHV]
-        matdC_val *= tl.math.exp2(scaF_all_val + matM_p_val - matM_val).to(
-            matdC_val.dtype
-        )
-        matdC_val += tl.dot(
-            matQ_val, matdH_val.to(matQ_val.dtype), allow_tf32=False
-        ).to(matdC_val.dtype)
+        matdC_val *= tl.math.exp2(scaF_all_val + matM_p_val - matM_val).to(matdC_val.dtype)
+        matdC_val += tl.dot(matQ_val, matdH_val.to(matQ_val.dtype), allow_tf32=False).to(matdC_val.dtype)
         matM_val = matM_p_val
 
     if STORE_INITIAL_STATE:
@@ -548,18 +511,14 @@ def chunk_mlstm_bwd_kernel_dqkvif(
 
     matM_s = o_cta[None, :] >= o_cta[:, None]
     vecF_right_cum_val = tl.cumsum(
-        tl.where(
-            o_cta[None, :] > o_cta[:, None], vecF_val[None, :].broadcast_to(BS, BT), 0.0
-        ),
+        tl.where(o_cta[None, :] > o_cta[:, None], vecF_val[None, :].broadcast_to(BS, BT), 0.0),
         axis=1,
     )
     logDT_val = vecI_val[:, None] + vecF_right_cum_val - matM_total_val[None, :]
     DT_val = tl.where(matM_s, tl.math.exp2(logDT_val) * scale, 0.0)
     matS_val = matS_val * DT_val
 
-    vecF_rev_val = tl.load(
-        vecF + idx_BC * T + idx_t * BT + o_cta + 1, mask=o_cta < BT - 1, other=0.0
-    )
+    vecF_rev_val = tl.load(vecF + idx_BC * T + idx_t * BT + o_cta + 1, mask=o_cta < BT - 1, other=0.0)
     vecF_rc_val = tl.flip(tl.cumsum(tl.flip(vecF_rev_val), axis=0))
     vecF_ac_val = tl.load(vecF + idx_BC * T + idx_t * BT + o_cta)
     vecFc_val = tl.cumsum(vecF_ac_val, axis=0)
@@ -574,9 +533,7 @@ def chunk_mlstm_bwd_kernel_dqkvif(
     matdS_val = tl.zeros([BT, BT], dtype=matQ_val.dtype)
     vecdI_val = tl.zeros([BT], dtype=vecG_val.dtype)
 
-    vecdI_ptr = tl.make_block_ptr(
-        vecdI + (idx_K * matN_bh + idx_BC) * T, (T,), (1,), (idx_t * BT,), (BT,), (0,)
-    )
+    vecdI_ptr = tl.make_block_ptr(vecdI + (idx_K * matN_bh + idx_BC) * T, (T,), (1,), (idx_t * BT,), (BT,), (0,))
     scadFc_ptr = scadFc + (idx_K * matN_bh + idx_BC) * NT + idx_t
     scadFc_val = 0.0
 
@@ -629,21 +586,13 @@ def chunk_mlstm_bwd_kernel_dqkvif(
         # [BHQK, BHHV]
         matdC_val = tl.load(matdC_ptr, boundary_check=(0, 1))
         # [BT, BT]
-        matdS_val += tl.dot(matdH_val, tl.trans(matV_val), allow_tf32=False).to(
-            matdS_val.dtype
-        )
+        matdS_val += tl.dot(matdH_val, tl.trans(matV_val), allow_tf32=False).to(matdS_val.dtype)
         # [BT, BHQK]
-        matdQ_val += (
-            tl.dot(matdH_val, matC_val.to(matdH_val.dtype), allow_tf32=False) * scale
-        ).to(matdQ_val.dtype)
-        matdK_val += tl.dot(
-            matV_val, tl.trans(matdC_val.to(matV_val.dtype)), allow_tf32=False
-        ).to(matdK_val.dtype)
+        matdQ_val += (tl.dot(matdH_val, matC_val.to(matdH_val.dtype), allow_tf32=False) * scale).to(matdQ_val.dtype)
+        matdK_val += tl.dot(matV_val, tl.trans(matdC_val.to(matV_val.dtype)), allow_tf32=False).to(matdK_val.dtype)
         # [BT, BHHV]
         matdV_val = (
-            tl.dot(matK_val, matdC_val.to(matK_val.dtype), allow_tf32=False).to(
-                matQ_val.dtype
-            )
+            tl.dot(matK_val, matdC_val.to(matK_val.dtype), allow_tf32=False).to(matQ_val.dtype)
             * tl.math.exp2(vecG_val - matM_next_val).to(matQ_val.dtype)[:, None]
         )
         matdV_val += tl.dot(
@@ -653,27 +602,18 @@ def chunk_mlstm_bwd_kernel_dqkvif(
         ).to(matQ_val.dtype)
         vecdI_val += tl.sum(matdV_val * matV_val, axis=1).to(tl.float32)
 
-        scadFc_val += tl.sum(
-            tl.sum(tl.trans(matC_val) * matdC_val, axis=0).to(tl.float32), axis=0
-        )
-        tl.store(
-            matdV_ptr, matdV_val.to(matdV_ptr.dtype.element_ty), boundary_check=(0, 1)
-        )
+        scadFc_val += tl.sum(tl.sum(tl.trans(matC_val) * matdC_val, axis=0).to(tl.float32), axis=0)
+        tl.store(matdV_ptr, matdV_val.to(matdV_ptr.dtype.element_ty), boundary_check=(0, 1))
 
     tl.store(vecdI_ptr, vecdI_val.to(vecdI_ptr.dtype.element_ty), boundary_check=(0,))
-    tl.store(
-        scadFc_ptr, scadFc_val * tl.math.exp2(scaF_all_val + matM_val - matM_next_val)
-    )
+    tl.store(scadFc_ptr, scadFc_val * tl.math.exp2(scaF_all_val + matM_val - matM_next_val))
 
-    matdQ_val *= (
-        tl.math.exp2(vecFc_val + matM_val - matM_total_val)[:, None]
-        / vecNorm_val[:, None]
-    ).to(matdQ_val.dtype)
+    matdQ_val *= (tl.math.exp2(vecFc_val + matM_val - matM_total_val)[:, None] / vecNorm_val[:, None]).to(
+        matdQ_val.dtype
+    )
     vecdFq1_val = tl.flip(
         tl.cumsum(
-            tl.flip(
-                tl.sum((tl.trans(matQ_val) * matdQ_val).to(vecF_val.dtype), axis=1)
-            ),
+            tl.flip(tl.sum((tl.trans(matQ_val) * matdQ_val).to(vecF_val.dtype), axis=1)),
             axis=0,
         )
     )
@@ -684,9 +624,7 @@ def chunk_mlstm_bwd_kernel_dqkvif(
     matdS_val = matdS_val.to(matK_val.dtype)
 
     # [BT, BHQK]
-    matdQ_p_val = tl.dot(matdS_val, matK_val, allow_tf32=False) / vecNorm_val[
-        :, None
-    ].to(matdQ_val.dtype)
+    matdQ_p_val = tl.dot(matdS_val, matK_val, allow_tf32=False) / vecNorm_val[:, None].to(matdQ_val.dtype)
     matdQ_val += matdQ_p_val
     matdK_p_val = tl.trans(
         tl.dot(
@@ -703,9 +641,7 @@ def chunk_mlstm_bwd_kernel_dqkvif(
 
     mask = o_cta[:, None] < o_cta[None, :]
     vecdG_val = tl.where(mask, vecdG_val, 0.0)
-    vecdFg_val = tl.sum(
-        tl.where(mask, tl.flip(tl.cumsum(tl.flip(vecdG_val), axis=1)), 0.0), axis=0
-    )
+    vecdFg_val = tl.sum(tl.where(mask, tl.flip(tl.cumsum(tl.flip(vecdG_val), axis=1)), 0.0), axis=0)
 
     vecdFq_val = vecdFq1_val + vecdFg_val
 
@@ -725,9 +661,7 @@ def chunk_mlstm_bwd_kernel_dqkvif(
         (BT, BHQK),
         (1, 0),
     )
-    vecdFq_ptr = tl.make_block_ptr(
-        vecdFq + (idx_K * matN_bh + idx_BC) * T, (T,), (1,), (idx_t * BT,), (BT,), (0,)
-    )
+    vecdFq_ptr = tl.make_block_ptr(vecdFq + (idx_K * matN_bh + idx_BC) * T, (T,), (1,), (idx_t * BT,), (BT,), (0,))
     vecdFk_ptr = tl.make_block_ptr(
         vecdFk + (idx_K * matN_bh + idx_BC) * (T + 1) + 1,
         (T + 1,),
@@ -740,12 +674,8 @@ def chunk_mlstm_bwd_kernel_dqkvif(
     tl.store(matdQ_ptr, matdQ_val.to(matdQ_ptr.dtype.element_ty), boundary_check=(0, 1))
     tl.store(matdK_ptr, matdK_val.to(matdK_ptr.dtype.element_ty), boundary_check=(0, 1))
 
-    tl.store(
-        vecdFq_ptr, vecdFq_val.to(vecdFq_ptr.dtype.element_ty), boundary_check=(0,)
-    )
-    tl.store(
-        vecdFk_ptr, vecdFk_val.to(vecdFk_ptr.dtype.element_ty), boundary_check=(0,)
-    )
+    tl.store(vecdFq_ptr, vecdFq_val.to(vecdFq_ptr.dtype.element_ty), boundary_check=(0,))
+    tl.store(vecdFk_ptr, vecdFk_val.to(vecdFk_ptr.dtype.element_ty), boundary_check=(0,))
 
 
 def mLSTMforward(
@@ -800,15 +730,9 @@ def mLSTMforward(
 
     matC_final, matN_final, matM_final = None, None, None
     if return_last_states:
-        matC_final = matQ.new_full(
-            (B, H, K, V), float("nan"), requires_grad=False, dtype=dtype_states
-        )
-        matN_final = matQ.new_full(
-            (B, H, K), float("nan"), requires_grad=False, dtype=dtype_states
-        )
-        matM_final = matQ.new_full(
-            (B, H), float("nan"), requires_grad=False, dtype=dtype_states
-        )
+        matC_final = matQ.new_full((B, H, K, V), float("nan"), requires_grad=False, dtype=dtype_states)
+        matN_final = matQ.new_full((B, H, K), float("nan"), requires_grad=False, dtype=dtype_states)
+        matM_final = matQ.new_full((B, H), float("nan"), requires_grad=False, dtype=dtype_states)
 
     matC = matQ.new_full((B, H, NT * K, V), float("nan"), dtype=dtype_states)
     matN = matQ.new_full((B, H, NT, K), float("nan"), dtype=dtype_states)
@@ -1001,12 +925,8 @@ def mLSTMbackward(
 
     USE_INITIAL_STATE = matC_initial is not None
     if USE_INITIAL_STATE:
-        matdC_initial = matQ.new_full(
-            (B, H, K, V), float("nan"), requires_grad=False, dtype=dtype_states
-        )
-        matM_initial = matQ.new_full(
-            (B, H), float("nan"), requires_grad=False, dtype=dtype_states
-        )
+        matdC_initial = matQ.new_full((B, H, K, V), float("nan"), requires_grad=False, dtype=dtype_states)
+        matM_initial = matQ.new_full((B, H), float("nan"), requires_grad=False, dtype=dtype_states)
     else:
         matdC_initial = matQ.new_zeros((1,), requires_grad=False, dtype=dtype_states)
         matM_initial = matQ.new_zeros((1,), requires_grad=False, dtype=dtype_states)

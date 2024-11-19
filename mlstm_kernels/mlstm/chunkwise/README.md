@@ -21,8 +21,8 @@ Backward pass contains:
 
 ### Chunkwise Recurrent
 
-This is only the `chunkwise__recurrent_fw` part. 
+This is only the `chunkwise__recurrent_fw` part.
 On a high level this is a "chunk step function". Given an inital state and a sequence of inputs
-it computes the next state without computing every intermediate state. 
+it computes the next state without computing every intermediate state.
 
 During inference this might be used to consume long prompts and produce a hidden state from which decoding starts.

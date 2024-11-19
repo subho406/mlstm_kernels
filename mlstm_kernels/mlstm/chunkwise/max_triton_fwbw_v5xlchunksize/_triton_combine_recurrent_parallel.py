@@ -7,15 +7,13 @@ It should allow arbitrary large chunk sizes and head dimensions.
 import torch
 
 from ....kernel_utils import contiguous_noctx
-from ._torch_chunkwise_gates import compute_chunkwise_log_gates_vecB_vecA
+from ._torch_chunkwise_gates import compute_chunkwise_log_gates_vecB_vecA, compute_gate_grads
 from ._triton_parallel_bw_dK import mlstm_chunkwise__parallel_bw_dK
 from ._triton_parallel_bw_dQ import mlstm_chunkwise__parallel_bw_dQ
 from ._triton_parallel_bw_dV import mlstm_chunkwise__parallel_bw_dV
 from ._triton_parallel_fw import mlstm_chunkwise__parallel_fw_Hintra
 from ._triton_recurrent_bw import mlstm_chunkwise__recurrent_bw_dC
 from ._triton_recurrent_fw import mlstm_chunkwise__recurrent_fw_C
-
-# TODO fuse the cumsum computations into the kernels, maybe?
 
 
 @contiguous_noctx
@@ -134,7 +132,6 @@ def mlstm_chunkwise_fw(
 
     return ret_tuple  # (matH_out, vecN_out, vecM_out, optional(last_states), optional(all_states))
 
-
 @contiguous_noctx
 def mlstm_chunkwise_bw(
     ## Forward arguments
@@ -227,7 +224,7 @@ def mlstm_chunkwise_bw(
 
     #! parallel backward: compute the deltaQ, deltaK, deltaV gradients
     vecB, vecA = compute_chunkwise_log_gates_vecB_vecA(
-        chunk_size=chunk_size_intra, vecI=vecI, vecF=vecF, return_vecB_only=False
+        chunk_size=chunk_size_intra, vecI=vecI, vecF=vecF
     )
     grad_output_dtype = matQ.dtype
     #! compute deltaV
@@ -311,24 +308,7 @@ def mlstm_chunkwise_bw(
         output_dtype=grad_output_dtype,
     )
 
-    #! postprocessing: compute deltaF and deltaI gradients
-    ## ? postprocessing
-    # vecF = rearrange(vecF, "b nh nc l -> b nh (nc l)")
-    # compute the vecDeltaFbar values with dfbar = rev_cumsum((q*dq - k*dk).sum(-1))
-    matQ = matQ.to(torch.float32)
-    matK = matK.to(torch.float32)
-    matDeltaQ = matDeltaQ.to(torch.float32)
-    matDeltaK = matDeltaK.to(torch.float32)
-    vecDeltaFbar_acc = ((matQ * matDeltaQ) - (matK * matDeltaK)).sum(-1)
-    vecDeltaFbar = vecDeltaFbar_acc.flip(-1).to(torch.float32).cumsum(-1).flip(-1)
-    vecDeltaF = vecDeltaFbar * torch.sigmoid(-vecF)
-    ## ? end postprocessing
-    # compute deltaI
-    # both are equivalent:
-    # vecDeltaI = (matV * matDeltaV).sum(-1)
-    vecDeltaI = (matK * matDeltaK).sum(-1)
-
-    # vecDeltaI = torch.zeros((B, NH, S), dtype=vecI.dtype, device=vecI.device)
+    vecDeltaI, vecDeltaF = compute_gate_grads(matQ, matK, matDeltaQ, matDeltaK, vecF)
 
     matDeltaC_initial = matDeltaC_states[:, :, :DHQK, :] if matC_initial is not None else None
 

@@ -99,9 +99,7 @@ def _mlstm_chunkwise__recurrent_bw_dC_kernel(
             order=(1, 0),
         )
         # load last state
-        matDeltaC_k_val = tl.load(matDeltaC_last_ptr, boundary_check=(1, 0)).to(
-            tl.float32
-        )
+        matDeltaC_k_val = tl.load(matDeltaC_last_ptr, boundary_check=(1, 0)).to(tl.float32)
 
     # iterate over chunks from last to first
     for k in range(NC, 0, -1):
@@ -124,9 +122,7 @@ def _mlstm_chunkwise__recurrent_bw_dC_kernel(
             order=(1, 0),
         )
         matDeltaCstates_k_ptr = tl.make_block_ptr(
-            base=matDeltaC_states
-            + idx_b_NH * str_matDeltaC_states_B_NH
-            + k * DHQK * DHHV,
+            base=matDeltaC_states + idx_b_NH * str_matDeltaC_states_B_NH + k * DHQK * DHHV,
             shape=(DHQK, DHHV),
             strides=(str_matDeltaC_states_NCDHQK, str_matDeltaC_states_DHHV),
             offsets=(idx_b_DHQK * siz_b_DHQK, idx_b_DHHV * siz_b_DHHV),
@@ -136,30 +132,19 @@ def _mlstm_chunkwise__recurrent_bw_dC_kernel(
         # ? end pointers
 
         # * store matDeltaC_k_val from previous iteration in HBM
-        tl.store(
-            matDeltaCstates_k_ptr, matDeltaC_k_val.to(DTYPE), boundary_check=(0, 1)
-        )
+        tl.store(matDeltaCstates_k_ptr, matDeltaC_k_val.to(DTYPE), boundary_check=(0, 1))
 
         # * compute matDeltaC_km1_val
         # load scaG_k, vecB_k, scaM_inter_km1, scaM_inter_k, vecM_combine_k
         # scaG_k_val is the last val of vecB_k
-        scaG_k_val = tl.load(
-            vecB + idx_b_NH * str_vecB_B_NH + (k - 1) * str_vecB_NC + (L - 1)
-        ).to(tl.float32)
+        scaG_k_val = tl.load(vecB + idx_b_NH * str_vecB_B_NH + (k - 1) * str_vecB_NC + (L - 1)).to(tl.float32)
         vecB_val = tl.load(
             vecB + idx_b_NH * str_vecB_B_NH + (k - 1) * str_vecB_NC + tl.arange(0, L),
         ).to(tl.float32)
-        scaM_inter_km1_val = tl.load(
-            scaM_inter + idx_b_NH * str_scaM_inter_B_NH + (k - 1)
-        ).to(tl.float32)
-        scaM_inter_k_val = tl.load(scaM_inter + idx_b_NH * str_scaM_inter_B_NH + k).to(
-            tl.float32
-        )
+        scaM_inter_km1_val = tl.load(scaM_inter + idx_b_NH * str_scaM_inter_B_NH + (k - 1)).to(tl.float32)
+        scaM_inter_k_val = tl.load(scaM_inter + idx_b_NH * str_scaM_inter_B_NH + k).to(tl.float32)
         vecM_combine_k_val = tl.load(
-            vecM_combine
-            + idx_b_NH * str_vecM_combine_B_NH
-            + (k - 1) * L
-            + tl.arange(0, L)
+            vecM_combine + idx_b_NH * str_vecM_combine_B_NH + (k - 1) * L + tl.arange(0, L)
         ).to(tl.float32)
 
         # compute scaGbar_k, vecBbar_k
@@ -174,19 +159,15 @@ def _mlstm_chunkwise__recurrent_bw_dC_kernel(
         matQbar_k_val = (matQ_k_val * vecBbar_k_val[None, :] * qk_scale).to(DTYPE)
 
         # load vecN_out_k, matDeltaH_k
-        vecN_out_k_val = tl.load(
-            vecN_out + idx_b_NH * str_vecN_out_B_NH + (k - 1) * L + tl.arange(0, L)
-        ).to(tl.float32)  # (L,)
-        matDeltaH_k_val = tl.load(matDeltaH_ptr, boundary_check=(0, 1)).to(
+        vecN_out_k_val = tl.load(vecN_out + idx_b_NH * str_vecN_out_B_NH + (k - 1) * L + tl.arange(0, L)).to(
             tl.float32
-        )  # (L, DHHV)
+        )  # (L,)
+        matDeltaH_k_val = tl.load(matDeltaH_ptr, boundary_check=(0, 1)).to(tl.float32)  # (L, DHHV)
         # compute matDeltaHinter_k
         matDeltaH_k_val = (matDeltaH_k_val / (vecN_out_k_val[:, None] + EPS)).to(DTYPE)
 
         # compute matDeltaC_km1
-        matDeltaC_k_val = scaGbar_k_val * matDeltaC_k_val + tl.dot(
-            matQbar_k_val, matDeltaH_k_val
-        )
+        matDeltaC_k_val = scaGbar_k_val * matDeltaC_k_val + tl.dot(matQbar_k_val, matDeltaH_k_val)
 
     # * store the first state from the last iteration
     matDeltaCstates_0_ptr = tl.make_block_ptr(
@@ -230,9 +211,7 @@ def _mlstm_chunkwise__recurrent_bw_dC(
 
     USE_LAST_STATE = matDeltaC_last is not None
 
-    matDeltaC_states = torch.zeros(
-        (B, NH, (NC + 1) * DHQK, DHHV), dtype=_dtype, device=_device
-    )
+    matDeltaC_states = torch.zeros((B, NH, (NC + 1) * DHQK, DHHV), dtype=_dtype, device=_device)
 
     siz_b_DHQK = min(64, triton.next_power_of_2(DHQK))
     siz_b_DHHV = min(64, triton.next_power_of_2(DHHV))
@@ -353,19 +332,10 @@ def _mlstm_chunkwise__parallel_bw_dQKV_kernel(
 
     # [intra] recompute matDbar
     # load gates (L,)
-    vecB_val = tl.load(vecB + idx_b_BNH * S + idx_b_NC * L + tl.arange(0, L)).to(
-        tl.float32
-    )  # (L,)
-    vecI_val = tl.load(vecI + idx_b_BNH * S + idx_b_NC * L + tl.arange(0, L)).to(
-        tl.float32
-    )  # (L,)
+    vecB_val = tl.load(vecB + idx_b_BNH * S + idx_b_NC * L + tl.arange(0, L)).to(tl.float32)  # (L,)
+    vecI_val = tl.load(vecI + idx_b_BNH * S + idx_b_NC * L + tl.arange(0, L)).to(tl.float32)  # (L,)
     # load vecM_combine (L,)
-    vecM_combine_val = tl.load(
-        vecM_combine
-        + idx_b_BNH * S
-        + idx_b_NC * L
-        + tl.arange(0, L)
-    )
+    vecM_combine_val = tl.load(vecM_combine + idx_b_BNH * S + idx_b_NC * L + tl.arange(0, L))
 
     # compute gate matrix matDbar (L, L)
     idx_mask = tl.arange(0, L)
@@ -378,9 +348,7 @@ def _mlstm_chunkwise__parallel_bw_dQKV_kernel(
     # [inter,intra] compute vecAbar, vecBbar
     # load scaM_inter_k, scaM_inter_km1
     scaM_inter_km1_val = tl.load(scaM_inter + idx_b_BNH * (NC + 1) + idx_b_NC)  # (1,)
-    scaM_inter_k_val = tl.load(
-        scaM_inter + idx_b_BNH * (NC + 1) + (idx_b_NC + 1)
-    )  # (1,)
+    scaM_inter_k_val = tl.load(scaM_inter + idx_b_BNH * (NC + 1) + (idx_b_NC + 1))  # (1,)
 
     # scaG is the last val of vecB
     scaG_val = tl.load(vecB + idx_b_BNH * S + idx_b_NC * L + L - 1)  # (1,)
@@ -413,13 +381,9 @@ def _mlstm_chunkwise__parallel_bw_dQKV_kernel(
     matS_val = tl.dot(matQ_val, tl.trans(matK_val)) * qk_scale
     matSbar_val = (matS_val * matDbar_val).to(DTYPE)  # (L, L)
 
-    matKbar_val = (matK_val.to(tl.float32) * vecAbar_val[:, None]).to(
-        DTYPE
-    )  # (L, siz_b_DHQK)
+    matKbar_val = (matK_val.to(tl.float32) * vecAbar_val[:, None]).to(DTYPE)  # (L, siz_b_DHQK)
 
-    vecN_out_ptr = (
-        vecN_out + idx_b_BNH * S + idx_b_NC * L + tl.arange(0, L)
-    )
+    vecN_out_ptr = vecN_out + idx_b_BNH * S + idx_b_NC * L + tl.arange(0, L)
     vecN_out_val = tl.load(vecN_out_ptr).to(tl.float32)  # (L,)
     matDeltaQ_inter_val = tl.zeros((L, siz_b_DHQK), dtype=tl.float32)
     matDeltaK_inter_val = tl.zeros((L, siz_b_DHQK), dtype=tl.float32)
@@ -445,9 +409,7 @@ def _mlstm_chunkwise__parallel_bw_dQKV_kernel(
             order=(1, 0),
         )
         matC_km1_ptr = tl.make_block_ptr(
-            base=matC_states
-            + idx_b_BNH * str_matC_states_B_NH
-            + idx_b_NC * DHQK * DHHV,
+            base=matC_states + idx_b_BNH * str_matC_states_B_NH + idx_b_NC * DHQK * DHHV,
             shape=(DHHV, DHQK),  # transposed
             strides=(str_matC_states_DHHV, str_matC_states_NCDHQK),
             offsets=(idx_b_DHHV * siz_b_DHHV, idx_b_DHQK * siz_b_DHQK),
@@ -455,9 +417,7 @@ def _mlstm_chunkwise__parallel_bw_dQKV_kernel(
             order=(0, 1),
         )
         matDeltaC_k_ptr = tl.make_block_ptr(
-            base=matDeltaC_states
-            + idx_b_BNH * str_matDeltaC_states_B_NH
-            + idx_b_NC * DHQK * DHHV,
+            base=matDeltaC_states + idx_b_BNH * str_matDeltaC_states_B_NH + idx_b_NC * DHQK * DHHV,
             shape=(DHQK, DHHV),
             strides=(str_matDeltaC_states_NCDHQK, str_matDeltaC_states_DHHV),
             offsets=(idx_b_DHQK * siz_b_DHQK, idx_b_DHHV * siz_b_DHHV),
@@ -466,9 +426,7 @@ def _mlstm_chunkwise__parallel_bw_dQKV_kernel(
         )
         # store pointers:
         matDeltaV_ptr = tl.make_block_ptr(
-            base=matDeltaV
-            + idx_b_DHQK * str_matDV_num_b_DHQK
-            + idx_b_BNH * str_matHV_B_NH,
+            base=matDeltaV + idx_b_DHQK * str_matDV_num_b_DHQK + idx_b_BNH * str_matHV_B_NH,
             shape=(S, DHHV),
             strides=(str_matHV_S, str_matHV_DHHV),
             offsets=(idx_b_NC * L, idx_b_DHHV * siz_b_DHHV),
@@ -479,33 +437,22 @@ def _mlstm_chunkwise__parallel_bw_dQKV_kernel(
 
         # [inter,intra] matDeltaV
         # matDeltaH = matDeltaH / vecN_out
-        matDeltaH_val = tl.load(matDeltaH_ptr, boundary_check=(0, 1)).to(
-            tl.float32
-        )  # (L, siz_b_DHHV)
+        matDeltaH_val = tl.load(matDeltaH_ptr, boundary_check=(0, 1)).to(tl.float32)  # (L, siz_b_DHHV)
         # matDeltaH_val = matDeltaH_val / (vecN_out_val[:, None] + EPS)  # (L, siz_b_DHHV)
 
         # [inter] matDeltaK += (matV @ matDeltaC_k.transpose()) * vecAbar
         matV_val = tl.load(matV_ptr, boundary_check=(0, 1)).to(DTYPE)  # (L, siz_b_DHHV)
-        matDeltaC_k_val = tl.load(matDeltaC_k_ptr, boundary_check=(0, 1)).to(
-            DTYPE
-        )  # (siz_b_DHQK, siz_b_DHHV)
+        matDeltaC_k_val = tl.load(matDeltaC_k_ptr, boundary_check=(0, 1)).to(DTYPE)  # (siz_b_DHQK, siz_b_DHHV)
 
-        matDeltaK_inter_val += (
-            tl.dot(matV_val, tl.trans(matDeltaC_k_val))
-        )  # (L, siz_b_DHQK)
+        matDeltaK_inter_val += tl.dot(matV_val, tl.trans(matDeltaC_k_val))  # (L, siz_b_DHQK)
 
         # [inter] matDeltaQ += matDeltaH @ matC_km1.transpose() * vecBbar
-        matC_km1_val = tl.load(
-            matC_km1_ptr, boundary_check=(0, 1)
-        )  # (siz_b_DHHV, siz_b_DHQK)
-        matDeltaQ_inter_val += (
-            tl.dot((matDeltaH_val).to(DTYPE), matC_km1_val)
-            * qk_scale
-        ).to(DTYPE)  # (L, siz_b_DHQK)
+        matC_km1_val = tl.load(matC_km1_ptr, boundary_check=(0, 1))  # (siz_b_DHHV, siz_b_DHQK)
+        matDeltaQ_inter_val += (tl.dot((matDeltaH_val).to(DTYPE), matC_km1_val) * qk_scale).to(DTYPE)  # (L, siz_b_DHQK)
 
         # [intra] matDeltaS += (matDeltaH @ matV.transpose()) * matDbar
-        matDeltaSbar_val += (
-            tl.dot((matDeltaH_val / (vecN_out_val[:, None] + EPS)).to(DTYPE), tl.trans(matV_val)) 
+        matDeltaSbar_val += tl.dot(
+            (matDeltaH_val / (vecN_out_val[:, None] + EPS)).to(DTYPE), tl.trans(matV_val)
         )  # (L, L)
 
         # [inter, intra] matDeltaV = matSbar.transpose() @ matDeltaH + matKbar @ matDeltaC_k
@@ -522,17 +469,13 @@ def _mlstm_chunkwise__parallel_bw_dQKV_kernel(
 
     matDeltaQ_inter_val = matDeltaQ_inter_val * vecBbar_val[:, None] / (vecN_out_val[:, None] + EPS)
     matDeltaK_inter_val = matDeltaK_inter_val * vecAbar_val[:, None]
-    
+
     matDeltaS_val = (matDeltaSbar_val * matDbar_val).to(DTYPE)
 
     # [intra] matDeltaK = matDeltaS.transpose() @ matQ * qk_scale
-    matDeltaK_val = matDeltaK_inter_val + (
-        tl.dot(tl.trans(matDeltaS_val), (matQ_val).to(DTYPE)) * qk_scale
-    )
+    matDeltaK_val = matDeltaK_inter_val + (tl.dot(tl.trans(matDeltaS_val), (matQ_val).to(DTYPE)) * qk_scale)
     # [intra] matDeltaQ = matDeltaS @ matK * qk_scale
-    matDeltaQ_val = matDeltaQ_inter_val + (
-        (tl.dot(matDeltaS_val, matK_val)) * qk_scale
-    )
+    matDeltaQ_val = matDeltaQ_inter_val + ((tl.dot(matDeltaS_val, matK_val)) * qk_scale)
 
     # store matDeltaQ, matDeltaK
     matDeltaK_ptr = tl.make_block_ptr(
@@ -592,12 +535,8 @@ def _mlstm_chunkwise__parallel_bw_dQKV(
     if qk_scale is None:
         qk_scale = DHQK**-0.5
 
-    siz_b_DHQK = min(
-        32 if _dtype == torch.float32 else 64, triton.next_power_of_2(DHQK)
-    )
-    siz_b_DHHV = min(
-        32 if _dtype == torch.float32 else 64, triton.next_power_of_2(DHHV)
-    )
+    siz_b_DHQK = min(32 if _dtype == torch.float32 else 64, triton.next_power_of_2(DHQK))
+    siz_b_DHHV = min(32 if _dtype == torch.float32 else 64, triton.next_power_of_2(DHHV))
 
     num_b_DHQK = triton.cdiv(DHQK, siz_b_DHQK)
 
@@ -699,9 +638,7 @@ def _mlstm_chunkwise_bw(
     B, NH, S, DHQK = matQ.shape
     DHV = matV.shape[-1]
 
-    assert (
-        S % CHUNK_SIZE == 0
-    ), f"Sequence length {S} is not divisible by chunk size {CHUNK_SIZE}."
+    assert S % CHUNK_SIZE == 0, f"Sequence length {S} is not divisible by chunk size {CHUNK_SIZE}."
 
     NC = S // CHUNK_SIZE
 
@@ -786,15 +723,9 @@ def _mlstm_chunkwise_bw(
 
     # vecDeltaI = torch.zeros((B, NH, S), dtype=vecI.dtype, device=vecI.device)
 
-    matDeltaC_initial = (
-        matDeltaC_states[:, :, :DHQK, :] if matC_initial is not None else None
-    )
-    vecDeltaN_initial = (
-        torch.zeros_like(vecN_initial) if vecN_initial is not None else None
-    )
-    scaDeltaM_initial = (
-        torch.zeros_like(scaM_initial) if scaM_initial is not None else None
-    )
+    matDeltaC_initial = matDeltaC_states[:, :, :DHQK, :] if matC_initial is not None else None
+    vecDeltaN_initial = torch.zeros_like(vecN_initial) if vecN_initial is not None else None
+    scaDeltaM_initial = torch.zeros_like(scaM_initial) if scaM_initial is not None else None
 
     return (
         matDeltaQ,

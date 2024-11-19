@@ -1,5 +1,3 @@
-# -*- coding: utf-8 -*-
-
 import torch
 import torch.nn.functional as F
 from fla.ops.gla.recurrent_fuse import fused_recurrent_gla
@@ -9,22 +7,14 @@ def ceildiv(a, b):
     return -(a // -b)
 
 
-def naive_recurrent_gla(
-    q,
-    k,
-    v,
-    gk,
-    initial_state=None,
-    output_final_state=False,
-    causal=True
-):
+def naive_recurrent_gla(q, k, v, gk, initial_state=None, output_final_state=False, causal=True):
     orig_dtype = q.dtype
     q, k, v, gk = map(lambda x: x.float(), (q, k, v, gk))
     batch_size, n_heads, seq_len, d_head_k = q.shape
     _, _, _, d_head_v = v.shape
     h = torch.zeros(batch_size, n_heads, d_head_k, d_head_v, dtype=torch.float32, device=q.device)
     o = torch.zeros_like(v)
-    scale = d_head_k ** -0.5
+    scale = d_head_k**-0.5
 
     if initial_state is not None:
         h += initial_state
@@ -44,7 +34,7 @@ def naive_recurrent_gla(
     else:
         o_reverse = torch.zeros_like(v)
         h = torch.zeros(batch_size, n_heads, d_head_k, d_head_v, dtype=torch.float32, device=q.device)
-        for i in range(seq_len-1, -1, -1):
+        for i in range(seq_len - 1, -1, -1):
             q_i = q[:, :, i, :] * scale
             k_i = k[:, :, i]
             v_i = v[:, :, i, :]
@@ -66,8 +56,7 @@ if __name__ == "__main__":
     q = (torch.randn(B, H, L, D).cuda().to(dtype)).requires_grad_(True)
     k = (torch.randn(B, H, L, D).cuda().to(dtype)).requires_grad_(True)
     v = torch.randn(B, H, L, D).cuda().to(dtype).requires_grad_(True)
-    g = F.logsigmoid(torch.rand(B, H, L, D)).cuda(
-    ).clamp_min(-1).to(torch.float32).requires_grad_(True)
+    g = F.logsigmoid(torch.rand(B, H, L, D)).cuda().clamp_min(-1).to(torch.float32).requires_grad_(True)
 
     do = torch.rand_like(v).cuda()
     do2 = torch.rand_like(v).cuda()
@@ -84,7 +73,8 @@ if __name__ == "__main__":
     ref_dg, g.grad = g.grad.clone(), None
 
     tri, tri_rev = fused_recurrent_gla(
-        q, k, v, g, initial_state=None, scale=D**-0.5, output_final_state=False, causal=False)
+        q, k, v, g, initial_state=None, scale=D**-0.5, output_final_state=False, causal=False
+    )
     tri.backward(do, retain_graph=True)
     tri_rev.backward(do2, retain_graph=True)
     tri_dq, q.grad = q.grad.clone(), None

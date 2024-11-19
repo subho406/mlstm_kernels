@@ -26,9 +26,7 @@ from tqdm import tqdm
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
-    parser.add_argument(
-        "--kernel", type=str, required=True, help="Kernel to benchmark."
-    )
+    parser.add_argument("--kernel", type=str, required=True, help="Kernel to benchmark.")
 
     args = parser.parse_args()
 
@@ -71,15 +69,15 @@ if __name__ == "__main__":
 
     dt_state = torch.float32
     inputs = dict(
-            matC_old=matC_old,
-            vecN_old=vecN_old,
-            scaM_old=scaM_old,
-            vecQ=vecQ,
-            vecK=vecK,
-            vecV=vecV,
-            scaI=scaI,
-            scaF=scaF,
-        )
+        matC_old=matC_old,
+        vecN_old=vecN_old,
+        scaM_old=scaM_old,
+        vecQ=vecQ,
+        vecK=vecK,
+        vecV=vecV,
+        scaI=scaI,
+        scaF=scaF,
+    )
     if "triton" in kernel:
         inputs["DTYPE"] = dt_state
 

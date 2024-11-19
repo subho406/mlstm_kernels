@@ -208,9 +208,7 @@ def mlstm_chunkwise_fwbw(
     CHUNK_SIZE: int = 64,
     EPS: float = 1e-6,
     autocast_kernel_dtype: torch.dtype = torch.float16,
-) -> (
-    torch.Tensor | tuple[torch.Tensor, tuple[torch.Tensor, torch.Tensor, torch.Tensor]]
-):
+) -> torch.Tensor | tuple[torch.Tensor, tuple[torch.Tensor, torch.Tensor, torch.Tensor]]:
     _mlstm_chunkwise_fwbw = _get_chunkwise_fwbw_kernel(autocast_kernel_dtype)
     matH_out, matC_last, vecN_last, scaM_last = _mlstm_chunkwise_fwbw.apply(
         matQ,
@@ -246,9 +244,7 @@ def mlstm_chunkwise_torch_autograd(
     eps: float = 1e-6,
     chunk_size: int = 64,
     **kwargs,
-) -> (
-    torch.Tensor | tuple[torch.Tensor, tuple[torch.Tensor, torch.Tensor, torch.Tensor]]
-):
+) -> torch.Tensor | tuple[torch.Tensor, tuple[torch.Tensor, torch.Tensor, torch.Tensor]]:
     matH_out, _, _, last_states, _ = _mlstm_chunkwise_fw(
         matQ=q,
         matK=k,
@@ -282,9 +278,7 @@ def mlstm_chunkwise_torch_ownbw(
     eps: float = 1e-6,
     chunk_size: int = 64,
     autocast_kernel_dtype: torch.dtype = torch.float32,
-) -> (
-    torch.Tensor | tuple[torch.Tensor, tuple[torch.Tensor, torch.Tensor, torch.Tensor]]
-):
+) -> torch.Tensor | tuple[torch.Tensor, tuple[torch.Tensor, torch.Tensor, torch.Tensor]]:
     _mlstm_chunkwise_fwbw = _get_chunkwise_fwbw_kernel(autocast_kernel_dtype)
     matH_out, matC_last, vecN_last, scaM_last = _mlstm_chunkwise_fwbw.apply(
         q,

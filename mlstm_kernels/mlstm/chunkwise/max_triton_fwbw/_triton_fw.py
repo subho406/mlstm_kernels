@@ -105,10 +105,7 @@ def _mlstm_chunkwise__recurrent_fw_C_kernel(
         )
         # each thread block loads a (siz_b_DHQK,) chunk from vecN_initial
         vecNinitial_ptr = (
-            vecN_initial
-            + idx_b_BNH * str_vecNinitial_B_NH
-            + idx_b_DHQK * siz_b_DHQK
-            + tl.arange(0, siz_b_DHQK)
+            vecN_initial + idx_b_BNH * str_vecNinitial_B_NH + idx_b_DHQK * siz_b_DHQK + tl.arange(0, siz_b_DHQK)
         )
         # each thread block loads the scaMinter_initial
         scaMinterinitial_ptr = scaMinter_initial + idx_b_BNH * str_scaMinterinitial_B_NH
@@ -154,31 +151,21 @@ def _mlstm_chunkwise__recurrent_fw_C_kernel(
             + idx_b_DHQK * siz_b_DHQK
             + tl.arange(0, siz_b_DHQK)
         )
-        scaMinterstates_k_ptr = (
-            scaMinter_states + idx_b_BNH * str_scaMinterstates_B_NH + k
-        )
+        scaMinterstates_k_ptr = scaMinter_states + idx_b_BNH * str_scaMinterstates_B_NH + k
 
         # store the states from the previous iteration
         tl.store(matCstates_k_ptr, matC_k_val.to(dtype=DTYPE), boundary_check=(0, 1))
         if idx_b_DHHV == 0:
-            tl.store(
-                vecNstates_k_ptr, vecN_k_val.to(dtype=DTYPE)
-            )  # TODO add mask for boundary check
+            tl.store(vecNstates_k_ptr, vecN_k_val.to(dtype=DTYPE))  # TODO add mask for boundary check
         if (idx_b_DHQK == 0) and (idx_b_DHHV == 0):
             tl.store(scaMinterstates_k_ptr, scaMinter_k_val.to(dtype=DTYPE))
 
         # load / compute vecA_k, scaG_k
         # last element of vecB in k-th chunk
-        vecB_last_k_val = tl.load(
-            vecB + idx_b_BNH * str_vecBI_B_NH + k * str_vecBI_NC + (L - 1)
-        ).to(tl.float32)
-        vecB_k_val = tl.load(
-            vecB + idx_b_BNH * str_vecBI_B_NH + k * str_vecBI_NC + tl.arange(0, L)
-        ).to(tl.float32)
+        vecB_last_k_val = tl.load(vecB + idx_b_BNH * str_vecBI_B_NH + k * str_vecBI_NC + (L - 1)).to(tl.float32)
+        vecB_k_val = tl.load(vecB + idx_b_BNH * str_vecBI_B_NH + k * str_vecBI_NC + tl.arange(0, L)).to(tl.float32)
 
-        vecI_k_val = tl.load(
-            vecI + idx_b_BNH * str_vecBI_B_NH + k * str_vecBI_NC + tl.arange(0, L)
-        ).to(tl.float32)
+        vecI_k_val = tl.load(vecI + idx_b_BNH * str_vecBI_B_NH + k * str_vecBI_NC + tl.arange(0, L)).to(tl.float32)
 
         vecA_k_val = (vecB_last_k_val - vecB_k_val) + vecI_k_val
         scaG_k_val = vecB_last_k_val
@@ -215,18 +202,12 @@ def _mlstm_chunkwise__recurrent_fw_C_kernel(
         order=(1, 0),
     )
     vecNstates_k_ptr = (
-        vecN_states
-        + idx_b_BNH * str_vecNstates_B_NH
-        + NC * DHQK
-        + idx_b_DHQK * siz_b_DHQK
-        + tl.arange(0, siz_b_DHQK)
+        vecN_states + idx_b_BNH * str_vecNstates_B_NH + NC * DHQK + idx_b_DHQK * siz_b_DHQK + tl.arange(0, siz_b_DHQK)
     )
     scaMinterstates_k_ptr = scaMinter_states + idx_b_BNH * str_scaMinterstates_B_NH + NC
     tl.store(matCstates_k_ptr, matC_k_val.to(dtype=DTYPE), boundary_check=(0, 1))
     if idx_b_DHHV == 0:
-        tl.store(
-            vecNstates_k_ptr, vecN_k_val.to(dtype=DTYPE)
-        )  # TODO add mask for boundary check
+        tl.store(vecNstates_k_ptr, vecN_k_val.to(dtype=DTYPE))  # TODO add mask for boundary check
     if (idx_b_DHQK == 0) and (idx_b_DHHV == 0):
         tl.store(scaMinterstates_k_ptr, scaMinter_k_val.to(dtype=DTYPE))
 
@@ -400,19 +381,13 @@ def _mlstm_chunkwise_parallel_fw_H_kernel(
     )
 
     # load vecB (L,)
-    vecB_val = tl.load(
-        vecB + idx_b_BNH * str_vecBI_B_NH + idx_b_NC * str_vecBI_NC + tl.arange(0, L)
-    ).to(tl.float32)
+    vecB_val = tl.load(vecB + idx_b_BNH * str_vecBI_B_NH + idx_b_NC * str_vecBI_NC + tl.arange(0, L)).to(tl.float32)
 
     # load vecI (L,)
-    vecI_val = tl.load(
-        vecI + idx_b_BNH * str_vecBI_B_NH + idx_b_NC * str_vecBI_NC + tl.arange(0, L)
-    ).to(tl.float32)
+    vecI_val = tl.load(vecI + idx_b_BNH * str_vecBI_B_NH + idx_b_NC * str_vecBI_NC + tl.arange(0, L)).to(tl.float32)
 
     # load scaMinter_km1 (1,)
-    scaMinter_km1_val = tl.load(
-        scaMinter_states + idx_b_BNH * str_scaMinterstates_B_NH + idx_b_NC
-    ).to(tl.float32)
+    scaMinter_km1_val = tl.load(scaMinter_states + idx_b_BNH * str_scaMinterstates_B_NH + idx_b_NC).to(tl.float32)
 
     # compute gate matrix matDbar (L, L)
     idx_mask = tl.arange(0, L)
@@ -520,9 +495,7 @@ def _mlstm_chunkwise_parallel_fw_H_kernel(
     matH_num_val = matH_inter_val + matH_intra_val
 
     # compute H_k_denom (L,)
-    vecH_denom_val = tl.maximum(
-        tl.abs(vecH_inter_denom_val + vecH_intra_denom_val), tl.exp(-vecM_combine_val)
-    )
+    vecH_denom_val = tl.maximum(tl.abs(vecH_inter_denom_val + vecH_intra_denom_val), tl.exp(-vecM_combine_val))
 
     # compute matH_k_out (L, siz_b_DHHV)
     matHout_val = matH_num_val / (vecH_denom_val[:, None] + EPS)
@@ -536,12 +509,8 @@ def _mlstm_chunkwise_parallel_fw_H_kernel(
         block_shape=(L, siz_b_DHHV),
         order=(1, 0),
     )
-    vecNout_ptr = (
-        vecNout + idx_b_BNH * str_vecMN_B_NH + (idx_b_NC * L + tl.arange(0, L)) * str_vecMN_S
-    )
-    vecMout_ptr = (
-        vecMout + idx_b_BNH * str_vecMN_B_NH + (idx_b_NC * L + tl.arange(0, L)) * str_vecMN_S
-    )
+    vecNout_ptr = vecNout + idx_b_BNH * str_vecMN_B_NH + (idx_b_NC * L + tl.arange(0, L)) * str_vecMN_S
+    vecMout_ptr = vecMout + idx_b_BNH * str_vecMN_B_NH + (idx_b_NC * L + tl.arange(0, L)) * str_vecMN_S
     tl.store(matHout_ptr, matHout_val.to(DTYPE), boundary_check=(0, 1))
     tl.store(vecNout_ptr, vecH_denom_val.to(DTYPE))
     tl.store(vecMout_ptr, vecM_combine_val.to(DTYPE))
@@ -575,9 +544,7 @@ def _mlstm_chunkwise__parallel_fw_H(
     CHUNK_SIZE: int = 64,
     NUM_CHUNKS: int = 1,
     EPS: float = 1e-6,
-) -> tuple[
-    torch.Tensor, torch.Tensor
-]:  # matH_out (B, NH, S, DHHV), vecN_out (B, NH, S)
+) -> tuple[torch.Tensor, torch.Tensor]:  # matH_out (B, NH, S, DHHV), vecN_out (B, NH, S)
     """This function defines the grid and block sizes for the kernel launch and calls the kernel."""
     B, NH, S, DHQK = matK.shape
     DHHV = matV.shape[-1]
@@ -672,18 +639,18 @@ def _mlstm_chunkwise_fw(
     torch.Tensor,  # matH_out (B, NH, S, DHV)
     torch.Tensor,  # vecN_out (B, NH, S)
     torch.Tensor,  # vecM_out (B, NH, S)
-    Optional[
+    None
+    | (
         tuple[torch.Tensor, torch.Tensor, torch.Tensor]
-    ],  # last_states (matC_states (B, NH, DHQK, DHV), vecN_states (B, NH, DHQK), scaMinter_states (B, NH))
-    Optional[
+    ),  # last_states (matC_states (B, NH, DHQK, DHV), vecN_states (B, NH, DHQK), scaMinter_states (B, NH))
+    None
+    | (
         tuple[torch.Tensor, torch.Tensor, torch.Tensor]
-    ],  # all_states (matC_states (B, NH, (NC+1) * DHQK, DHV), vecN_states (B, NH, (NC+1) * DHQK), scaMinter_states (B, NH, (NC+1)))
+    ),  # all_states (matC_states (B, NH, (NC+1) * DHQK, DHV), vecN_states (B, NH, (NC+1) * DHQK), scaMinter_states (B, NH, (NC+1)))
 ]:
     B, NH, S, DHQK = matQ.shape
     DHV = matV.shape[-1]
-    assert (
-        S % CHUNK_SIZE == 0
-    ), f"Sequence length {S} is not divisible by chunk size {CHUNK_SIZE}."
+    assert S % CHUNK_SIZE == 0, f"Sequence length {S} is not divisible by chunk size {CHUNK_SIZE}."
     NC = S // CHUNK_SIZE
 
     vecI = rearrange(vecI, "b nh (nc l) -> b nh nc l", l=CHUNK_SIZE)
@@ -748,4 +715,3 @@ def _mlstm_chunkwise_fw(
         ret_tuple += (None,)
 
     return ret_tuple  # (matH_out, vecN_out, vecM_out, optional(last_states), optional(all_states))
-

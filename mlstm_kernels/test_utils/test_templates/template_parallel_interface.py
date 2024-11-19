@@ -89,12 +89,8 @@ def template_test_parallel_interface(
         loss_layernorm_offset_quadratic(matH_baseline).backward()
     fwbw_seconds = sw.stop()
 
-    print(
-        f"{baseline_name} | fw (ms): {fw_seconds * 1000}, fwbw (ms): {fwbw_seconds * 1000}"
-    )
-    LOGGER.info(
-        f"{baseline_name} | fw (ms): {fw_seconds * 1000}, fwbw (ms): {fwbw_seconds * 1000}"
-    )
+    print(f"{baseline_name} | fw (ms): {fw_seconds * 1000}, fwbw (ms): {fwbw_seconds * 1000}")
+    LOGGER.info(f"{baseline_name} | fw (ms): {fw_seconds * 1000}, fwbw (ms): {fwbw_seconds * 1000}")
 
     # target
     sw = Stopwatch()
@@ -111,12 +107,8 @@ def template_test_parallel_interface(
     if run_backward:
         loss_layernorm_offset_quadratic(matH_target, eps=ln_eps).backward()
     fwbw_seconds = sw.stop()
-    print(
-        f"{target_name} | fw (ms): {fw_seconds * 1000}, fwbw (ms): {fwbw_seconds * 1000}"
-    )
-    LOGGER.info(
-        f"{target_name} | fw (ms): {fw_seconds * 1000}, fwbw (ms): {fwbw_seconds * 1000}"
-    )
+    print(f"{target_name} | fw (ms): {fw_seconds * 1000}, fwbw (ms): {fwbw_seconds * 1000}")
+    LOGGER.info(f"{target_name} | fw (ms): {fw_seconds * 1000}, fwbw (ms): {fwbw_seconds * 1000}")
 
     test_specifier_template_str = "{specifier}_bl-{dtype}"
 
@@ -136,9 +128,7 @@ def template_test_parallel_interface(
         vecF_target,
     ):
         matH_match = check_correctness(
-            test_specifier=test_specifier_template_str.format(
-                specifier="matH", dtype=dtype2str(matH_baseline.dtype)
-            ),
+            test_specifier=test_specifier_template_str.format(specifier="matH", dtype=dtype2str(matH_baseline.dtype)),
             baseline=matH_baseline,
             target=matH_target,
             atol=atol_fw,
@@ -248,21 +238,11 @@ def template_test_parallel_interface(
     # float64 baseline
     if add_fp64_baseline:
         baseline_fp64_dtype = torch.float64
-        matQ_baseline_fp64 = (
-            matQ.clone().to(dtype=baseline_fp64_dtype).detach().requires_grad_(True)
-        )
-        matK_baseline_fp64 = (
-            matK.clone().to(dtype=baseline_fp64_dtype).detach().requires_grad_(True)
-        )
-        matV_baseline_fp64 = (
-            matV.clone().to(dtype=baseline_fp64_dtype).detach().requires_grad_(True)
-        )
-        vecI_baseline_fp64 = (
-            vecI.clone().to(dtype=baseline_fp64_dtype).detach().requires_grad_(True)
-        )
-        vecF_baseline_fp64 = (
-            vecF.clone().to(dtype=baseline_fp64_dtype).detach().requires_grad_(True)
-        )
+        matQ_baseline_fp64 = matQ.clone().to(dtype=baseline_fp64_dtype).detach().requires_grad_(True)
+        matK_baseline_fp64 = matK.clone().to(dtype=baseline_fp64_dtype).detach().requires_grad_(True)
+        matV_baseline_fp64 = matV.clone().to(dtype=baseline_fp64_dtype).detach().requires_grad_(True)
+        vecI_baseline_fp64 = vecI.clone().to(dtype=baseline_fp64_dtype).detach().requires_grad_(True)
+        vecF_baseline_fp64 = vecF.clone().to(dtype=baseline_fp64_dtype).detach().requires_grad_(True)
 
         matH_baseline_fp64 = baseline_fn(
             q=matQ_baseline_fp64,

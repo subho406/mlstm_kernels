@@ -3,9 +3,7 @@ import torch
 from ..components.ln import MultiHeadLayerNorm
 
 
-def loss_layernorm_offset_quadratic(
-    input_tensor: torch.Tensor, seed: int = 0, eps: float = 1e-5
-) -> torch.Tensor:
+def loss_layernorm_offset_quadratic(input_tensor: torch.Tensor, seed: int = 0, eps: float = 1e-5) -> torch.Tensor:
     torch.manual_seed(seed)
     offset = torch.randn_like(input_tensor)
     assert len(input_tensor.shape) == 4

@@ -173,15 +173,9 @@ def _mlstm_chunkwise_fwbw_generator(autocast_kernel_dtype=torch.float16) -> Call
     return _mlstm_chunkwise_fwbw
 
 
-_mlstm_chunkwise_fwbw_float32 = _mlstm_chunkwise_fwbw_generator(
-    autocast_kernel_dtype=torch.float32
-)
-_mlstm_chunkwise_fwbw_float16 = _mlstm_chunkwise_fwbw_generator(
-    autocast_kernel_dtype=torch.float16
-)
-_mlstm_chunkwise_fwbw_bfloat16 = _mlstm_chunkwise_fwbw_generator(
-    autocast_kernel_dtype=torch.bfloat16
-)
+_mlstm_chunkwise_fwbw_float32 = _mlstm_chunkwise_fwbw_generator(autocast_kernel_dtype=torch.float32)
+_mlstm_chunkwise_fwbw_float16 = _mlstm_chunkwise_fwbw_generator(autocast_kernel_dtype=torch.float16)
+_mlstm_chunkwise_fwbw_bfloat16 = _mlstm_chunkwise_fwbw_generator(autocast_kernel_dtype=torch.bfloat16)
 
 
 def _get_chunkwise_fwbw_kernel(autocast_kernel_dtype: torch.dtype) -> Callable:
@@ -211,9 +205,7 @@ def mlstm_chunkwise_fwbw(
     CHUNK_SIZE: int = 64,
     EPS: float = 1e-6,
     autocast_kernel_dtype: torch.dtype = torch.float16,
-) -> (
-    torch.Tensor | tuple[torch.Tensor, tuple[torch.Tensor, torch.Tensor, torch.Tensor]]
-):
+) -> torch.Tensor | tuple[torch.Tensor, tuple[torch.Tensor, torch.Tensor, torch.Tensor]]:
     _mlstm_chunkwise_fwbw = _get_chunkwise_fwbw_kernel(autocast_kernel_dtype)
     matH_out, matC_last, vecN_last, scaM_last = _mlstm_chunkwise_fwbw.apply(
         matQ,
@@ -249,9 +241,7 @@ def mlstm_chunkwise_max_triton(
     eps: float = 1e-6,
     chunk_size: int = 64,
     autocast_kernel_dtype: torch.dtype = torch.float32,
-) -> (
-    torch.Tensor | tuple[torch.Tensor, tuple[torch.Tensor, torch.Tensor, torch.Tensor]]
-):
+) -> torch.Tensor | tuple[torch.Tensor, tuple[torch.Tensor, torch.Tensor, torch.Tensor]]:
     _mlstm_chunkwise_fwbw = _get_chunkwise_fwbw_kernel(autocast_kernel_dtype)
     matH_out, matC_last, vecN_last, scaM_last = _mlstm_chunkwise_fwbw.apply(
         q,

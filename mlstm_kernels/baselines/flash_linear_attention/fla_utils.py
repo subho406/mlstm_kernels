@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 # Copyright (c) 2023-2024, Yu Zhang, Songlin Yang
 
 from typing import Optional
@@ -12,35 +11,37 @@ from ...kernel_utils import contiguous
 
 @triton.autotune(
     configs=[
-        triton.Config({'BT': 16}, num_warps=2),
-        triton.Config({'BT': 16}, num_warps=4),
-        triton.Config({'BT': 16}, num_warps=8),
-        triton.Config({'BT': 32}, num_warps=2),
-        triton.Config({'BT': 32}, num_warps=4),
-        triton.Config({'BT': 32}, num_warps=8),
-        triton.Config({'BT': 64}, num_warps=2),
-        triton.Config({'BT': 64}, num_warps=4),
-        triton.Config({'BT': 64}, num_warps=8),
+        triton.Config({"BT": 16}, num_warps=2),
+        triton.Config({"BT": 16}, num_warps=4),
+        triton.Config({"BT": 16}, num_warps=8),
+        triton.Config({"BT": 32}, num_warps=2),
+        triton.Config({"BT": 32}, num_warps=4),
+        triton.Config({"BT": 32}, num_warps=8),
+        triton.Config({"BT": 64}, num_warps=2),
+        triton.Config({"BT": 64}, num_warps=4),
+        triton.Config({"BT": 64}, num_warps=8),
     ],
-    key=['S']
+    key=["S"],
 )
 @triton.jit
-def logcumsumexp_fwd_kernel(
-    s,
-    z,
-    s_s_h,
-    s_s_t,
-    s_s_d,
-    T: tl.constexpr,
-    S: tl.constexpr,
-    BT: tl.constexpr
-):
+def logcumsumexp_fwd_kernel(s, z, s_s_h, s_s_t, s_s_d, T: tl.constexpr, S: tl.constexpr, BT: tl.constexpr):
     i_bh = tl.program_id(0)
     o_i = tl.arange(0, BT)
-    m_s = tl.where(o_i[:, None] >= o_i[None, :], 1., 0.)
+    m_s = tl.where(o_i[:, None] >= o_i[None, :], 1.0, 0.0)
 
-    b_mp = tl.full([S,], float('-inf'), dtype=tl.float32)
-    b_zp = tl.zeros([S,], dtype=tl.float32)
+    b_mp = tl.full(
+        [
+            S,
+        ],
+        float("-inf"),
+        dtype=tl.float32,
+    )
+    b_zp = tl.zeros(
+        [
+            S,
+        ],
+        dtype=tl.float32,
+    )
     for i_t in range(tl.cdiv(T, BT)):
         p_s = tl.make_block_ptr(s + i_bh * s_s_h, (T, S), (s_s_t, s_s_d), (i_t * BT, 0), (BT, S), (1, 0))
         p_z = tl.make_block_ptr(z + i_bh * s_s_h, (T, S), (s_s_t, s_s_d), (i_t * BT, 0), (BT, S), (1, 0))
@@ -72,19 +73,10 @@ def logcumsumexp_fwd_kernel(
         triton.Config({}, num_warps=4),
         triton.Config({}, num_warps=8),
     ],
-    key=['S']
+    key=["S"],
 )
 @triton.jit
-def softmax_fwd_kernel(
-    s,
-    p,
-    s_s_h,
-    s_s_t,
-    s_s_d,
-    T: tl.constexpr,
-    S: tl.constexpr,
-    BT: tl.constexpr
-):
+def softmax_fwd_kernel(s, p, s_s_h, s_s_t, s_s_d, T: tl.constexpr, S: tl.constexpr, BT: tl.constexpr):
     i_t, i_bh = tl.program_id(0), tl.program_id(1)
 
     p_s = tl.make_block_ptr(s + i_bh * s_s_h, (T, S), (s_s_t, s_s_d), (i_t * BT, 0), (BT, S), (1, 0))
@@ -98,7 +90,7 @@ def softmax_fwd_kernel(
     # [BT, BS]
     b_s = tl.exp(b_s - b_m[:, None])
     b_z = tl.sum(b_s, 1)
-    b_p = tl.where(b_s != 0, b_s / b_z[:, None], 0.)
+    b_p = tl.where(b_s != 0, b_s / b_z[:, None], 0.0)
     tl.store(p_p, b_p.to(p_p.dtype.element_ty), boundary_check=(0, 1))
 
 
@@ -108,20 +100,10 @@ def softmax_fwd_kernel(
         triton.Config({}, num_warps=4),
         triton.Config({}, num_warps=8),
     ],
-    key=['S']
+    key=["S"],
 )
 @triton.jit
-def softmax_bwd_kernel(
-    p,
-    dp,
-    ds,
-    s_s_h,
-    s_s_t,
-    s_s_d,
-    T: tl.constexpr,
-    S: tl.constexpr,
-    BT: tl.constexpr
-):
+def softmax_bwd_kernel(p, dp, ds, s_s_h, s_s_t, s_s_d, T: tl.constexpr, S: tl.constexpr, BT: tl.constexpr):
     i_t, i_bh = tl.program_id(0), tl.program_id(1)
 
     p_p = tl.make_block_ptr(p + i_bh * s_s_h, (T, S), (s_s_t, s_s_d), (i_t * BT, 0), (BT, S), (1, 0))
@@ -139,28 +121,20 @@ def softmax_bwd_kernel(
 
 @triton.autotune(
     configs=[
-        triton.Config({'BS': 32}, num_warps=2),
-        triton.Config({'BS': 32}, num_warps=4),
-        triton.Config({'BS': 32}, num_warps=8),
-        triton.Config({'BS': 64}, num_warps=2),
-        triton.Config({'BS': 64}, num_warps=4),
-        triton.Config({'BS': 64}, num_warps=8),
-        triton.Config({'BS': 128}, num_warps=2),
-        triton.Config({'BS': 128}, num_warps=4),
-        triton.Config({'BS': 128}, num_warps=8),
+        triton.Config({"BS": 32}, num_warps=2),
+        triton.Config({"BS": 32}, num_warps=4),
+        triton.Config({"BS": 32}, num_warps=8),
+        triton.Config({"BS": 64}, num_warps=2),
+        triton.Config({"BS": 64}, num_warps=4),
+        triton.Config({"BS": 64}, num_warps=8),
+        triton.Config({"BS": 128}, num_warps=2),
+        triton.Config({"BS": 128}, num_warps=4),
+        triton.Config({"BS": 128}, num_warps=8),
     ],
-    key=['S']
+    key=["S"],
 )
 @triton.jit
-def recurrent_cumsum_fwd_kernel(
-    s,
-    z,
-    s_s_h,
-    s_s_t,
-    T: tl.constexpr,
-    S: tl.constexpr,
-    BS: tl.constexpr
-):
+def recurrent_cumsum_fwd_kernel(s, z, s_s_h, s_s_t, T: tl.constexpr, S: tl.constexpr, BS: tl.constexpr):
     i_s, i_bh = tl.program_id(0), tl.program_id(1)
 
     o_s = i_s * BS + tl.arange(0, BS)
@@ -177,28 +151,20 @@ def recurrent_cumsum_fwd_kernel(
 
 @triton.autotune(
     configs=[
-        triton.Config({'BS': 32}, num_warps=2),
-        triton.Config({'BS': 32}, num_warps=4),
-        triton.Config({'BS': 32}, num_warps=8),
-        triton.Config({'BS': 64}, num_warps=2),
-        triton.Config({'BS': 64}, num_warps=4),
-        triton.Config({'BS': 64}, num_warps=8),
-        triton.Config({'BS': 128}, num_warps=2),
-        triton.Config({'BS': 128}, num_warps=4),
-        triton.Config({'BS': 128}, num_warps=8),
+        triton.Config({"BS": 32}, num_warps=2),
+        triton.Config({"BS": 32}, num_warps=4),
+        triton.Config({"BS": 32}, num_warps=8),
+        triton.Config({"BS": 64}, num_warps=2),
+        triton.Config({"BS": 64}, num_warps=4),
+        triton.Config({"BS": 64}, num_warps=8),
+        triton.Config({"BS": 128}, num_warps=2),
+        triton.Config({"BS": 128}, num_warps=4),
+        triton.Config({"BS": 128}, num_warps=8),
     ],
-    key=['S']
+    key=["S"],
 )
 @triton.jit
-def recurrent_cumsum_bwd_kernel(
-    ds,
-    dz,
-    s_s_h,
-    s_s_t,
-    T: tl.constexpr,
-    S: tl.constexpr,
-    BS: tl.constexpr
-):
+def recurrent_cumsum_bwd_kernel(ds, dz, s_s_h, s_s_t, T: tl.constexpr, S: tl.constexpr, BS: tl.constexpr):
     i_s, i_bh = tl.program_id(0), tl.program_id(1)
 
     o_s = i_s * BS + tl.arange(0, BS)
@@ -215,33 +181,25 @@ def recurrent_cumsum_bwd_kernel(
 
 @triton.autotune(
     configs=[
-        triton.Config({'BT': 16}, num_warps=2),
-        triton.Config({'BT': 16}, num_warps=4),
-        triton.Config({'BT': 16}, num_warps=8),
-        triton.Config({'BT': 32}, num_warps=2),
-        triton.Config({'BT': 32}, num_warps=4),
-        triton.Config({'BT': 32}, num_warps=8),
-        triton.Config({'BT': 64}, num_warps=2),
-        triton.Config({'BT': 64}, num_warps=4),
-        triton.Config({'BT': 64}, num_warps=8),
+        triton.Config({"BT": 16}, num_warps=2),
+        triton.Config({"BT": 16}, num_warps=4),
+        triton.Config({"BT": 16}, num_warps=8),
+        triton.Config({"BT": 32}, num_warps=2),
+        triton.Config({"BT": 32}, num_warps=4),
+        triton.Config({"BT": 32}, num_warps=8),
+        triton.Config({"BT": 64}, num_warps=2),
+        triton.Config({"BT": 64}, num_warps=4),
+        triton.Config({"BT": 64}, num_warps=8),
     ],
-    key=['S']
+    key=["S"],
 )
 @triton.jit
 def chunk_cumsum_fwd_kernel(
-    s,
-    z,
-    s_s_h,
-    s_s_t,
-    s_s_d,
-    T: tl.constexpr,
-    S: tl.constexpr,
-    BT: tl.constexpr,
-    BS: tl.constexpr
+    s, z, s_s_h, s_s_t, s_s_d, T: tl.constexpr, S: tl.constexpr, BT: tl.constexpr, BS: tl.constexpr
 ):
     i_s, i_bh = tl.program_id(0), tl.program_id(1)
     o_i = tl.arange(0, BT)
-    m_s = tl.where(o_i[:, None] >= o_i[None, :], 1., 0.)
+    m_s = tl.where(o_i[:, None] >= o_i[None, :], 1.0, 0.0)
 
     b_z = tl.zeros([BS], dtype=tl.float32)
     for i_t in range(tl.cdiv(T, BT)):
@@ -258,33 +216,25 @@ def chunk_cumsum_fwd_kernel(
 
 @triton.autotune(
     configs=[
-        triton.Config({'BT': 16}, num_warps=2),
-        triton.Config({'BT': 16}, num_warps=4),
-        triton.Config({'BT': 16}, num_warps=8),
-        triton.Config({'BT': 32}, num_warps=2),
-        triton.Config({'BT': 32}, num_warps=4),
-        triton.Config({'BT': 32}, num_warps=8),
-        triton.Config({'BT': 64}, num_warps=2),
-        triton.Config({'BT': 64}, num_warps=4),
-        triton.Config({'BT': 64}, num_warps=8),
+        triton.Config({"BT": 16}, num_warps=2),
+        triton.Config({"BT": 16}, num_warps=4),
+        triton.Config({"BT": 16}, num_warps=8),
+        triton.Config({"BT": 32}, num_warps=2),
+        triton.Config({"BT": 32}, num_warps=4),
+        triton.Config({"BT": 32}, num_warps=8),
+        triton.Config({"BT": 64}, num_warps=2),
+        triton.Config({"BT": 64}, num_warps=4),
+        triton.Config({"BT": 64}, num_warps=8),
     ],
-    key=['S']
+    key=["S"],
 )
 @triton.jit
 def chunk_cumsum_bwd_kernel(
-    ds,
-    dz,
-    s_s_h,
-    s_s_t,
-    s_s_d,
-    T: tl.constexpr,
-    S: tl.constexpr,
-    BT: tl.constexpr,
-    BS: tl.constexpr
+    ds, dz, s_s_h, s_s_t, s_s_d, T: tl.constexpr, S: tl.constexpr, BT: tl.constexpr, BS: tl.constexpr
 ):
     i_s, i_bh = tl.program_id(0), tl.program_id(1)
     o_i = tl.arange(0, BT)
-    m_s = tl.where(o_i[:, None] <= o_i[None, :], 1., 0.)
+    m_s = tl.where(o_i[:, None] <= o_i[None, :], 1.0, 0.0)
 
     b_ds = tl.zeros([BS], dtype=tl.float32)
     for i_t in range(tl.cdiv(T, BT) - 1, -1, -1):
@@ -302,7 +252,7 @@ def chunk_cumsum_bwd_kernel(
 @contiguous
 def chunk_cumsum_fwd(
     s: torch.Tensor,
-    dtype: Optional[torch.dtype] = None,
+    dtype: torch.dtype | None = None,
 ) -> torch.Tensor:
     B, H, T, S = s.shape
     BS = 32
@@ -310,18 +260,14 @@ def chunk_cumsum_fwd(
     dtype = dtype or s.dtype
     grid = (triton.cdiv(S, BS), B * H)
     z = torch.empty_like(s, dtype=dtype)
-    chunk_cumsum_fwd_kernel[grid](
-        s, z,
-        s.stride(1), s.stride(2), s.stride(3),
-        T=T, S=S, BS=BS
-    )
+    chunk_cumsum_fwd_kernel[grid](s, z, s.stride(1), s.stride(2), s.stride(3), T=T, S=S, BS=BS)
     return z
 
 
 @contiguous
 def chunk_cumsum_bwd(
     dz: torch.Tensor,
-    dtype: Optional[torch.dtype] = None,
+    dtype: torch.dtype | None = None,
 ) -> torch.Tensor:
     B, H, T, S = dz.shape
     BS = 32
@@ -329,16 +275,11 @@ def chunk_cumsum_bwd(
     dtype = dtype or dz.dtype
     grid = (triton.cdiv(S, BS), B * H)
     ds = torch.empty_like(dz, dtype=dtype)
-    chunk_cumsum_bwd_kernel[grid](
-        ds, dz,
-        ds.stride(1), ds.stride(2), ds.stride(3),
-        T=T, S=S, BS=BS
-    )
+    chunk_cumsum_bwd_kernel[grid](ds, dz, ds.stride(1), ds.stride(2), ds.stride(3), T=T, S=S, BS=BS)
     return ds
 
 
 class CumsumFunction(torch.autograd.Function):
-
     @staticmethod
     def forward(ctx, s, dtype):
         z = chunk_cumsum_fwd(s, dtype)
@@ -353,35 +294,27 @@ class CumsumFunction(torch.autograd.Function):
 
 def cumsum(
     s: torch.Tensor,
-    dtype: Optional[torch.dtype] = None,
+    dtype: torch.dtype | None = None,
 ) -> torch.Tensor:
     return CumsumFunction.apply(s, dtype)
 
 
 @triton.autotune(
     configs=[
-        triton.Config({'BS': 32}, num_warps=2),
-        triton.Config({'BS': 32}, num_warps=4),
-        triton.Config({'BS': 32}, num_warps=8),
-        triton.Config({'BS': 64}, num_warps=2),
-        triton.Config({'BS': 64}, num_warps=4),
-        triton.Config({'BS': 64}, num_warps=8),
-        triton.Config({'BS': 128}, num_warps=2),
-        triton.Config({'BS': 128}, num_warps=4),
-        triton.Config({'BS': 128}, num_warps=8),
+        triton.Config({"BS": 32}, num_warps=2),
+        triton.Config({"BS": 32}, num_warps=4),
+        triton.Config({"BS": 32}, num_warps=8),
+        triton.Config({"BS": 64}, num_warps=2),
+        triton.Config({"BS": 64}, num_warps=4),
+        triton.Config({"BS": 64}, num_warps=8),
+        triton.Config({"BS": 128}, num_warps=2),
+        triton.Config({"BS": 128}, num_warps=4),
+        triton.Config({"BS": 128}, num_warps=8),
     ],
-    key=['S']
+    key=["S"],
 )
 @triton.jit
-def recurrent_reversed_cumsum_fwd_kernel(
-    s,
-    z,
-    s_s_h,
-    s_s_t,
-    T: tl.constexpr,
-    S: tl.constexpr,
-    BS: tl.constexpr
-):
+def recurrent_reversed_cumsum_fwd_kernel(s, z, s_s_h, s_s_t, T: tl.constexpr, S: tl.constexpr, BS: tl.constexpr):
     i_s, i_bh = tl.program_id(0), tl.program_id(1)
 
     o_s = i_s * BS + tl.arange(0, BS)
@@ -398,28 +331,20 @@ def recurrent_reversed_cumsum_fwd_kernel(
 
 @triton.autotune(
     configs=[
-        triton.Config({'BS': 32}, num_warps=2),
-        triton.Config({'BS': 32}, num_warps=4),
-        triton.Config({'BS': 32}, num_warps=8),
-        triton.Config({'BS': 64}, num_warps=2),
-        triton.Config({'BS': 64}, num_warps=4),
-        triton.Config({'BS': 64}, num_warps=8),
-        triton.Config({'BS': 128}, num_warps=2),
-        triton.Config({'BS': 128}, num_warps=4),
-        triton.Config({'BS': 128}, num_warps=8),
+        triton.Config({"BS": 32}, num_warps=2),
+        triton.Config({"BS": 32}, num_warps=4),
+        triton.Config({"BS": 32}, num_warps=8),
+        triton.Config({"BS": 64}, num_warps=2),
+        triton.Config({"BS": 64}, num_warps=4),
+        triton.Config({"BS": 64}, num_warps=8),
+        triton.Config({"BS": 128}, num_warps=2),
+        triton.Config({"BS": 128}, num_warps=4),
+        triton.Config({"BS": 128}, num_warps=8),
     ],
-    key=['S']
+    key=["S"],
 )
 @triton.jit
-def recurrent_reversed_cumsum_bwd_kernel(
-    ds,
-    dz,
-    s_s_h,
-    s_s_t,
-    T: tl.constexpr,
-    S: tl.constexpr,
-    BS: tl.constexpr
-):
+def recurrent_reversed_cumsum_bwd_kernel(ds, dz, s_s_h, s_s_t, T: tl.constexpr, S: tl.constexpr, BS: tl.constexpr):
     i_s, i_bh = tl.program_id(0), tl.program_id(1)
 
     o_s = i_s * BS + tl.arange(0, BS)
@@ -436,33 +361,25 @@ def recurrent_reversed_cumsum_bwd_kernel(
 
 @triton.autotune(
     configs=[
-        triton.Config({'BT': 16}, num_warps=2),
-        triton.Config({'BT': 16}, num_warps=4),
-        triton.Config({'BT': 16}, num_warps=8),
-        triton.Config({'BT': 32}, num_warps=2),
-        triton.Config({'BT': 32}, num_warps=4),
-        triton.Config({'BT': 32}, num_warps=8),
-        triton.Config({'BT': 64}, num_warps=2),
-        triton.Config({'BT': 64}, num_warps=4),
-        triton.Config({'BT': 64}, num_warps=8),
+        triton.Config({"BT": 16}, num_warps=2),
+        triton.Config({"BT": 16}, num_warps=4),
+        triton.Config({"BT": 16}, num_warps=8),
+        triton.Config({"BT": 32}, num_warps=2),
+        triton.Config({"BT": 32}, num_warps=4),
+        triton.Config({"BT": 32}, num_warps=8),
+        triton.Config({"BT": 64}, num_warps=2),
+        triton.Config({"BT": 64}, num_warps=4),
+        triton.Config({"BT": 64}, num_warps=8),
     ],
-    key=['S']
+    key=["S"],
 )
 @triton.jit
 def chunk_reversed_cumsum_fwd_kernel(
-    s,
-    z,
-    s_s_h,
-    s_s_t,
-    s_s_d,
-    T: tl.constexpr,
-    S: tl.constexpr,
-    BT: tl.constexpr,
-    BS: tl.constexpr
+    s, z, s_s_h, s_s_t, s_s_d, T: tl.constexpr, S: tl.constexpr, BT: tl.constexpr, BS: tl.constexpr
 ):
     i_s, i_bh = tl.program_id(0), tl.program_id(1)
     o_i = tl.arange(0, BT)
-    m_s = tl.where(o_i[:, None] <= o_i[None, :], 1., 0.)
+    m_s = tl.where(o_i[:, None] <= o_i[None, :], 1.0, 0.0)
 
     b_z = tl.zeros([BS], dtype=tl.float32)
     for i_t in range(tl.cdiv(T, BT) - 1, -1, -1):
@@ -479,33 +396,25 @@ def chunk_reversed_cumsum_fwd_kernel(
 
 @triton.autotune(
     configs=[
-        triton.Config({'BT': 16}, num_warps=2),
-        triton.Config({'BT': 16}, num_warps=4),
-        triton.Config({'BT': 16}, num_warps=8),
-        triton.Config({'BT': 32}, num_warps=2),
-        triton.Config({'BT': 32}, num_warps=4),
-        triton.Config({'BT': 32}, num_warps=8),
-        triton.Config({'BT': 64}, num_warps=2),
-        triton.Config({'BT': 64}, num_warps=4),
-        triton.Config({'BT': 64}, num_warps=8),
+        triton.Config({"BT": 16}, num_warps=2),
+        triton.Config({"BT": 16}, num_warps=4),
+        triton.Config({"BT": 16}, num_warps=8),
+        triton.Config({"BT": 32}, num_warps=2),
+        triton.Config({"BT": 32}, num_warps=4),
+        triton.Config({"BT": 32}, num_warps=8),
+        triton.Config({"BT": 64}, num_warps=2),
+        triton.Config({"BT": 64}, num_warps=4),
+        triton.Config({"BT": 64}, num_warps=8),
     ],
-    key=['S']
+    key=["S"],
 )
 @triton.jit
 def chunk_reversed_cumsum_bwd_kernel(
-    ds,
-    dz,
-    s_s_h,
-    s_s_t,
-    s_s_d,
-    T: tl.constexpr,
-    S: tl.constexpr,
-    BT: tl.constexpr,
-    BS: tl.constexpr
+    ds, dz, s_s_h, s_s_t, s_s_d, T: tl.constexpr, S: tl.constexpr, BT: tl.constexpr, BS: tl.constexpr
 ):
     i_s, i_bh = tl.program_id(0), tl.program_id(1)
     o_i = tl.arange(0, BT)
-    m_s = tl.where(o_i[:, None] >= o_i[None, :], 1., 0.)
+    m_s = tl.where(o_i[:, None] >= o_i[None, :], 1.0, 0.0)
 
     b_ds = tl.zeros([BS], dtype=tl.float32)
     for i_t in range(tl.cdiv(T, BT)):
@@ -523,7 +432,7 @@ def chunk_reversed_cumsum_bwd_kernel(
 @contiguous
 def chunk_reversed_cumsum_fwd(
     s: torch.Tensor,
-    dtype: Optional[torch.dtype] = None,
+    dtype: torch.dtype | None = None,
 ) -> torch.Tensor:
     B, H, T, S = s.shape
     BS = 32
@@ -531,18 +440,14 @@ def chunk_reversed_cumsum_fwd(
     dtype = dtype or s.dtype
     grid = (triton.cdiv(S, BS), B * H)
     z = torch.empty_like(s, dtype=dtype)
-    chunk_reversed_cumsum_fwd_kernel[grid](
-        s, z,
-        s.stride(1), s.stride(2), s.stride(3),
-        T=T, S=S, BS=BS
-    )
+    chunk_reversed_cumsum_fwd_kernel[grid](s, z, s.stride(1), s.stride(2), s.stride(3), T=T, S=S, BS=BS)
     return z
 
 
 @contiguous
 def chunk_reversed_cumsum_bwd(
     dz: torch.Tensor,
-    dtype: Optional[torch.dtype] = None,
+    dtype: torch.dtype | None = None,
 ) -> torch.Tensor:
     B, H, T, S = dz.shape
     BS = 32
@@ -550,16 +455,11 @@ def chunk_reversed_cumsum_bwd(
     dtype = dtype or dz.dtype
     grid = (triton.cdiv(S, BS), B * H)
     ds = torch.empty_like(dz, dtype=dtype)
-    chunk_reversed_cumsum_bwd_kernel[grid](
-        ds, dz,
-        ds.stride(1), ds.stride(2), ds.stride(3),
-        T=T, S=S, BS=BS
-    )
+    chunk_reversed_cumsum_bwd_kernel[grid](ds, dz, ds.stride(1), ds.stride(2), ds.stride(3), T=T, S=S, BS=BS)
     return ds
 
 
 class ReversedCumsumFunction(torch.autograd.Function):
-
     @staticmethod
     def forward(ctx, s, dtype):
         z = chunk_reversed_cumsum_fwd(s, dtype)
@@ -574,6 +474,6 @@ class ReversedCumsumFunction(torch.autograd.Function):
 
 def reversed_cumsum(
     s: torch.Tensor,
-    dtype: Optional[torch.dtype] = None,
+    dtype: torch.dtype | None = None,
 ) -> torch.Tensor:
     return CumsumFunction.apply(s, dtype)

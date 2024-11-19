@@ -29,9 +29,7 @@ class TestChunkwiseTorchAgVsStableTorch:
 
     @pytest.mark.skipif(not torch.cuda.is_available(), reason="No GPU available.")
     @pytest.mark.parametrize(["S", "B", "NH", "DHQK", "DHHV"], final_combinations)
-    def test_chunkwise_torch_vs_stable_torch_fp32(
-        self, test_session_folder, S, B, NH, DHQK, DHHV
-    ):
+    def test_chunkwise_torch_vs_stable_torch_fp32(self, test_session_folder, S, B, NH, DHQK, DHHV):
         print(f"S{S}B{B}NH{NH}DHQK{DHQK}DHHV{DHHV}")
         template_test_parallel_interface(
             baseline_fn=mlstm_parallel_stable_torch_autograd,
@@ -56,9 +54,7 @@ class TestChunkwiseTorchAgVsStableTorch:
 
     @pytest.mark.skipif(not torch.cuda.is_available(), reason="No GPU available.")
     @pytest.mark.parametrize(["S", "B", "NH", "DHQK", "DHHV"], final_combinations)
-    def test_chunkwise_torch_vs_unstable_torch_fp32(
-        self, test_session_folder, S, B, NH, DHQK, DHHV
-    ):
+    def test_chunkwise_torch_vs_unstable_torch_fp32(self, test_session_folder, S, B, NH, DHQK, DHHV):
         print(f"S{S}B{B}NH{NH}DHQK{DHQK}DHHV{DHHV}")
         template_test_parallel_interface(
             baseline_fn=mlstm_parallel_torch_autograd,
@@ -83,9 +79,7 @@ class TestChunkwiseTorchAgVsStableTorch:
 
     @pytest.mark.skipif(not torch.cuda.is_available(), reason="No GPU available.")
     @pytest.mark.parametrize(["S", "B", "NH", "DHQK", "DHHV"], final_combinations)
-    def test_chunkwise_torch_vs_stable_torch_bf16(
-        self, test_session_folder, S, B, NH, DHQK, DHHV
-    ):
+    def test_chunkwise_torch_vs_stable_torch_bf16(self, test_session_folder, S, B, NH, DHQK, DHHV):
         print(f"S{S}B{B}NH{NH}DHQK{DHQK}DHHV{DHHV}")
         template_test_parallel_interface(
             baseline_fn=mlstm_parallel_stable_torch_autograd,
@@ -110,9 +104,7 @@ class TestChunkwiseTorchAgVsStableTorch:
 
     @pytest.mark.skipif(not torch.cuda.is_available(), reason="No GPU available.")
     @pytest.mark.parametrize(["S", "B", "NH", "DHQK", "DHHV"], final_combinations)
-    def test_chunkwise_torch_vs_unstable_torch_bf16(
-        self, test_session_folder, S, B, NH, DHQK, DHHV
-    ):
+    def test_chunkwise_torch_vs_unstable_torch_bf16(self, test_session_folder, S, B, NH, DHQK, DHHV):
         print(f"S{S}B{B}NH{NH}DHQK{DHQK}DHHV{DHHV}")
         template_test_parallel_interface(
             baseline_fn=mlstm_parallel_torch_autograd,
@@ -141,9 +133,7 @@ class TestChunkwiseTorchOwnbw:
 
     @pytest.mark.skipif(not torch.cuda.is_available(), reason="No GPU available.")
     @pytest.mark.parametrize(["S", "B", "NH", "DHQK", "DHHV"], final_combinations)
-    def test_chunkwise_torch_ag_vs_chunkwise_torch_obw_fp32(
-        self, test_session_folder, S, B, NH, DHQK, DHHV
-    ):
+    def test_chunkwise_torch_ag_vs_chunkwise_torch_obw_fp32(self, test_session_folder, S, B, NH, DHQK, DHHV):
         # Note we slightly increase the rtol_fwbw here, the vecI.grad did not match
         print(f"S{S}B{B}NH{NH}DHQK{DHQK}DHHV{DHHV}")
         template_test_parallel_interface(
@@ -169,9 +159,7 @@ class TestChunkwiseTorchOwnbw:
 
     @pytest.mark.skipif(not torch.cuda.is_available(), reason="No GPU available.")
     @pytest.mark.parametrize(["S", "B", "NH", "DHQK", "DHHV"], final_combinations)
-    def test_parallel_stable_ag_vs_chunkwise_torch_obw_fp32(
-        self, test_session_folder, S, B, NH, DHQK, DHHV
-    ):
+    def test_parallel_stable_ag_vs_chunkwise_torch_obw_fp32(self, test_session_folder, S, B, NH, DHQK, DHHV):
         # Note we slightly increase the rtol_fwbw here, the vecI.grad did not match
         print(f"S{S}B{B}NH{NH}DHQK{DHQK}DHHV{DHHV}")
         template_test_parallel_interface(
@@ -197,9 +185,7 @@ class TestChunkwiseTorchOwnbw:
 
     @pytest.mark.skipif(not torch.cuda.is_available(), reason="No GPU available.")
     @pytest.mark.parametrize(["S", "B", "NH", "DHQK", "DHHV"], final_combinations)
-    def test_chunkwise_torch_obw_vs_chunkwise_tritonv3_fp32(
-        self, test_session_folder, S, B, NH, DHQK, DHHV
-    ):
+    def test_chunkwise_torch_obw_vs_chunkwise_tritonv3_fp32(self, test_session_folder, S, B, NH, DHQK, DHHV):
         #! Note here the differences are higher here
         print(f"S{S}B{B}NH{NH}DHQK{DHQK}DHHV{DHHV}")
         template_test_parallel_interface(

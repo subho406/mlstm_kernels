@@ -10,10 +10,7 @@ def compute_errors_per_batchhead(
     target: torch.Tensor,  # (B, NH, S, ...)
 ) -> np.ndarray:  # (B * NH, S, F) F are flattened features
     # compute the difference in float64 to avoid numerical issues
-    error = (
-        baseline.clone().to(dtype=torch.float64).detach()
-        - target.clone().to(dtype=torch.float64).detach()
-    ).abs()
+    error = (baseline.clone().to(dtype=torch.float64).detach() - target.clone().to(dtype=torch.float64).detach()).abs()
     all_timesteps_np = error.cpu().numpy()
 
     B, NH, S = error.shape[:3]
@@ -35,9 +32,7 @@ def plot_error_statistics_over_time_single(
     ema_alpha: float = 0.02,
     figsize=(10, 6),
 ):
-    assert (
-        len(errors.shape) == 2
-    ), "errors must have shape (num_timesteps, num_features)"
+    assert len(errors.shape) == 2, "errors must have shape (num_timesteps, num_features)"
     title = f"{title}--ema{ema_alpha}"
 
     # compute percentiles
@@ -47,9 +42,7 @@ def plot_error_statistics_over_time_single(
     fig, ax = plt.subplots(figsize=figsize)
 
     for i, p in enumerate(percentiles):
-        ema_percentile_data = ewma_vectorized(
-            percentiles_sequence_data[i], alpha=ema_alpha
-        )
+        ema_percentile_data = ewma_vectorized(percentiles_sequence_data[i], alpha=ema_alpha)
 
         ax.plot(ema_percentile_data, label=f"{percentiles[i]}th percentile")
 
