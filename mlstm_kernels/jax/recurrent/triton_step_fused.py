@@ -1,9 +1,9 @@
-from mlstm_kernels.triton.recurrent.fw_step_fused import recurrent_step_fw_kernel
-from mlstm_kernels.utils.kernels import is_power_of_2
-
 import jax
 import jax_triton as jt
 import triton
+
+from mlstm_kernels.triton.recurrent.fw_step_fused import recurrent_step_fw_kernel
+from mlstm_kernels.utils.kernels import is_power_of_2
 
 from ..stride_utils import get_stride
 from ..utils import jax2triton_dtype
@@ -32,12 +32,16 @@ def mlstm_recurrent_step__triton_fused_fw(
         qk_scale = DHQK**-0.5
 
     if matC_new is None:
-        assert vecN_new is None and scaM_new is None, "Initial states must be provided together."
+        assert (
+            vecN_new is None and scaM_new is None
+        ), "Initial states must be provided together."
         matC_new = jax.ShapeDtypeStruct(shape=matC_state.shape, dtype=matC_state.dtype)
         vecN_new = jax.ShapeDtypeStruct(shape=vecN_state.shape, dtype=vecN_state.dtype)
         scaM_new = jax.ShapeDtypeStruct(shape=scaM_state.shape, dtype=scaM_state.dtype)
     else:
-        assert vecN_new is not None and scaM_new is not None, "Initial states must be provided together."
+        assert (
+            vecN_new is not None and scaM_new is not None
+        ), "Initial states must be provided together."
 
     min_siz_b_DHQK = 64
     min_siz_b_DHHV = 64
@@ -99,3 +103,32 @@ def mlstm_recurrent_step__triton_fused_fw(
     )
 
     return vecH, (matC_new, vecN_new, scaM_new)
+
+
+def mlstm_recurrent_step__triton_fused(
+    q: jax.Array,  # (B, NH, DHQK)
+    k: jax.Array,  # (B, NH, DHQK)
+    v: jax.Array,  # (B, NH, DHV)
+    i: jax.Array,  # (B, NH, 1)
+    f: jax.Array,  # (B, NH, 1)
+    c: jax.Array,  # (B, NH, DHQK, DHV)
+    n: jax.Array,  # (B, NH, DHQK)
+    m: jax.Array,  # (B, NH, 1)
+    eps: float = 1e-6,
+    **kwargs,
+) -> tuple[
+    jax.Array, tuple[jax.Array, jax.Array, jax.Array]
+]:  # vecH, (matC_state_new (B, NH, DHQK, DHV), vecN_state_new (B, NH, DHQK), vecM_state_new (B, NH, 1))
+    """This is a single step of the mLSTM operation in recurrent form."""
+    return mlstm_recurrent_step__triton_fused_fw(
+        matC_old=c,
+        vecN_old=n,
+        scaM_old=m,
+        vecQ=q,
+        vecK=k,
+        vecV=v,
+        scaI=i,
+        scaF=f,
+        eps=eps,
+        **kwargs,
+    )

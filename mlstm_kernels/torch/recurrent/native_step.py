@@ -1,12 +1,6 @@
 # Maximilian Beck
 import torch
 
-"""
-PyTorch.
-
-This module contains the recurrent step implementation of the mLSTM.
-"""
-
 
 def mlstm_recurrent_step__native_fw(
     matC_old: torch.Tensor,  # (B, NH, DHQK, DHV)
@@ -40,6 +34,26 @@ def mlstm_recurrent_step__native_fw(
             (hidden_state [B, NH, DHV], (c_state_new [B, NH, DHQK, DHV], n_state_new [B, NH, DHQK]], m_state_new [B, NH, 1]))
     """
     B, NH, DHQK = vecQ.shape
+    _, _, DHHV = vecV.shape
+    assert vecQ.shape == vecK.shape, "q and k must have the same shape"
+    assert matC_old.shape == (
+        B,
+        NH,
+        DHQK,
+        DHHV,
+    ), f"matC_old has wrong shape, got {matC_old.shape}"
+    assert vecN_old.shape == (
+        B,
+        NH,
+        DHQK,
+    ), f"vecN_old has wrong shape, got {vecN_old.shape}"
+    assert scaM_old.shape == (
+        B,
+        NH,
+        1,
+    ), f"scaM_old has wrong shape, got {scaM_old.shape}"
+    assert scaI.shape == (B, NH, 1), f"scaI has wrong shape, got {scaI.shape}"
+    assert scaF.shape == (B, NH, 1), f"scaF has wrong shape, got {scaF.shape}"
 
     # gates
     scaF_log = torch.nn.functional.logsigmoid(scaF)
@@ -60,10 +74,41 @@ def mlstm_recurrent_step__native_fw(
     h_num = vecQ_scaled[:, :, None, :] @ matC_state_new  # (B, NH, 1, DHV)
     h_num = h_num.squeeze(2)  # (B, NH, DHV)
 
-    qn_dotproduct = vecQ_scaled[:, :, None, :] @ vecN_state_new[:, :, :, None]  # (B, NH, 1, 1)
+    qn_dotproduct = (
+        vecQ_scaled[:, :, None, :] @ vecN_state_new[:, :, :, None]
+    )  # (B, NH, 1, 1)
     qn_dotproduct = qn_dotproduct.squeeze(2)  # (B, NH, 1)
     max_val = torch.exp(-scaM_state_new)  # (B, NH, 1)
     h_denom = torch.maximum(qn_dotproduct.abs(), max_val) + eps  # (B, NH, 1)
     h = h_num / h_denom  # (B, NH, DHV) / (B, NH, 1) = (B, NH, DHV)
 
     return h, (matC_state_new, vecN_state_new, scaM_state_new)
+
+
+def mlstm_recurrent_step__native(
+    q: torch.Tensor,  # (B, NH, DHQK)
+    k: torch.Tensor,  # (B, NH, DHQK)
+    v: torch.Tensor,  # (B, NH, DHV)
+    i: torch.Tensor,  # (B, NH, 1)
+    f: torch.Tensor,  # (B, NH, 1)
+    c: torch.Tensor,  # (B, NH, DHQK, DHV)
+    n: torch.Tensor,  # (B, NH, DHQK)
+    m: torch.Tensor,  # (B, NH, 1)
+    eps: float = 1e-6,
+    **kwargs,
+) -> tuple[
+    torch.Tensor, tuple[torch.Tensor, torch.Tensor, torch.Tensor]
+]:  # vecH, (matC_state_new (B, NH, DHQK, DHV), vecN_state_new (B, NH, DHQK), vecM_state_new (B, NH, 1))
+    """This is a single step of the mLSTM operation in recurrent form."""
+    return mlstm_recurrent_step__native_fw(
+        matC_old=c,
+        vecN_old=n,
+        scaM_old=m,
+        vecQ=q,
+        vecK=k,
+        vecV=v,
+        scaI=i,
+        scaF=f,
+        eps=eps,
+        **kwargs,
+    )

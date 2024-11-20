@@ -2,13 +2,14 @@ import logging
 from collections.abc import Callable
 from pathlib import Path
 
-from mlstm_kernels.torch.components.test_losses import loss_layernorm_offset_quadratic
 from mlstm_kernels.torch.utils import dtype2str, to_numpy
 from mlstm_kernels.utils.test.checks import check_correctness
 from mlstm_kernels.utils.time import Stopwatch
 
 import numpy as np
 import torch
+
+from .losses_tests import loss_layernorm_offset_quadratic
 
 LOGGER = logging.getLogger(__name__)
 

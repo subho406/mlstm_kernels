@@ -3,7 +3,10 @@
 import torch
 import triton
 
-from ...triton.recurrent.fw_step import recurrent_step_fw_kernel_C, recurrent_step_fw_kernel_H
+from ...triton.recurrent.fw_step import (
+    recurrent_step_fw_kernel_C,
+    recurrent_step_fw_kernel_H,
+)
 from ..utils import contiguous_noctx
 
 
@@ -27,13 +30,35 @@ def mlstm_recurrent_step__triton_fw(
     # BLOCK_DQK_H: int = 16,
     # BLOCK_DV_H: int = 16,
 ):
-    B, NH, DHQK, DHV = matC_old.shape
+    B, NH, DHQK = vecQ.shape
+    _, _, DHV = vecV.shape
+    assert vecQ.shape == vecK.shape, "q and k must have the same shape"
+    assert matC_old.shape == (
+        B,
+        NH,
+        DHQK,
+        DHV,
+    ), f"matC_old has wrong shape, got {matC_old.shape}"
+    assert vecN_old.shape == (
+        B,
+        NH,
+        DHQK,
+    ), f"vecN_old has wrong shape, got {vecN_old.shape}"
+    assert scaM_old.shape == (
+        B,
+        NH,
+        1,
+    ), f"scaM_old has wrong shape, got {scaM_old.shape}"
+    assert scaI.shape == (B, NH, 1), f"scaI has wrong shape, got {scaI.shape}"
+    assert scaF.shape == (B, NH, 1), f"scaF has wrong shape, got {scaF.shape}"
 
     if qk_scale is None:
         qk_scale = DHQK**-0.5
 
     if matC_new is None:
-        assert vecN_new is None and scaM_new is None, "Initial states must be provided together."
+        assert (
+            vecN_new is None and scaM_new is None
+        ), "Initial states must be provided together."
         matC_new = torch.empty_like(matC_old)
         vecN_new = torch.empty_like(vecN_old)
         scaM_new = torch.empty_like(scaM_old)
@@ -147,3 +172,32 @@ def mlstm_recurrent_step__triton_fw(
     )
 
     return vecH, (matC_new, vecN_new, scaM_new)
+
+
+def mlstm_recurrent_step__triton(
+    q: torch.Tensor,  # (B, NH, DHQK)
+    k: torch.Tensor,  # (B, NH, DHQK)
+    v: torch.Tensor,  # (B, NH, DHV)
+    i: torch.Tensor,  # (B, NH, 1)
+    f: torch.Tensor,  # (B, NH, 1)
+    c: torch.Tensor,  # (B, NH, DHQK, DHV)
+    n: torch.Tensor,  # (B, NH, DHQK)
+    m: torch.Tensor,  # (B, NH, 1)
+    eps: float = 1e-6,
+    **kwargs,
+) -> tuple[
+    torch.Tensor, tuple[torch.Tensor, torch.Tensor, torch.Tensor]
+]:  # vecH, (matC_state_new (B, NH, DHQK, DHV), vecN_state_new (B, NH, DHQK), vecM_state_new (B, NH, 1))
+    """This is a single step of the mLSTM operation in recurrent form."""
+    return mlstm_recurrent_step__triton_fw(
+        matC_old=c,
+        vecN_old=n,
+        scaM_old=m,
+        vecQ=q,
+        vecK=k,
+        vecV=v,
+        scaI=i,
+        scaF=f,
+        eps=eps,
+        **kwargs,
+    )

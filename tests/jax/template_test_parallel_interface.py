@@ -3,14 +3,15 @@ from collections.abc import Callable
 from functools import partial
 from pathlib import Path
 
-from mlstm_kernels.jax.components.test_losses import loss_layernorm_offset_quadratic
+import jax
+import jax.numpy as jnp
+import numpy as np
+
 from mlstm_kernels.jax.utils import dtype2str, to_numpy
 from mlstm_kernels.utils.test.checks import check_correctness
 from mlstm_kernels.utils.time import Stopwatch
 
-import jax
-import jax.numpy as jnp
-import numpy as np
+from .losses_tests import loss_layernorm_offset_quadratic
 
 LOGGER = logging.getLogger(__name__)
 
@@ -96,8 +97,12 @@ def template_test_parallel_interface(
         return loss_layernorm_offset_quadratic(h)
 
     if run_backward:
-        baseline_grad_fn = jax.grad(partial(func_and_loss, func=baseline_fn), argnums=(0, 1, 2, 3, 4))
-        target_grad_fn = jax.grad(partial(func_and_loss, func=target_fn), argnums=(0, 1, 2, 3, 4))
+        baseline_grad_fn = jax.grad(
+            partial(func_and_loss, func=baseline_fn), argnums=(0, 1, 2, 3, 4)
+        )
+        target_grad_fn = jax.grad(
+            partial(func_and_loss, func=target_fn), argnums=(0, 1, 2, 3, 4)
+        )
 
     if use_jit:
         baseline_fn = jax.jit(baseline_fn, static_argnames=("eps"))
@@ -117,8 +122,14 @@ def template_test_parallel_interface(
     )
     fw_seconds = sw.lap()
     if run_backward:
-        matQ_baseline_grad, matK_baseline_grad, matV_baseline_grad, vecI_baseline_grad, vecF_baseline_grad = (
-            baseline_grad_fn(matQ_baseline, matK_baseline, matV_baseline, vecI_baseline, vecF_baseline)
+        (
+            matQ_baseline_grad,
+            matK_baseline_grad,
+            matV_baseline_grad,
+            vecI_baseline_grad,
+            vecF_baseline_grad,
+        ) = baseline_grad_fn(
+            matQ_baseline, matK_baseline, matV_baseline, vecI_baseline, vecF_baseline
         )
     else:
         matQ_baseline_grad = None
@@ -129,8 +140,12 @@ def template_test_parallel_interface(
 
     fwbw_seconds = sw.stop()
 
-    print(f"{baseline_name} | fw (ms): {fw_seconds * 1000}, fwbw (ms): {fwbw_seconds * 1000}")
-    LOGGER.info(f"{baseline_name} | fw (ms): {fw_seconds * 1000}, fwbw (ms): {fwbw_seconds * 1000}")
+    print(
+        f"{baseline_name} | fw (ms): {fw_seconds * 1000}, fwbw (ms): {fwbw_seconds * 1000}"
+    )
+    LOGGER.info(
+        f"{baseline_name} | fw (ms): {fw_seconds * 1000}, fwbw (ms): {fwbw_seconds * 1000}"
+    )
 
     # target
     sw = Stopwatch()
@@ -145,8 +160,14 @@ def template_test_parallel_interface(
     )
     fw_seconds = sw.lap()
     if run_backward:
-        matQ_target_grad, matK_target_grad, matV_target_grad, vecI_target_grad, vecF_target_grad = (
-            target_grad_fn(matQ_target, matK_target, matV_target, vecI_target, vecF_target)
+        (
+            matQ_target_grad,
+            matK_target_grad,
+            matV_target_grad,
+            vecI_target_grad,
+            vecF_target_grad,
+        ) = target_grad_fn(
+            matQ_target, matK_target, matV_target, vecI_target, vecF_target
         )
     else:
         matQ_target_grad = None
@@ -154,10 +175,14 @@ def template_test_parallel_interface(
         matV_target_grad = None
         vecI_target_grad = None
         vecF_target_grad = None
-    
+
     fwbw_seconds = sw.stop()
-    print(f"{target_name} | fw (ms): {fw_seconds * 1000}, fwbw (ms): {fwbw_seconds * 1000}")
-    LOGGER.info(f"{target_name} | fw (ms): {fw_seconds * 1000}, fwbw (ms): {fwbw_seconds * 1000}")
+    print(
+        f"{target_name} | fw (ms): {fw_seconds * 1000}, fwbw (ms): {fwbw_seconds * 1000}"
+    )
+    LOGGER.info(
+        f"{target_name} | fw (ms): {fw_seconds * 1000}, fwbw (ms): {fwbw_seconds * 1000}"
+    )
 
     test_specifier_template_str = "{specifier}_bl-{dtype}"
 
@@ -177,7 +202,9 @@ def template_test_parallel_interface(
         vecF_target_grad: jax.Array | None,
     ):
         matH_match = check_correctness(
-            test_specifier=test_specifier_template_str.format(specifier="matH", dtype=dtype2str(matH_baseline.dtype)),
+            test_specifier=test_specifier_template_str.format(
+                specifier="matH", dtype=dtype2str(matH_baseline.dtype)
+            ),
             baseline=to_numpy(matH_baseline),
             target=to_numpy(matH_target),
             atol=atol_fw,
@@ -309,8 +336,18 @@ def template_test_parallel_interface(
             eps=eps,
         )
         if run_backward:
-            matQ_baseline_fp64_grad, matK_baseline_fp64_grad, matV_baseline_fp64_grad, vecI_baseline_fp64_grad, vecF_baseline_fp64_grad = (
-                baseline_grad_fn(matQ_baseline_fp64, matK_baseline_fp64, matV_baseline_fp64, vecI_baseline_fp64, vecF_baseline_fp64)
+            (
+                matQ_baseline_fp64_grad,
+                matK_baseline_fp64_grad,
+                matV_baseline_fp64_grad,
+                vecI_baseline_fp64_grad,
+                vecF_baseline_fp64_grad,
+            ) = baseline_grad_fn(
+                matQ_baseline_fp64,
+                matK_baseline_fp64,
+                matV_baseline_fp64,
+                vecI_baseline_fp64,
+                vecF_baseline_fp64,
             )
         (
             matH_match_bl_fp64,
@@ -334,41 +371,87 @@ def template_test_parallel_interface(
             vecF_target_grad=vecF_target_grad,
         )
 
-    np.testing.assert_allclose(to_numpy(matH_baseline), to_numpy(matH_target), atol=atol_fw, rtol=rtol_fw, err_msg="matH")
+    np.testing.assert_allclose(
+        to_numpy(matH_baseline),
+        to_numpy(matH_target),
+        atol=atol_fw,
+        rtol=rtol_fw,
+        err_msg="matH",
+    )
     if run_backward:
         np.testing.assert_allclose(
-            to_numpy(matQ_baseline_grad), to_numpy(matQ_target_grad), atol=atol_fwbw, rtol=rtol_fwbw, err_msg="matQgrad"
+            to_numpy(matQ_baseline_grad),
+            to_numpy(matQ_target_grad),
+            atol=atol_fwbw,
+            rtol=rtol_fwbw,
+            err_msg="matQgrad",
         )
         np.testing.assert_allclose(
-            to_numpy(matK_baseline_grad), to_numpy(matK_target_grad), atol=atol_fwbw, rtol=rtol_fwbw, err_msg="matKgrad"
+            to_numpy(matK_baseline_grad),
+            to_numpy(matK_target_grad),
+            atol=atol_fwbw,
+            rtol=rtol_fwbw,
+            err_msg="matKgrad",
         )
         np.testing.assert_allclose(
-            to_numpy(matV_baseline_grad), to_numpy(matV_target_grad), atol=atol_fwbw, rtol=rtol_fwbw, err_msg="matVgrad"
+            to_numpy(matV_baseline_grad),
+            to_numpy(matV_target_grad),
+            atol=atol_fwbw,
+            rtol=rtol_fwbw,
+            err_msg="matVgrad",
         )
         np.testing.assert_allclose(
-            to_numpy(vecI_baseline_grad), to_numpy(vecI_target_grad), atol=atol_fwbw, rtol=rtol_fwbw, err_msg="vecIgrad"
+            to_numpy(vecI_baseline_grad),
+            to_numpy(vecI_target_grad),
+            atol=atol_fwbw,
+            rtol=rtol_fwbw,
+            err_msg="vecIgrad",
         )
         np.testing.assert_allclose(
-            to_numpy(vecF_baseline_grad), to_numpy(vecF_target_grad), atol=atol_fwbw, rtol=rtol_fwbw, err_msg="vecFgrad"
+            to_numpy(vecF_baseline_grad),
+            to_numpy(vecF_target_grad),
+            atol=atol_fwbw,
+            rtol=rtol_fwbw,
+            err_msg="vecFgrad",
         )
 
     if add_fp64_baseline:
-        np.testing.assert_allclose(to_numpy(matH_baseline_fp64), to_numpy(matH_target), atol=atol_fw, rtol=rtol_fw)
+        np.testing.assert_allclose(
+            to_numpy(matH_baseline_fp64),
+            to_numpy(matH_target),
+            atol=atol_fw,
+            rtol=rtol_fw,
+        )
         if run_backward:
             np.testing.assert_allclose(
-                to_numpy(matQ_baseline_fp64_grad), to_numpy(matQ_target_grad), atol=atol_fwbw, rtol=rtol_fwbw
+                to_numpy(matQ_baseline_fp64_grad),
+                to_numpy(matQ_target_grad),
+                atol=atol_fwbw,
+                rtol=rtol_fwbw,
             )
             np.testing.assert_allclose(
-                to_numpy(matK_baseline_fp64_grad), to_numpy(matK_target_grad), atol=atol_fwbw, rtol=rtol_fwbw
+                to_numpy(matK_baseline_fp64_grad),
+                to_numpy(matK_target_grad),
+                atol=atol_fwbw,
+                rtol=rtol_fwbw,
             )
             np.testing.assert_allclose(
-                to_numpy(matV_baseline_fp64_grad), to_numpy(matV_target_grad), atol=atol_fwbw, rtol=rtol_fwbw
+                to_numpy(matV_baseline_fp64_grad),
+                to_numpy(matV_target_grad),
+                atol=atol_fwbw,
+                rtol=rtol_fwbw,
             )
             np.testing.assert_allclose(
-                to_numpy(vecI_baseline_fp64_grad), to_numpy(vecI_target_grad), atol=atol_fwbw, rtol=rtol_fwbw
+                to_numpy(vecI_baseline_fp64_grad),
+                to_numpy(vecI_target_grad),
+                atol=atol_fwbw,
+                rtol=rtol_fwbw,
             )
             np.testing.assert_allclose(
-                to_numpy(vecF_baseline_fp64_grad), to_numpy(vecF_target_grad), atol=atol_fwbw, rtol=rtol_fwbw
+                to_numpy(vecF_baseline_fp64_grad),
+                to_numpy(vecF_target_grad),
+                atol=atol_fwbw,
+                rtol=rtol_fwbw,
             )
 
     if save_output_tensors_dir is not None:

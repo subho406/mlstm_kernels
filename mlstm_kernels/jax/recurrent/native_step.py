@@ -1,12 +1,13 @@
 # Maximilian Beck
-import jax
-import jax.numpy as jnp
 
 """
 Jax.
 
 This module contains the recurrent step implementation of the mLSTM.
 """
+
+import jax
+import jax.numpy as jnp
 
 
 def mlstm_recurrent_step__native_fw(
@@ -61,10 +62,41 @@ def mlstm_recurrent_step__native_fw(
     h_num = vecQ_scaled[:, :, None, :] @ matC_state_new  # (B, NH, 1, DHV)
     h_num = h_num.squeeze(2)  # (B, NH, DHV)
 
-    qn_dotproduct = vecQ_scaled[:, :, None, :] @ vecN_state_new[:, :, :, None]  # (B, NH, 1, 1)
+    qn_dotproduct = (
+        vecQ_scaled[:, :, None, :] @ vecN_state_new[:, :, :, None]
+    )  # (B, NH, 1, 1)
     qn_dotproduct = qn_dotproduct.squeeze(2)  # (B, NH, 1)
     max_val = jnp.exp(-scaM_state_new)  # (B, NH, 1)
     h_denom = jnp.maximum(jnp.abs(qn_dotproduct), max_val) + eps  # (B, NH, 1)
     h = h_num / h_denom  # (B, NH, DHV) / (B, NH, 1) = (B, NH, DHV)
 
     return h, (matC_state_new, vecN_state_new, scaM_state_new)
+
+
+def mlstm_recurrent_step__native(
+    q: jax.Array,  # (B, NH, DHQK)
+    k: jax.Array,  # (B, NH, DHQK)
+    v: jax.Array,  # (B, NH, DHV)
+    i: jax.Array,  # (B, NH, 1)
+    f: jax.Array,  # (B, NH, 1)
+    c: jax.Array,  # (B, NH, DHQK, DHV)
+    n: jax.Array,  # (B, NH, DHQK)
+    m: jax.Array,  # (B, NH, 1)
+    eps: float = 1e-6,
+    **kwargs,
+) -> tuple[
+    jax.Array, tuple[jax.Array, jax.Array, jax.Array]
+]:  # vecH, (matC_state_new (B, NH, DHQK, DHV), vecN_state_new (B, NH, DHQK), vecM_state_new (B, NH, 1))
+    """This is a single step of the mLSTM operation in recurrent form."""
+    return mlstm_recurrent_step__native_fw(
+        matC_old=c,
+        vecN_old=n,
+        scaM_old=m,
+        vecQ=q,
+        vecK=k,
+        vecV=v,
+        scaI=i,
+        scaF=f,
+        eps=eps,
+        **kwargs,
+    )

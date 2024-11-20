@@ -13,7 +13,7 @@ def mlstm_interface(
     f: torch.Tensor, # (B, NH, S)
     c_initial: torch.Tensor = None, # (B, NH, DHQK, DHV)
     n_initial: torch.Tensor = None, # (B, NH, DHQK)
-    m_initial: torch.Tensor = None, # (B, NH)
+    m_initial: torch.Tensor = None, # (B, NH) # TODO change the shape of this to (B, NH, 1)
     return_last_states: bool = False,
     eps: float = 1e-6,
     autocast_kernel_dtype: torch.dtype = torch.float16,
@@ -29,6 +29,23 @@ def mlstm_interface(
 
     pass
 
+```
+
+```python
+def mlstm_step_interface(
+    q: torch.Tensor,  # (B, NH, DHQK)
+    k: torch.Tensor,  # (B, NH, DHQK)
+    v: torch.Tensor,  # (B, NH, DHV)
+    i: torch.Tensor,  # (B, NH, 1)
+    f: torch.Tensor,  # (B, NH, 1)
+    c: torch.Tensor,  # (B, NH, DHQK, DHV)
+    n: torch.Tensor,  # (B, NH, DHQK)
+    m: torch.Tensor,  # (B, NH, 1)
+    eps: float = 1e-6,
+    **kwargs,
+) -> tuple[
+    torch.Tensor, tuple[torch.Tensor, torch.Tensor, torch.Tensor]
+]:  # vecH, (matC_state_new (B, NH, DHQK, DHV), vecN_state_new (B, NH, DHQK), vecM_state_new (B, NH, 1))
 ```
 
 ## Kernel variants
