@@ -1,7 +1,7 @@
+from collections.abc import Callable
 from dataclasses import dataclass
 from functools import partial
 from typing import Any
-from collections.abc import Callable
 
 import torch
 
@@ -40,7 +40,7 @@ class mLSTMStepKernelBenchmark(BenchmarkInterface):
         return c_old, n_old, m_old, q, k, v, i, f
 
     def _get_kernel_fn(self) -> Callable[[tuple[torch.Tensor, ...]], torch.Tensor]:
-        from ...mlstm import get_mlstm_step_kernel
+        from mlstm_kernels.torch import get_mlstm_step_kernel
 
         kernel_fn = get_mlstm_step_kernel(self.kernel_name)
         if self.use_torch_compile:
@@ -70,7 +70,7 @@ class mLSTMStepKernelBenchmark(BenchmarkInterface):
         self.benchmark_fn = benchmark_fn
 
     def available_kernels(self) -> list[str]:
-        from ...mlstm import get_available_mlstm_step_kernels
+        from mlstm_kernels.torch import get_available_mlstm_step_kernels
 
         return get_available_mlstm_step_kernels()
 
