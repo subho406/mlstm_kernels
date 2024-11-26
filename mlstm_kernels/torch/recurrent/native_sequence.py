@@ -48,9 +48,9 @@ def _mlstm_recurrent_sequence_loop_fw(
             vecN_initial is not None and scaM_initial is not None
         ), "Initial states must be provided together."
         matC_state, vecN_state, vecM_state = (
-            matC_initial,
-            vecN_initial,
-            scaM_initial,
+            matC_initial.to(dtype=dtype_state),
+            vecN_initial.to(dtype=dtype_state),
+            scaM_initial.to(dtype=dtype_state),
         )
     else:
         # memory state
@@ -113,12 +113,10 @@ def _mlstm_recurrent_sequence_loop_fw(
         matC_states = torch.stack(matC_list, dim=-3)  # (B, NH, S, DHQK, DHV)
         vecN_states = torch.stack(vecN_list, dim=-2)  # (B, NH, S, DHQK)
         vecM_states = torch.cat(vecM_list, dim=-1)  # (B, NH, S)
-        vecN_states = torch.stack(vecN_list, dim=-2)  # (B, NH, S, DHQK)
-        vecM_states = torch.cat(vecM_list, dim=-1)  # (B, NH, S)
         ret_tuple += ((matC_states, vecN_states, vecM_states),)
     else:
         ret_tuple += (None,)
-
+        
     return ret_tuple
 
 
@@ -211,9 +209,7 @@ def mlstm_recurrent_sequence__triton_step_fused_fw(
     torch.Tensor | tuple[torch.Tensor, tuple[torch.Tensor, torch.Tensor, torch.Tensor]]
 ):
     ret_tuple = _mlstm_recurrent_sequence_loop_fw(
-        mlstm_step_fn=partial(
-            mlstm_recurrent_step__triton_fused_fw, dtype_state=dtype_state
-        ),
+        mlstm_step_fn=mlstm_recurrent_step__triton_fused_fw,
         matQ=q,
         matK=k,
         matV=v,
