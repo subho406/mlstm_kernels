@@ -7,7 +7,7 @@
       "source.organizeImports": "explicit"
     }
   },
-  "editor.formatOnSave": true,
+  "editor.formatOnSave": false,
   "isort.args": ["--profile", "ruff"],
   "files.watcherExclude": {
     "outputs/**": true,

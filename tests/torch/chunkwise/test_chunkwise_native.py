@@ -40,3 +40,21 @@ def test_native_chunkwise_torch_vs_native_parrallel_stablef_fp32(
         add_fp64_baseline=False,
         # save_output_tensors_dir=str(test_output_folder),
     )
+
+@pytest.mark.skipif(not torch.cuda.is_available(), reason="No GPU available.")
+def test_state_passing(mlstm_state_passing_test, state_passing_qkvif):
+
+    num_chunks = state_passing_qkvif[0].shape[2] // 64 # <- chunk size = 64
+
+    mlstm_state_passing_test(
+        kernel_fn=mlstm_chunkwise__native_custbw,
+        q=state_passing_qkvif[0],
+        k=state_passing_qkvif[1],
+        v=state_passing_qkvif[2],
+        igate_preact=state_passing_qkvif[3],
+        fgate_preact=state_passing_qkvif[4],
+        num_chunks=num_chunks,
+        rtol=1e-5,
+        atol=1e-5,
+        device="cuda",
+    )

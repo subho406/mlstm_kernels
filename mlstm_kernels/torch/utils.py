@@ -53,3 +53,10 @@ def torch2triton_dtype(dtype):
 
 def to_numpy(tensor: torch.Tensor) -> np.ndarray:
     return tensor.detach().cpu().numpy()
+
+
+def tensor_or_none(x):
+    return x if x is None else torch.tensor(x)
+
+def int_or_none(x):
+    return x if x is None else int(x)

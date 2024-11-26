@@ -4,7 +4,7 @@ from collections.abc import Callable
 import torch
 from torch.amp import custom_bwd, custom_fwd
 
-from ...utils import contiguous
+from ...utils import contiguous, int_or_none, tensor_or_none
 from .bw import mlstm_chunkwise_bw
 from .fw import mlstm_chunkwise_fw
 
@@ -24,21 +24,22 @@ def _mlstm_chunkwise_fwbw_generator(autocast_kernel_dtype=torch.bfloat16) -> Cal
             vecF: torch.Tensor,  # (B, NH, S)
             matC_initial: torch.Tensor = None,  # (B, NH, DHQK, DHV)
             vecN_initial: torch.Tensor = None,  # (B, NH, DHQK)
-            scaM_initial: torch.Tensor = None,  # (B, NH)
+            scaM_initial: torch.Tensor = None,  # (B, NH, 1)
             qk_scale: float = None,
             return_last_states: bool = False,
             eps: float = 0.0,
-            chunk_size_inter: int = 128,
-            chunk_size_intra: int = 128,
-            siz_b_L_parallel: int = 64,
-            siz_b_L_loop: int = 64,
+            chunk_size: int = 128,
+            chunk_size_inter: int | None = None,
+            chunk_size_intra: int | None = None,
+            siz_b_L_parallel: int | None = None,
+            siz_b_L_loop: int | None = None,
             siz_b_DH_parallel: int | None = None,
             siz_b_DH_loop: int | None = None,
             num_warps_intra: int | None = None,
             num_warps_inter: int | None = None,
             num_stages_intra: int | None = None,
             num_stages_inter: int | None = None,
-            RECOMPUTE_STATES_IN_BW: bool = True,
+            recompute_states_in_bw: bool = True,
         ) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor]:
             B, NH, S, DHQK = matQ.shape
             if qk_scale is None:
@@ -55,7 +56,8 @@ def _mlstm_chunkwise_fwbw_generator(autocast_kernel_dtype=torch.bfloat16) -> Cal
                 scaM_initial=scaM_initial,
                 qk_scale=qk_scale,
                 return_last_states=return_last_states,
-                return_all_states=(not RECOMPUTE_STATES_IN_BW),
+                return_all_states=(not recompute_states_in_bw),
+                chunk_size=chunk_size,
                 chunk_size_inter=chunk_size_inter,
                 chunk_size_intra=chunk_size_intra,
                 siz_b_L_parallel=siz_b_L_parallel,
@@ -95,16 +97,18 @@ def _mlstm_chunkwise_fwbw_generator(autocast_kernel_dtype=torch.bfloat16) -> Cal
                 vecN_out,
                 vecM_out,
                 torch.tensor(qk_scale),
-                torch.tensor(chunk_size_inter),
-                torch.tensor(chunk_size_intra),
-                torch.tensor(siz_b_L_parallel),
-                torch.tensor(siz_b_L_loop),
-                torch.tensor(siz_b_DH_parallel) if siz_b_DH_parallel is not None else None,
-                torch.tensor(siz_b_DH_loop) if siz_b_DH_loop is not None else None,
-                torch.tensor(num_warps_intra) if num_warps_intra is not None else None,
-                torch.tensor(num_warps_inter) if num_warps_inter is not None else None,
-                torch.tensor(num_stages_intra) if num_stages_intra is not None else None,
-                torch.tensor(num_stages_inter) if num_stages_inter is not None else None,
+                torch.tensor(chunk_size),
+                tensor_or_none(chunk_size_inter),
+                tensor_or_none(chunk_size_inter),
+                tensor_or_none(chunk_size_intra),
+                tensor_or_none(siz_b_L_parallel),
+                tensor_or_none(siz_b_L_loop),
+                tensor_or_none(siz_b_DH_parallel),
+                tensor_or_none(siz_b_DH_loop),
+                tensor_or_none(num_warps_intra),
+                tensor_or_none(num_warps_inter),
+                tensor_or_none(num_stages_intra),
+                tensor_or_none(num_stages_inter),
                 torch.tensor(eps),
             )
             return matH_out, matC_last, vecN_last, scaM_last
@@ -112,7 +116,9 @@ def _mlstm_chunkwise_fwbw_generator(autocast_kernel_dtype=torch.bfloat16) -> Cal
         @staticmethod
         @custom_bwd(device_type="cuda")
         @contiguous
-        def backward(ctx, matDeltaH_out, matDeltaC_last, vecDeltaN_last, scaDeltaM_last):
+        def backward(
+            ctx, matDeltaH_out, matDeltaC_last, vecDeltaN_last, scaDeltaM_last
+        ):
             (
                 matQ,
                 matK,
@@ -128,6 +134,7 @@ def _mlstm_chunkwise_fwbw_generator(autocast_kernel_dtype=torch.bfloat16) -> Cal
                 vecN_out,
                 vecM_out,
                 qk_scale,
+                chunk_size,
                 chunk_size_inter,
                 chunk_size_intra,
                 siz_b_L_parallel,
@@ -167,16 +174,17 @@ def _mlstm_chunkwise_fwbw_generator(autocast_kernel_dtype=torch.bfloat16) -> Cal
                 matDeltaH_out=matDeltaH_out,
                 matDeltaC_last=matDeltaC_last,
                 qk_scale=float(qk_scale),
-                chunk_size_inter=int(chunk_size_inter),
-                chunk_size_intra=int(chunk_size_intra),
-                siz_b_L_parallel=int(siz_b_L_parallel),
-                siz_b_L_loop=int(siz_b_L_loop),
-                siz_b_DH_parallel=int(siz_b_DH_parallel) if siz_b_DH_parallel is not None else None,
-                siz_b_DH_loop=int(siz_b_DH_loop) if siz_b_DH_loop is not None else None,
-                num_warps_intra=int(num_warps_intra) if num_warps_intra is not None else None,
-                num_warps_inter=int(num_warps_inter) if num_warps_inter is not None else None,
-                num_stages_intra=int(num_stages_intra) if num_stages_intra is not None else None,
-                num_stages_inter=int(num_stages_inter) if num_stages_inter is not None else None,
+                chunk_size=int(chunk_size),
+                chunk_size_inter=int_or_none(chunk_size_inter),
+                chunk_size_intra=int_or_none(chunk_size_intra),
+                siz_b_L_parallel=int_or_none(siz_b_L_parallel),
+                siz_b_L_loop=int_or_none(siz_b_L_loop),
+                siz_b_DH_parallel=int_or_none(siz_b_DH_parallel),
+                siz_b_DH_loop=int_or_none(siz_b_DH_loop),
+                num_warps_intra=int_or_none(num_warps_intra),
+                num_warps_inter=int_or_none(num_warps_inter),
+                num_stages_intra=int_or_none(num_stages_intra),
+                num_stages_inter=int_or_none(num_stages_inter),
                 eps=float(eps),
             )
 
@@ -209,9 +217,15 @@ def _mlstm_chunkwise_fwbw_generator(autocast_kernel_dtype=torch.bfloat16) -> Cal
     return _mlstm_chunkwise_fwbw
 
 
-_mlstm_chunkwise_fwbw_float32 = _mlstm_chunkwise_fwbw_generator(autocast_kernel_dtype=torch.float32)
-_mlstm_chunkwise_fwbw_float16 = _mlstm_chunkwise_fwbw_generator(autocast_kernel_dtype=torch.float16)
-_mlstm_chunkwise_fwbw_bfloat16 = _mlstm_chunkwise_fwbw_generator(autocast_kernel_dtype=torch.bfloat16)
+_mlstm_chunkwise_fwbw_float32 = _mlstm_chunkwise_fwbw_generator(
+    autocast_kernel_dtype=torch.float32
+)
+_mlstm_chunkwise_fwbw_float16 = _mlstm_chunkwise_fwbw_generator(
+    autocast_kernel_dtype=torch.float16
+)
+_mlstm_chunkwise_fwbw_bfloat16 = _mlstm_chunkwise_fwbw_generator(
+    autocast_kernel_dtype=torch.bfloat16
+)
 
 
 def _get_chunkwise_fwbw_kernel(autocast_kernel_dtype: torch.dtype) -> Callable:
@@ -226,20 +240,21 @@ def _get_chunkwise_fwbw_kernel(autocast_kernel_dtype: torch.dtype) -> Callable:
 
 
 def mlstm_chunkwise__xl_chunk(
-    q: torch.Tensor,
-    k: torch.Tensor,
-    v: torch.Tensor,
-    i: torch.Tensor,
-    f: torch.Tensor,
-    c_initial: torch.Tensor = None,
-    n_initial: torch.Tensor = None,
-    m_initial: torch.Tensor = None,
+    q: torch.Tensor,  # (B, NH, S, DHQK)
+    k: torch.Tensor,  # (B, NH, S, DHQK)
+    v: torch.Tensor,  # (B, NH, S, DHHV)
+    i: torch.Tensor,  # (B, NH, S)
+    f: torch.Tensor,  # (B, NH, S)
+    c_initial: torch.Tensor = None,  # (B, NH, DHQK, DHHV)
+    n_initial: torch.Tensor = None,  # (B, NH, DHQK)
+    m_initial: torch.Tensor = None,  # (B, NH, 1)
     return_last_states: bool = False,
     eps: float = 1e-6,
-    chunk_size_inter: int = 128,
-    chunk_size_intra: int = 128,
-    siz_b_L_parallel: int = 64,
-    siz_b_L_loop: int = 64,
+    chunk_size: int = 128,
+    chunk_size_inter: int | None = None,
+    chunk_size_intra: int | None = None,
+    siz_b_L_parallel: int | None = None,
+    siz_b_L_loop: int | None = None,
     siz_b_DH_parallel: int | None = None,
     siz_b_DH_loop: int | None = None,
     num_warps_intra: int | None = None,
@@ -248,7 +263,9 @@ def mlstm_chunkwise__xl_chunk(
     num_stages_inter: int | None = None,
     recompute_states_in_bw: bool = True,
     autocast_kernel_dtype: torch.dtype = torch.float32,
-) -> torch.Tensor | tuple[torch.Tensor, tuple[torch.Tensor, torch.Tensor, torch.Tensor]]:
+) -> (
+    torch.Tensor | tuple[torch.Tensor, tuple[torch.Tensor, torch.Tensor, torch.Tensor]]
+):
     _mlstm_chunkwise_fwbw = _get_chunkwise_fwbw_kernel(autocast_kernel_dtype)
     matH_out, matC_last, vecN_last, scaM_last = _mlstm_chunkwise_fwbw.apply(
         q,
@@ -262,6 +279,7 @@ def mlstm_chunkwise__xl_chunk(
         None,  # qk_scale always the default value
         return_last_states,
         eps,
+        chunk_size,
         chunk_size_inter,
         chunk_size_intra,
         siz_b_L_parallel,
