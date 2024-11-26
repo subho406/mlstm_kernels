@@ -188,3 +188,67 @@ def wrap_chunkwise__arbitrary_sequence_length(
         return h_out, (c_state, n_state, m_state)
     else:
         return h_out
+
+
+def wrap_chunkwise__pad_zeros(
+    mlstm_chunkwise_kernel: Callable,
+    q: torch.Tensor,  # (B, NH, S, DHQK)
+    k: torch.Tensor,  # (B, NH, S, DHQK)
+    v: torch.Tensor,  # (B, NH, S, DHHV)
+    f: torch.Tensor,  # (B, NH, S)
+    i: torch.Tensor,  # (B, NH, S)
+    c_initial: torch.Tensor = None,  # (B, NH, DHQK, DHHV)
+    n_initial: torch.Tensor = None,  # (B, NH, DHQK)
+    m_initial: torch.Tensor = None,  # (B, NH, 1)
+    return_last_states: bool = False,
+    eps: float = 1e-6,
+    autocast_kernel_dtype: torch.dtype = torch.bfloat16,
+    chunk_size: int = 64,
+    **kwargs,
+) -> (
+    torch.Tensor | tuple[torch.Tensor, tuple[torch.Tensor, torch.Tensor, torch.Tensor]]
+):
+    assert not return_last_states, (
+        "We are padding zeros, so we cannot return last states,",
+        "as they would be not the true last states.",
+    )
+
+    B, NH, S, DHQK = q.shape  # (B, NH, S, DHQK)
+    S_unpadded = S
+    # padding to chunk size for kernels
+    if S % chunk_size != 0:
+        S_padded = ((S + chunk_size - 1) // chunk_size) * chunk_size
+        q_pad = q.new_zeros(B, NH, S_padded, q.shape[3])
+        k_pad = k.new_zeros(B, NH, S_padded, k.shape[3])
+        v_pad = v.new_zeros(B, NH, S_padded, v.shape[3])
+        i_pad = i.new_zeros(B, NH, S_padded)
+        f_pad = f.new_zeros(B, NH, S_padded)
+        q_pad[:, :, :S_unpadded, :] = q
+        k_pad[:, :, :S_unpadded, :] = k
+        v_pad[:, :, :S_unpadded, :] = v
+        i_pad[:, :, :S_unpadded] = i
+        f_pad[:, :, :S_unpadded] = f
+    else:
+        q_pad = q
+        k_pad = k
+        v_pad = v
+        i_pad = i
+        f_pad = f
+
+    matH = mlstm_chunkwise_kernel(
+        q=q_pad,
+        k=k_pad,
+        v=v_pad,
+        i=i_pad,
+        f=f_pad,
+        c_initial=c_initial,
+        n_initial=n_initial,
+        m_initial=m_initial,
+        return_last_states=return_last_states,
+        eps=eps,
+        autocast_kernel_dtype=autocast_kernel_dtype,
+        chunk_size=chunk_size,
+        **kwargs,
+    )
+    matH = matH[:, :, :S_unpadded, :]
+    return matH

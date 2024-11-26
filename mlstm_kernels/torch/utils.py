@@ -30,7 +30,10 @@ def contiguous(fn):
         return fn(
             ctx,
             *(i if not isinstance(i, torch.Tensor) else i.contiguous() for i in args),
-            **{k: (v if not isinstance(v, torch.Tensor) else v.contiguous()) for k, v in kwargs.items()},
+            **{
+                k: (v if not isinstance(v, torch.Tensor) else v.contiguous())
+                for k, v in kwargs.items()
+            },
         )
 
     return wrapper
@@ -41,7 +44,10 @@ def contiguous_noctx(fn):
     def wrapper(*args, **kwargs):
         return fn(
             *(i if not isinstance(i, torch.Tensor) else i.contiguous() for i in args),
-            **{k: (v if not isinstance(v, torch.Tensor) else v.contiguous()) for k, v in kwargs.items()},
+            **{
+                k: (v if not isinstance(v, torch.Tensor) else v.contiguous())
+                for k, v in kwargs.items()
+            },
         )
 
     return wrapper
@@ -52,7 +58,7 @@ def torch2triton_dtype(dtype):
 
 
 def to_numpy(tensor: torch.Tensor) -> np.ndarray:
-    return tensor.detach().cpu().numpy()
+    return tensor.detach().cpu().to(dtype=torch.float64).numpy()
 
 
 def tensor_or_none(x):

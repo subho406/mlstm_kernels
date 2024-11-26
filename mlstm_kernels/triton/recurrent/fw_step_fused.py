@@ -48,37 +48,37 @@ def recurrent_step_fw_kernel(
     DTYPE: tl.constexpr = tl.float32,
     DTYPE_STATE: tl.constexpr = tl.float32,
 ):
-    i_dhv, i_bnh = tl.program_id(1), tl.program_id(2)
+    idx_b_DHHV, idx_b_BNH = tl.program_id(1), tl.program_id(2)
 
     # ? Define pointers
     matC_old_bptr = tl.make_block_ptr(
-        base=matC_old + i_bnh * str_matC_B_NH,
+        base=matC_old + idx_b_BNH * str_matC_B_NH,
         shape=(DHQK, DHHV),
         strides=(str_matC_DHQK, str_matC_DHHV),
-        offsets=(0, i_dhv * siz_b_DHHV),
+        offsets=(0, idx_b_DHHV * siz_b_DHHV),
         block_shape=(siz_b_DHQK, siz_b_DHHV),
         order=(0, 1),
     )
     matC_new_bptr = tl.make_block_ptr(
-        base=matC_new + i_bnh * str_matC_B_NH,
+        base=matC_new + idx_b_BNH * str_matC_B_NH,
         shape=(DHQK, DHHV),
         strides=(str_matC_DHQK, str_matC_DHHV),
-        offsets=(0, i_dhv * siz_b_DHHV),
+        offsets=(0, idx_b_DHHV * siz_b_DHHV),
         block_shape=(siz_b_DHQK, siz_b_DHHV),
         order=(0, 1),
     )
     vecH_ptr = (
         vecH
-        + i_bnh * str_vecVH_B_NH
-        + i_dhv * siz_b_DHHV * str_vecVH_DHHV
+        + idx_b_BNH * str_vecVH_B_NH
+        + idx_b_DHHV * siz_b_DHHV * str_vecVH_DHHV
         + tl.arange(0, siz_b_DHHV)
     )
 
-    scaI_ptr = scaI + i_bnh * str_scaIF_B_NH
-    scaF_ptr = scaF + i_bnh * str_scaIF_B_NH
+    scaI_ptr = scaI + idx_b_BNH * str_scaIF_B_NH
+    scaF_ptr = scaF + idx_b_BNH * str_scaIF_B_NH
 
-    scaM_old_ptr = scaM_old + i_bnh * str_scaM_B_NH
-    scaM_new_ptr = scaM_new + i_bnh * str_scaM_B_NH
+    scaM_old_ptr = scaM_old + idx_b_BNH * str_scaM_B_NH
+    scaM_new_ptr = scaM_new + idx_b_BNH * str_scaM_B_NH
 
     # ? Load data
     # gates
@@ -92,7 +92,8 @@ def recurrent_step_fw_kernel(
 
     scaM_old_val = tl.load(scaM_old_ptr)
     scaM_new_val = tl.maximum(scaFlog_val + scaM_old_val, scaI_val)
-    tl.store(scaM_new_ptr, scaM_new_val.to(DTYPE))
+    if idx_b_DHHV == 0:  # only one thread block writes the scaM_new
+        tl.store(scaM_new_ptr, scaM_new_val.to(DTYPE_STATE))
 
     max_val = tl.exp(-scaM_new_val.to(tl.float32)).to(DTYPE)
 
@@ -109,33 +110,33 @@ def recurrent_step_fw_kernel(
     for i_dhqk in range(NUM_BLOCKS_DQK):
         vecN_old_ptr = (
             vecN_old
-            + i_bnh * str_vecN_B_NH
+            + idx_b_BNH * str_vecN_B_NH
             + i_dhqk * siz_b_DHQK * str_vecN_DHQK
             + tl.arange(0, siz_b_DHQK)
         )
         vecN_new_ptr = (
             vecN_new
-            + i_bnh * str_vecN_B_NH
+            + idx_b_BNH * str_vecN_B_NH
             + i_dhqk * siz_b_DHQK * str_vecN_DHQK
             + tl.arange(0, siz_b_DHQK)
         )
 
         vecQ_ptr = (
             vecQ
-            + i_bnh * str_vecQK_NH
+            + idx_b_BNH * str_vecQK_NH
             + i_dhqk * siz_b_DHQK * str_vecQK_DHQK
             + tl.arange(0, siz_b_DHQK)
         )
         vecK_ptr = (
             vecK
-            + i_bnh * str_vecQK_NH
+            + idx_b_BNH * str_vecQK_NH
             + i_dhqk * siz_b_DHQK * str_vecQK_DHQK
             + tl.arange(0, siz_b_DHQK)
         )
         vecV_ptr = (
             vecV
-            + i_bnh * str_vecVH_B_NH
-            + i_dhv * siz_b_DHHV * str_vecVH_DHHV
+            + idx_b_BNH * str_vecVH_B_NH
+            + idx_b_DHHV * siz_b_DHHV * str_vecVH_DHHV
             + tl.arange(0, siz_b_DHHV)
         )
 
@@ -145,11 +146,20 @@ def recurrent_step_fw_kernel(
         matC_old_val = tl.load(
             matC_old_bptr, boundary_check=(0, 1), padding_option="zero"
         ).to(dtype=DTYPE_STATE)
+        matC_old_val = tl.load(
+            matC_old_bptr, boundary_check=(0, 1), padding_option="zero"
+        ).to(dtype=DTYPE_STATE)
 
         matC_new_val = scaF_act * matC_old_val + scaI_act * (
             vecK_val[:, None] * vecV_val[None, :]
         )
+        matC_new_val = scaF_act * matC_old_val + scaI_act * (
+            vecK_val[:, None] * vecV_val[None, :]
+        )
 
+        vecN_new_val = (
+            scaF_act * tl.load(vecN_old_ptr).to(dtype=DTYPE_STATE) + scaI_act * vecK_val
+        )
         vecN_new_val = (
             scaF_act * tl.load(vecN_old_ptr).to(dtype=DTYPE_STATE) + scaI_act * vecK_val
         )
@@ -159,7 +169,8 @@ def recurrent_step_fw_kernel(
             matC_new_val.to(matC_new.type.element_ty),
             boundary_check=(0, 1),
         )
-        tl.store(vecN_new_ptr, vecN_new_val.to(vecN_new.type.element_ty))
+        if idx_b_DHHV == 0:  # only one thread block writes the vecN_new
+            tl.store(vecN_new_ptr, vecN_new_val.to(vecN_new.type.element_ty))
 
         # ? advance pointers
         matC_old_bptr = tl.advance(matC_old_bptr, (siz_b_DHQK, 0))
@@ -168,10 +179,10 @@ def recurrent_step_fw_kernel(
         # ? accumulate h_num & qn_dotproduct
         vecQ_val = tl.load(vecQ_ptr) * qk_scale
         # outputs
-        h_num_temp = vecQ_val[:, None] * matC_new_val
+        h_num_temp = vecQ_val[:, None] * matC_new_val.to(dtype=DTYPE)
         # we keep h_num and qn_dotproduct in float32 as they are accumulated
         h_num += tl.sum(h_num_temp, axis=0)
-        qn_dotproduct += tl.sum(vecQ_val * vecN_new_val)
+        qn_dotproduct += tl.sum(vecQ_val * vecN_new_val.to(dtype=DTYPE))
 
     # we compute h in float32 and then cast to DTYPE
     h_denom = tl.maximum(tl.abs(qn_dotproduct), max_val) + EPS

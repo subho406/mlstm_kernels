@@ -20,6 +20,7 @@ TEST_FOLDER_NAME_PREFIX = "recurrent_seq-triton"
 
 
 @pytest.mark.skip(reason="Triton step kernel (non-fused) has a bug.")
+@pytest.mark.skip(reason="Triton step kernel (non-fused) has a bug.")
 @pytest.mark.skipif(not torch.cuda.is_available(), reason="No GPU available.")
 @pytest.mark.parametrize(["S", "B", "NH", "DHQK", "DHHV"], final_combinations)
 def test_recurrent_sequence_triton_step_vs_native_parrallel_stablef_fp32(
@@ -96,8 +97,8 @@ def test_recurrent_sequence_triton_step_fused_vs_native_parrallel_stablef_state_
         NH=NH,
         DHQK=DHQK,
         DHHV=DHHV,
-        dtype=torch.float32,
-        atol_fw=1.2e-1,
+        dtype=torch.bfloat16,
+        atol_fw=0.125,
         rtol_fw=1e-2,
         atol_fwbw=1e-4,
         rtol_fwbw=1e-2,

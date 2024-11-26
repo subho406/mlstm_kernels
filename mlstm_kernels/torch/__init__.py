@@ -53,7 +53,7 @@ def get_mlstm_kernel(name: str) -> Callable:
 
     if backend_name not in module_backend_registry[module_name]:
         raise ValueError(
-            f"Unknown backend name: {backend_name}. Available backend names: {list(module_backend_registry[module_name].keys())}"
+            f"Unknown mlstm kernel backend name: {backend_name}. Available backend names: {list(module_backend_registry[module_name].keys())}"
         )
 
     return module_backend_registry[module_name][backend_name]
@@ -82,7 +82,7 @@ def get_mlstm_step_kernel(name: str) -> Callable:
 
     if name not in mlstm_recurrent_step_registry:
         raise ValueError(
-            f"Unknown backend name: {name}. Available backend names: {list(mlstm_recurrent_step_registry.keys())}"
+            f"Unknown step kernel backend name: {name}. Available backend names: {list(mlstm_recurrent_step_registry.keys())}"
         )
 
     return mlstm_recurrent_step_registry[name]

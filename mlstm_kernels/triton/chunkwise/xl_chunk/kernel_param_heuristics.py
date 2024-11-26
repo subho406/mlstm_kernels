@@ -86,17 +86,30 @@ def select_heuristic_xl_chunk_kernel_params(
         if target_chunk_size is None:
             target_chunk_size = default_chunk_size_intra
 
-        assert (
-            target_chunk_size % DEFAULT_CHUNK_BLOCK_SIZE == 0
-        ), f"Target chunk size must be divisible by the default chunk block size {DEFAULT_CHUNK_BLOCK_SIZE}."
-        assert (
-            sequence_length % target_chunk_size == 0
-        ), f"Sequence length must be divisible by the target chunk size {target_chunk_size}."
+        if target_chunk_size < DEFAULT_CHUNK_BLOCK_SIZE:
+            LOGGER.warning(
+                (
+                    f"Target chunk size {target_chunk_size} is smaller than the default block size {DEFAULT_CHUNK_BLOCK_SIZE}.",
+                    " Setting the all block sizes to target_chunk_size.",
+                )
+            )
+            chunk_size_inter = min(default_chunk_size_inter, target_chunk_size)
+            chunk_size_intra = target_chunk_size
+            siz_b_L_loop = target_chunk_size
+            siz_b_L_parallel = target_chunk_size
 
-        chunk_size_inter = min(default_chunk_size_inter, target_chunk_size)
-        chunk_size_intra = target_chunk_size
-        siz_b_L_loop = default_siz_b_L_loop
-        siz_b_L_parallel = default_siz_b_L_parallel
+        else:
+            assert (
+                target_chunk_size % DEFAULT_CHUNK_BLOCK_SIZE == 0
+            ), f"Target chunk size must be divisible by the default chunk block size {DEFAULT_CHUNK_BLOCK_SIZE}."
+            assert (
+                sequence_length % target_chunk_size == 0
+            ), f"Sequence length must be divisible by the target chunk size {target_chunk_size}."
+
+            chunk_size_inter = min(default_chunk_size_inter, target_chunk_size)
+            chunk_size_intra = target_chunk_size
+            siz_b_L_loop = default_siz_b_L_loop
+            siz_b_L_parallel = default_siz_b_L_parallel
 
         return XLChunkParams(
             siz_b_L_parallel=siz_b_L_parallel,

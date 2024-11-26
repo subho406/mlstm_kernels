@@ -49,7 +49,7 @@ def mlstm_recurrent_step__triton_fused_fw(
     assert scaI.shape == (B, NH, 1), f"scaI has wrong shape, got {scaI.shape}"
     assert scaF.shape == (B, NH, 1), f"scaF has wrong shape, got {scaF.shape}"
 
-    DTYPE = matC_old.dtype
+    DTYPE = vecQ.dtype
 
     if qk_scale is None:
         qk_scale = DHQK**-0.5
