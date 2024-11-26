@@ -111,7 +111,6 @@ class mLSTMBackend(nn.Module):
             chunk_size=config.chunk_size,
             eps=config.eps,
             autocast_kernel_dtype=getattr(torch, config.autocast_kernel_dtype),
-            log_kernel_calls=False,
             return_last_states=True,
         )
 
