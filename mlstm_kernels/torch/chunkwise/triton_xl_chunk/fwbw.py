@@ -135,6 +135,7 @@ def _mlstm_chunkwise_fwbw_generator(autocast_kernel_dtype=torch.bfloat16) -> Cal
                 vecM_out,
                 qk_scale,
                 chunk_size,
+                chunk_size,
                 chunk_size_inter,
                 chunk_size_intra,
                 siz_b_L_parallel,

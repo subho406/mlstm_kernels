@@ -25,6 +25,7 @@ def mlstm_recurrent_step__triton_fused_fw(
     siz_b_DHHV: int | None = None,
     num_warps: int | None = None,
     num_stages: int | None = None,
+    dtype_state: torch.dtype = torch.float32,
 ):
     B, NH, DHQK = vecQ.shape
     _, _, DHHV = vecV.shape
@@ -57,9 +58,9 @@ def mlstm_recurrent_step__triton_fused_fw(
         assert (
             vecN_new is None and scaM_new is None
         ), "Initial states must be provided together."
-        matC_new = torch.empty_like(matC_old)
-        vecN_new = torch.empty_like(vecN_old)
-        scaM_new = torch.empty_like(scaM_old)
+        matC_new = torch.empty_like(matC_old, dtype=dtype_state)
+        vecN_new = torch.empty_like(vecN_old, dtype=dtype_state)
+        scaM_new = torch.empty_like(scaM_old, dtype=dtype_state)
     else:
         assert (
             vecN_new is not None and scaM_new is not None
@@ -121,6 +122,7 @@ def mlstm_recurrent_step__triton_fused_fw(
         DHHV=DHHV,
         EPS=eps,
         DTYPE=torch2triton_dtype(DTYPE),
+        DTYPE_STATE=torch2triton_dtype(dtype_state),
         siz_b_DHQK=siz_b_DHQK,
         siz_b_DHHV=siz_b_DHHV,
         num_warps=num_warps,
@@ -140,6 +142,7 @@ def mlstm_recurrent_step__triton_fused(
     n: torch.Tensor,  # (B, NH, DHQK)
     m: torch.Tensor,  # (B, NH, 1)
     eps: float = 1e-6,
+    dtype_state: torch.dtype = torch.float32,
     **kwargs,
 ) -> tuple[
     torch.Tensor, tuple[torch.Tensor, torch.Tensor, torch.Tensor]
@@ -155,5 +158,6 @@ def mlstm_recurrent_step__triton_fused(
         scaI=i,
         scaF=f,
         eps=eps,
+        dtype_state=dtype_state,
         **kwargs,
     )

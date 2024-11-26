@@ -1,4 +1,5 @@
 from collections.abc import Callable
+from functools import partial
 
 import torch
 
@@ -40,12 +41,13 @@ def _mlstm_recurrent_sequence_loop_fw(
     dtype = matQ.dtype
 
     if matC_initial is not None:
-        assert vecN_initial is not None and scaM_initial is not None, "Initial states must be provided together."
-        assert scaM_initial.dim() == 2, "Initial states must be 2D."
+        assert (
+            vecN_initial is not None and scaM_initial is not None
+        ), "Initial states must be provided together."
         matC_state, vecN_state, vecM_state = (
             matC_initial,
             vecN_initial,
-            scaM_initial[:, :, None],
+            scaM_initial,
         )
     else:
         # memory state
@@ -58,11 +60,11 @@ def _mlstm_recurrent_sequence_loop_fw(
     if return_all_states:
         matC_list = []
         matC_list.append(matC_state)
+        vecN_list, vecM_list = [], []
+        vecN_list.append(vecN_state)
+        vecM_list.append(vecM_state)
 
     vecH_list = []
-    vecN_list, vecM_list = [], []
-    vecN_list.append(vecN_state)
-    vecM_list.append(vecM_state)
     for t in range(S):
         # gates
         vecF_t, vecI_t = vecF[:, :, t, None], vecI[:, :, t, None]  # (B, NH, 1)
@@ -85,19 +87,18 @@ def _mlstm_recurrent_sequence_loop_fw(
             scaI=vecI_t,
             scaF=vecF_t,
             eps=eps,
+            **kwargs,
         )
         vecH_list.append(vecH)
-        vecN_list.append(vecN_state)
-        vecM_list.append(vecM_state)
 
         if return_all_states:
             matC_list.append(matC_state)
+            vecN_list.append(vecN_state)
+            vecM_list.append(vecM_state)
 
     matH = torch.stack(vecH_list, dim=-2)  # (B, NH, S, DHV)
-    vecN_states = torch.stack(vecN_list, dim=-2)  # (B, NH, S, DHQK)
-    vecM_states = torch.cat(vecM_list, dim=-1)  # (B, NH, S)
 
-    ret_tuple = (matH, vecN_states, vecM_states)
+    ret_tuple = (matH,)
 
     if return_last_states:
         ret_tuple += ((matC_state, vecN_state, vecM_state),)
@@ -106,6 +107,8 @@ def _mlstm_recurrent_sequence_loop_fw(
 
     if return_all_states:
         matC_states = torch.stack(matC_list, dim=-3)  # (B, NH, S, DHQK, DHV)
+        vecN_states = torch.stack(vecN_list, dim=-2)  # (B, NH, S, DHQK)
+        vecM_states = torch.cat(vecM_list, dim=-1)  # (B, NH, S)
         ret_tuple += ((matC_states, vecN_states, vecM_states),)
     else:
         ret_tuple += (None,)
@@ -125,7 +128,9 @@ def mlstm_recurrent_sequence__native_fw(
     return_last_states: bool = False,
     eps: float = 1e-6,
     **kwargs,
-) -> torch.Tensor | tuple[torch.Tensor, tuple[torch.Tensor, torch.Tensor, torch.Tensor]]:
+) -> (
+    torch.Tensor | tuple[torch.Tensor, tuple[torch.Tensor, torch.Tensor, torch.Tensor]]
+):
     ret_tuple = _mlstm_recurrent_sequence_loop_fw(
         mlstm_step_fn=mlstm_recurrent_step__native_fw,
         matQ=q,
@@ -141,7 +146,7 @@ def mlstm_recurrent_sequence__native_fw(
         return_all_states=False,
     )
     if return_last_states:
-        return ret_tuple[0], ret_tuple[3]
+        return ret_tuple[0], ret_tuple[1]
     else:
         return ret_tuple[0]
 
@@ -158,7 +163,9 @@ def mlstm_recurrent_sequence__triton_step_fw(
     return_last_states: bool = False,
     eps: float = 1e-6,
     **kwargs,
-) -> torch.Tensor | tuple[torch.Tensor, tuple[torch.Tensor, torch.Tensor, torch.Tensor]]:
+) -> (
+    torch.Tensor | tuple[torch.Tensor, tuple[torch.Tensor, torch.Tensor, torch.Tensor]]
+):
     ret_tuple = _mlstm_recurrent_sequence_loop_fw(
         mlstm_step_fn=mlstm_recurrent_step__triton_fw,
         matQ=q,
@@ -174,7 +181,7 @@ def mlstm_recurrent_sequence__triton_step_fw(
         return_all_states=False,
     )
     if return_last_states:
-        return ret_tuple[0], ret_tuple[3]
+        return ret_tuple[0], ret_tuple[1]
     else:
         return ret_tuple[0]
 
@@ -190,10 +197,15 @@ def mlstm_recurrent_sequence__triton_step_fused_fw(
     m_initial: torch.Tensor = None,
     return_last_states: bool = False,
     eps: float = 1e-6,
+    dtype_state: torch.dtype = torch.float32,
     **kwargs,
-) -> torch.Tensor | tuple[torch.Tensor, tuple[torch.Tensor, torch.Tensor, torch.Tensor]]:
+) -> (
+    torch.Tensor | tuple[torch.Tensor, tuple[torch.Tensor, torch.Tensor, torch.Tensor]]
+):
     ret_tuple = _mlstm_recurrent_sequence_loop_fw(
-        mlstm_step_fn=mlstm_recurrent_step__triton_fused_fw,
+        mlstm_step_fn=partial(
+            mlstm_recurrent_step__triton_fused_fw, dtype_state=dtype_state
+        ),
         matQ=q,
         matK=k,
         matV=v,
@@ -207,6 +219,6 @@ def mlstm_recurrent_sequence__triton_step_fused_fw(
         return_all_states=False,
     )
     if return_last_states:
-        return ret_tuple[0], ret_tuple[3]
+        return ret_tuple[0], ret_tuple[1]
     else:
         return ret_tuple[0]

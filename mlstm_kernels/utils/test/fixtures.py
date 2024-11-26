@@ -10,6 +10,7 @@ TIMESTAMP = None
 
 TEST_OUTPUT_FOLDER = Path(__file__).parents[3] / "outputs_tests"
 
+
 @pytest.fixture(scope="session")
 def test_session_folder() -> Path:
     global TIMESTAMP
@@ -34,6 +35,7 @@ def test_session_folder() -> Path:
     LOGGER = logging.getLogger(__name__)
     LOGGER.info(f"Logging to {logfile}")
     return test_output_folder
+
 
 @pytest.fixture
 def test_output_folder() -> Path:
