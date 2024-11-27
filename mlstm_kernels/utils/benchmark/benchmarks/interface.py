@@ -1,4 +1,5 @@
 import logging
+from abc import ABC, abstractmethod
 from collections.abc import Callable
 from dataclasses import dataclass
 from typing import Any, Literal
@@ -12,7 +13,7 @@ LOGGER = logging.getLogger(__name__)
 
 
 @dataclass
-class KernelBenchmarkInterface:
+class BenchmarkInterface(ABC):
     warmup: int = 25
     """Warmup time (in ms) or warmup iterations."""
     rep: int = 1000
@@ -27,11 +28,52 @@ class KernelBenchmarkInterface:
     dtype: Literal["float16", "float32", "float64", "bfloat16"] = "bfloat16"
     """The data type to use for the benchmark."""
 
-    fwbw: bool = True
-    """If true, the benchmark will run the forward and backward pass."""
-
     benchmark_fn: Callable = None
     """The benchmark function to run."""
+
+    def set_params(self, param_dict: dict) -> None:
+        """Used to set all or multiple parameters of the benchmark at once."""
+        if param_dict is None:
+            return
+        for k, v in param_dict.items():
+            if hasattr(self, k):
+                setattr(self, k, v)
+            else:
+                raise ValueError(f"Unknown parameter: {k}")
+
+    @abstractmethod
+    def setup_benchmark(self) -> None:
+        """Sets up the benchmark function to run."""
+        raise NotImplementedError
+
+    def run_benchmark(
+        self,
+        return_mode: Literal["mean", "median"] = "mean",
+        grad_to_none: tuple[torch.Tensor, ...] | None = None,
+    ) -> int:
+        """Runs the benchmark and returns the runtime in milliseconds."""
+
+        if self.benchmark_fn is None:
+            raise RuntimeError("The benchmark function has not been set up.")
+        try:
+            runtime = measure_runtime(
+                self.benchmark_fn,
+                warmup=self.warmup,
+                rep=self.rep,
+                warmup_and_rep_in_ms=self.warmup_and_rep_in_ms,
+                return_mode=return_mode,
+                grad_to_none=grad_to_none,
+            )
+        except Exception as e:
+            LOGGER.warning(f"Error: {e}")
+            runtime = float("nan")
+        return runtime
+
+
+@dataclass
+class KernelBenchmarkInterface(BenchmarkInterface):
+    fwbw: bool = True
+    """If true, the benchmark will run the forward and backward pass."""
 
     kernel_inputs: tuple[torch.Tensor, ...] = None
     """The input tensors to the benchmark function."""
@@ -59,16 +101,6 @@ class KernelBenchmarkInterface:
         """Returns the available kernel names for the benchmark."""
         raise NotImplementedError
 
-    def set_params(self, param_dict: dict) -> None:
-        """Used to set all or multiple parameters of the benchmark at once."""
-        if param_dict is None:
-            return
-        for k, v in param_dict.items():
-            if hasattr(self, k):
-                setattr(self, k, v)
-            else:
-                raise ValueError(f"Unknown parameter: {k}")
-
     def setup_benchmark(self) -> None:
         torch_dtype = getattr(torch, self.dtype)
 
@@ -92,24 +124,12 @@ class KernelBenchmarkInterface:
 
         self.benchmark_fn = benchmark_fn
 
-    def run_benchmark(self, return_mode: Literal["mean", "median"] = "mean") -> int:
-        """Runs the benchmark and returns the runtime in milliseconds."""
-
-        if self.benchmark_fn is None:
-            raise RuntimeError("The benchmark function has not been set up.")
-        try:
-            runtime = measure_runtime(
-                self.benchmark_fn,
-                warmup=self.warmup,
-                rep=self.rep,
-                warmup_and_rep_in_ms=self.warmup_and_rep_in_ms,
-                return_mode=return_mode,
-                grad_to_none=self.kernel_inputs,
-            )
-        except Exception as e:
-            LOGGER.warning(f"Error: {e}")
-            runtime = float("nan")
-        return runtime
+    def run_benchmark(
+        self,
+        return_mode: Literal["mean"] | Literal["median"] = "mean",
+        grad_to_none: tuple[torch.Tensor, ...] | None = None,
+    ) -> int:
+        return super().run_benchmark(return_mode, grad_to_none)
 
 
 BenchmarkCreator = Callable[[KernelSpec, dict[str, Any]], KernelBenchmarkInterface]
