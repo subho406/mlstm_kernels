@@ -1,4 +1,5 @@
 import logging
+import traceback
 from abc import ABC, abstractmethod
 from collections.abc import Callable
 from dataclasses import dataclass
@@ -66,6 +67,7 @@ class BenchmarkInterface(ABC):
             )
         except Exception as e:
             LOGGER.warning(f"Error: {e}")
+            LOGGER.warning(traceback.format_exc())
             runtime = float("nan")
         return runtime
 

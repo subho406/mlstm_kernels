@@ -1,6 +1,10 @@
 import logging
 from dataclasses import dataclass
+from typing import Any
 
+import torch
+
+from ..param_handling import ModelSpec
 from .interface import BenchmarkInterface
 
 LOGGER = logging.getLogger(__name__)
@@ -8,6 +12,8 @@ LOGGER = logging.getLogger(__name__)
 
 @dataclass
 class MLSTMSimpleModelBenchmark(BenchmarkInterface):
+    model_name: str = "mLSTM"
+
     embedding_dim: int = 256
     num_heads: int = 4
     num_blocks: int = 2
@@ -33,11 +39,15 @@ class MLSTMSimpleModelBenchmark(BenchmarkInterface):
     amp_dtype: str = "bfloat16"
     weight_dtype: str = "float32"
 
+    use_torch_compile_model: bool = False
+    use_torch_compile_generate: bool = False
+
     batch_size: int = 1
     prefill_length: int = 128
     generation_length: int = 1
 
     def setup_benchmark(self) -> None:
+        from mlstm_simple.generate import generate_tokens
         from mlstm_simple.model import mLSTM, mLSTMConfig
 
         mlstm_config = mLSTMConfig(
@@ -56,16 +66,63 @@ class MLSTMSimpleModelBenchmark(BenchmarkInterface):
             chunk_size=self.chunk_size,
             inference_state_dtype=self.inference_state_dtype,
             autocast_kernel_dtype=self.autocast_kernel_dtype,
+            return_last_states=True,
         )
 
-        self.model = mLSTM(mlstm_config)
+        self.model = mLSTM(mlstm_config).to(
+            dtype=getattr(torch, self.weight_dtype), device=torch.device(self.device)
+        )
 
         LOGGER.info(f"Setting up model: {self.model}")
 
+        if self.use_torch_compile_model:
+            self.model = torch.compile(self.model)
+
         # setup prefill inputs
+        if self.prefill_length > 0:
+            self.prefill_tokens = torch.randint(
+                low=0, high=self.vocab_size, size=(self.batch_size, self.prefill_length)
+            ).to(device=torch.device(self.device))
+        else:
+            self.prefill_tokens = None
+
+        # setup generation function
+        def llm_forward(tokens, state):
+            return self.model(
+                x=tokens,
+                state=state,
+            )
+
+        self.generate_fn = generate_tokens
+        if self.use_torch_compile_generate:
+            self.generate_fn = torch.compile(self.generate_fn)
 
         def benchmark_fn():
-            pass
-            # consume prefill
+            with torch.autocast(
+                device_type=torch.device(self.device).type, enabled=self.amp_enabled
+            ):
+                generated_tokens, state = self.generate_fn(
+                    llm_forward=llm_forward,
+                    prefill_tokens=self.prefill_tokens,
+                    max_length=self.generation_length,
+                    batch_size_no_prefill=self.batch_size,
+                    device=self.device,
+                )
 
-            # generate
+        self.benchmark_fn = benchmark_fn
+
+
+def create_mlstm_model_benchmark(
+    model_spec: ModelSpec, param_dict: dict[str, Any]
+) -> BenchmarkInterface:
+    mlstm_model_benchmark = MLSTMSimpleModelBenchmark()
+
+    mlstm_model_benchmark.model_name = model_spec.model_name
+    mlstm_model_benchmark.amp_enabled = model_spec.amp_enabled
+    mlstm_model_benchmark.amp_dtype = model_spec.amp_dtype
+    mlstm_model_benchmark.weight_dtype = model_spec.weight_dtype
+    mlstm_model_benchmark.use_torch_compile_model = model_spec.use_torch_compile_model
+
+    mlstm_model_benchmark.set_params(param_dict)
+
+    return mlstm_model_benchmark

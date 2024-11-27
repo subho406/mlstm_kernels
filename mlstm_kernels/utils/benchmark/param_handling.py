@@ -17,6 +17,8 @@ def strip_to_first_chars_of_split(input_str: str, split_str: str = "_") -> str:
 
 @dataclass
 class KernelSpec:
+    """Specification for a kernel to benchmark."""
+
     kernel_name: str
     dtype: Literal["float16", "float32", "float64", "bfloat16"]
     fwbw: bool = False
@@ -39,13 +41,42 @@ class KernelSpec:
 
 
 @dataclass
+class ModelSpec:
+    """Specification for a model to benchmark."""
+
+    model_name: str
+    amp_enabled: bool = True
+    amp_dtype: str = "bfloat16"
+    weight_dtype: str = "float32"
+    use_torch_compile_model: bool = False
+
+    additional_params: dict[str, Any] = None
+
+    def to_string(self, short_param_name: bool = True) -> str:
+        str_name = f"{self.model_name}"
+        if self.use_torch_compile_model:
+            str_name += "__tcm"
+        if self.amp_enabled:
+            str_name += f"__ampdt-{self.amp_dtype}"
+        str_name += f"__wdt-{self.weight_dtype}"
+        if self.additional_params is not None:
+            str_name += "_"
+            for k, v in self.additional_params.items():
+                if short_param_name:
+                    k = strip_to_first_chars_of_split(k)
+                str_name += f"_{k}-{v}"
+        return str_name
+
+
+@dataclass
 class BenchmarkConfig:
     vary_type: Literal["grid", "sequence"]
     vary_params: dict[str, list[Any]] | None
 
     fixed_params: dict[str, Any]
 
-    kernel_specs: list[KernelSpec]
+    # TODO rename kernel_specs to a generic name
+    kernel_specs: list[KernelSpec | ModelSpec]
 
     benchmark_name: str
 
