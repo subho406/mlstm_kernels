@@ -77,27 +77,27 @@ kernel_specs:
   - kernel_name: "chunkwise--native_custbw"
     fwbw: True
     dtype: bfloat16
-    use_torch_compile: True
+    use_torch_compile: False
     additional_params:
       chunk_size: 128
-  # - kernel_name: "chunkwise--native_custbw"
-  #   fwbw: True
-  #   dtype: bfloat16
-  #   use_torch_compile: False
-  #   additional_params:
-  #     chunk_size: 256
-  # - kernel_name: "chunkwise--native_custbw"
-  #   fwbw: True
-  #   dtype: bfloat16
-  #   use_torch_compile: False
-  #   additional_params:
-  #     chunk_size: 512
-  # - kernel_name: "chunkwise--native_custbw"
-  #   fwbw: True
-  #   dtype: bfloat16
-  #   use_torch_compile: False
-  #   additional_params:
-  #     chunk_size: 1024
+  - kernel_name: "chunkwise--native_custbw"
+    fwbw: True
+    dtype: bfloat16
+    use_torch_compile: False
+    additional_params:
+      chunk_size: 256
+  - kernel_name: "chunkwise--native_custbw"
+    fwbw: True
+    dtype: bfloat16
+    use_torch_compile: False
+    additional_params:
+      chunk_size: 512
+  - kernel_name: "chunkwise--native_custbw"
+    fwbw: True
+    dtype: bfloat16
+    use_torch_compile: False
+    additional_params:
+      chunk_size: 1024
 
   # - kernel_name: "chunkwise--native_autograd"
   #   fwbw: True
@@ -252,18 +252,20 @@ kernel_specs:
       head_dim_qk: {head_dim}
       head_dim_v: {head_dim}
 
-      siz_b_L_parallel: 64
-      siz_b_L_loop: 64
-      siz_b_DH_parallel: 128
-      siz_b_DH_loop: 64
+      chunk_size: 128
 
-      num_warps_intra: 4
-      num_warps_inter: 4
-      num_stages_intra: 1
-      num_stages_inter: 1
+      # siz_b_L_parallel: 64
+      # siz_b_L_loop: 64
+      # siz_b_DH_parallel: 128
+      # siz_b_DH_loop: 64
 
-      chunk_size_intra: 128
-      chunk_size_inter: 128
+      # num_warps_intra: 4
+      # num_warps_inter: 4
+      # num_stages_intra: 1
+      # num_stages_inter: 1
+
+      # chunk_size_intra: 128
+      # chunk_size_inter: 128
 
   - kernel_name: "chunkwise--triton_limit_chunk"
     fwbw: True
@@ -282,18 +284,19 @@ kernel_specs:
       head_dim_qk: {head_dim//2}
       head_dim_v: {head_dim}
 
-      siz_b_L_parallel: 64
-      siz_b_L_loop: 64
-      siz_b_DH_parallel: 128
-      siz_b_DH_loop: 64
+      chunk_size: 128
+      # siz_b_L_parallel: 64
+      # siz_b_L_loop: 64
+      # siz_b_DH_parallel: 128
+      # siz_b_DH_loop: 64
 
-      num_warps_intra: 4
-      num_warps_inter: 4
-      num_stages_intra: 1
-      num_stages_inter: 1
+      # num_warps_intra: 4
+      # num_warps_inter: 4
+      # num_stages_intra: 1
+      # num_stages_inter: 1
 
-      chunk_size_intra: 128
-      chunk_size_inter: 128
+      # chunk_size_intra: 128
+      # chunk_size_inter: 128
 
 
 benchmark_name: "batch_size_7B--{bench_name_params}"
@@ -314,14 +317,14 @@ def run_multiple_benchmarks(
 
     # _sequence_length_benchmark(output_folder, batch_size=1, num_heads=16, head_dim=256)
     # _batch_size_benchmark(output_folder, seq_len=8192, num_heads=16, head_dim=256)
-    # _sequence_length_benchmark(output_folder, batch_size=1, num_heads=8, head_dim=512)
-    # _batch_size_benchmark(output_folder, seq_len=8192, num_heads=8, head_dim=512)
+    _sequence_length_benchmark(output_folder, batch_size=1, num_heads=8, head_dim=512)
+    _batch_size_benchmark(output_folder, seq_len=8192, num_heads=8, head_dim=512)
 
-    # _head_dim_benchmark(output_folder, half_qkdim=False, seq_len=8192, batch_size=1)
-    # _head_dim_benchmark(output_folder, half_qkdim=True, seq_len=8192, batch_size=1)
+    _head_dim_benchmark(output_folder, half_qkdim=False, seq_len=8192, batch_size=1)
+    _head_dim_benchmark(output_folder, half_qkdim=True, seq_len=8192, batch_size=1)
 
     # debug:
-    _head_dim_benchmark(output_folder, half_qkdim=False, seq_len=2048, batch_size=1)
+    # _head_dim_benchmark(output_folder, half_qkdim=False, seq_len=2048, batch_size=1)
 
 
 if __name__ == "__main__":
