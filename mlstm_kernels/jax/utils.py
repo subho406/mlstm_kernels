@@ -1,8 +1,8 @@
-import jax 
+import jax
 import jax.numpy as jnp
 import numpy as np
-
 import triton.language as tl
+
 
 def dtype2str(dtype: jnp.dtype) -> str:
     if dtype == jnp.float32:
@@ -16,6 +16,7 @@ def dtype2str(dtype: jnp.dtype) -> str:
     else:
         raise ValueError(f"Unsupported dtype: {dtype}")
 
+
 def jax2triton_dtype(dtype):
     """
     Converts a JAX dtype to a Triton dtype.
@@ -26,7 +27,10 @@ def jax2triton_dtype(dtype):
     Returns:
         Triton dtype.
     """
+    if hasattr(dtype, "dtype"):
+        dtype = dtype.dtype
     return getattr(tl, str(dtype))
+
 
 def to_numpy(tensor: jnp.ndarray) -> np.ndarray:
     return jax.device_get(tensor)
