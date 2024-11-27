@@ -10,10 +10,10 @@ from .fw_recurrent import mlstm_chunkwise__recurrent_fw_C
 def mlstm_chunkwise_fw(
     matQ: torch.Tensor,  # (B, NH, S, DHQK)
     matK: torch.Tensor,  # (B, NH, S, DHQK)
-    matV: torch.Tensor,  # (B, NH, S, DHV)
+    matV: torch.Tensor,  # (B, NH, S, DHHV)
     vecI: torch.Tensor,  # (B, NH, S)
     vecF: torch.Tensor,  # (B, NH, S)
-    matC_initial: torch.Tensor = None,  # (B, NH, DHQK, DHV)
+    matC_initial: torch.Tensor = None,  # (B, NH, DHQK, DHHV)
     vecN_initial: torch.Tensor = None,  # (B, NH, DHQK)
     scaM_initial: torch.Tensor = None,  # (B, NH, 1)
     qk_scale: float = None,
@@ -22,20 +22,20 @@ def mlstm_chunkwise_fw(
     CHUNK_SIZE: int = 64,
     EPS: float = 1e-6,
 ) -> tuple[
-    torch.Tensor,  # matH_out (B, NH, S, DHV)
+    torch.Tensor,  # matH_out (B, NH, S, DHHV)
     torch.Tensor,  # vecN_out (B, NH, S)
     torch.Tensor,  # vecM_out (B, NH, S)
     None
     | (
         tuple[torch.Tensor, torch.Tensor, torch.Tensor]
-    ),  # last_states (matC_states (B, NH, DHQK, DHV), vecN_states (B, NH, DHQK), scaMinter_states (B, NH, 1))
+    ),  # last_states (matC_states (B, NH, DHQK, DHHV), vecN_states (B, NH, DHQK), scaMinter_states (B, NH, 1))
     None
     | (
         tuple[torch.Tensor, torch.Tensor, torch.Tensor]
-    ),  # all_states (matC_states (B, NH, (NC+1) * DHQK, DHV), vecN_states (B, NH, (NC+1) * DHQK), scaMinter_states (B, NH, (NC+1)))
+    ),  # all_states (matC_states (B, NH, (NC+1) * DHQK, DHHV), vecN_states (B, NH, (NC+1) * DHQK), scaMinter_states (B, NH, (NC+1)))
 ]:
     B, NH, S, DHQK = matQ.shape
-    DHV = matV.shape[-1]
+    DHHV = matV.shape[-1]
     assert (
         S % CHUNK_SIZE == 0
     ), f"Sequence length {S} is not divisible by chunk size {CHUNK_SIZE}."
