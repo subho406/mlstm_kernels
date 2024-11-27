@@ -114,6 +114,11 @@ def mlstm_chunkwise_fw(
         vecM_out,
     )
     if return_last_states:
+        # Note: we need to make the states contiguous here, because the last states are not contiguous
+        # if we return a slice of the larger tensor.
+        # For generation afterwards we will use these state tensors and update them in place.
+        # For this in place operation the tensor needs to be contiguous.
+        # In this case the contigous should result in a copy operation.
         ret_tuple += (
             (
                 matC_k_states[:, :, -DHQK:, :].contiguous(),
