@@ -36,7 +36,9 @@ def mlstm_chunkwise_fw(
 ]:
     B, NH, S, DHQK = matQ.shape
     DHV = matV.shape[-1]
-    assert S % CHUNK_SIZE == 0, f"Sequence length {S} is not divisible by chunk size {CHUNK_SIZE}."
+    assert (
+        S % CHUNK_SIZE == 0
+    ), f"Sequence length {S} is not divisible by chunk size {CHUNK_SIZE}."
     NC = S // CHUNK_SIZE
 
     # vecI = rearrange(vecI, "b nh (nc l) -> b nh nc l", l=CHUNK_SIZE)
@@ -92,9 +94,9 @@ def mlstm_chunkwise_fw(
     if return_last_states:
         ret_tuple += (
             (
-                matC_k_states[:, :, -DHQK:, :],
-                vecN_k_states[:, :, -DHQK:],
-                scaMinter_k_states[:, :, -1:],
+                matC_k_states[:, :, -DHQK:, :].contiguous(),
+                vecN_k_states[:, :, -DHQK:].contiguous(),
+                scaMinter_k_states[:, :, -1:].contiguous(),
             ),
         )
     else:

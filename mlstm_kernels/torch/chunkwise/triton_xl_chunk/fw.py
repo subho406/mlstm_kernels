@@ -116,9 +116,9 @@ def mlstm_chunkwise_fw(
     if return_last_states:
         ret_tuple += (
             (
-                matC_k_states[:, :, -DHQK:, :],
-                vecN_k_states[:, :, -DHQK:],
-                scaMinter_k_states[:, :, -1:],
+                matC_k_states[:, :, -DHQK:, :].contiguous(),
+                vecN_k_states[:, :, -DHQK:].contiguous(),
+                scaMinter_k_states[:, :, -1:].contiguous(),
             ),
         )
     else:
