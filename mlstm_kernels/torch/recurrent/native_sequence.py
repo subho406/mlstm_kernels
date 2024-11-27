@@ -116,7 +116,7 @@ def _mlstm_recurrent_sequence_loop_fw(
         ret_tuple += ((matC_states, vecN_states, vecM_states),)
     else:
         ret_tuple += (None,)
-        
+
     return ret_tuple
 
 
