@@ -1,3 +1,4 @@
+import argparse
 from pathlib import Path
 
 from dacite import from_dict
@@ -124,8 +125,10 @@ benchmark_name: "batch_size_7B--{bench_name_params}"
     run_and_record_benchmarks(cfg, create_inference_kernel_benchmark, output_folder)
 
 
-def run_multiple_benchmarks(output_dir: str = "./outputs_kernel_benchmarks"):
-    output_folder = setup_output_folder(output_dir)
+def run_multiple_benchmarks(
+    output_dir: str = "./outputs_kernel_benchmarks", output_folder_suffix: str = ""
+):
+    output_folder = setup_output_folder(output_dir, name_suffix=output_folder_suffix)
 
     _batch_size_benchmark(output_folder, num_heads=8, head_dim_qk=256, head_dim_v=512)
 
@@ -134,4 +137,14 @@ def run_multiple_benchmarks(output_dir: str = "./outputs_kernel_benchmarks"):
 
 
 if __name__ == "__main__":
-    run_multiple_benchmarks()
+    parser = argparse.ArgumentParser()
+    parser.add_argument(
+        "--folder_suffix",
+        type=str,
+        required=False,
+        help="Suffix that is appended to the output folder of the benchmark results.",
+    )
+
+    args = parser.parse_args()
+    print(args)
+    run_multiple_benchmarks(output_folder_suffix=args.folder_suffix)

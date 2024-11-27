@@ -1,3 +1,4 @@
+import argparse
 from pathlib import Path
 
 from dacite import from_dict
@@ -11,7 +12,9 @@ from mlstm_kernels.utils.benchmark.run_benchmark import run_and_record_benchmark
 from mlstm_kernels.utils.benchmark.utils import setup_output_folder
 
 
-def _head_dim_benchmark(output_folder: Path, half_qkdim=False, seq_len: int = 8192, batch_size: int = 1):
+def _head_dim_benchmark(
+    output_folder: Path, half_qkdim=False, seq_len: int = 8192, batch_size: int = 1
+):
     ### head dimension benchmark 7B
     head_dims_v = [64, 128, 256, 512, 1024, 2048]
     embedding_dim = 4096
@@ -303,8 +306,11 @@ benchmark_name: "batch_size_7B--{bench_name_params}"
     run_and_record_benchmarks(cfg, create_training_kernel_benchmark, output_folder)
 
 
-def run_multiple_benchmarks(output_dir: str = "./outputs_kernel_benchmarks"):
-    output_folder = setup_output_folder(output_dir)
+def run_multiple_benchmarks(
+    output_dir: str = "./outputs_kernel_benchmarks",
+    output_folder_suffix: str | None = None,
+):
+    output_folder = setup_output_folder(output_dir, name_suffix=output_folder_suffix)
 
     # _sequence_length_benchmark(output_folder, batch_size=1, num_heads=16, head_dim=256)
     # _batch_size_benchmark(output_folder, seq_len=8192, num_heads=16, head_dim=256)
@@ -319,4 +325,15 @@ def run_multiple_benchmarks(output_dir: str = "./outputs_kernel_benchmarks"):
 
 
 if __name__ == "__main__":
-    run_multiple_benchmarks()
+    parser = argparse.ArgumentParser()
+    parser.add_argument(
+        "--folder_suffix",
+        type=str,
+        required=False,
+        help="Suffix that is appended to the output folder of the benchmark results.",
+    )
+
+    args = parser.parse_args()
+    print(args)
+
+    run_multiple_benchmarks(output_folder_suffix=args.folder_suffix)

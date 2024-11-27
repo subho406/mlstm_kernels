@@ -41,7 +41,7 @@ class KernelSpec:
 @dataclass
 class BenchmarkConfig:
     vary_type: Literal["grid", "sequence"]
-    vary_params: dict[str, list[Any]]
+    vary_params: dict[str, list[Any]] | None
 
     fixed_params: dict[str, Any]
 
@@ -53,21 +53,24 @@ class BenchmarkConfig:
 
     def _get_vary_param_dicts(self) -> list[dict[str, Any]]:
         vary_dicts = []
-        if self.vary_type == "grid":
-            for val_tuple in product(*self.vary_params.values()):
-                vary_dict = dict(zip(self.vary_params.keys(), val_tuple))
-                vary_dicts.append(vary_dict)
-        elif self.vary_type == "sequence":
-            num_vals = len(list(self.vary_params.values())[0])
-            for k, v in self.vary_params.items():
-                if len(v) != num_vals:
-                    raise ValueError(f"All vary parameters must have the same length. Not matching for {k}")
+        if self.vary_params is not None:
+            if self.vary_type == "grid":
+                for val_tuple in product(*self.vary_params.values()):
+                    vary_dict = dict(zip(self.vary_params.keys(), val_tuple))
+                    vary_dicts.append(vary_dict)
+            elif self.vary_type == "sequence":
+                num_vals = len(list(self.vary_params.values())[0])
+                for k, v in self.vary_params.items():
+                    if len(v) != num_vals:
+                        raise ValueError(
+                            f"All vary parameters must have the same length. Not matching for {k}"
+                        )
 
-            for val_tuple in zip(*self.vary_params.values()):
-                vary_dict = dict(zip(self.vary_params.keys(), val_tuple))
-                vary_dicts.append(vary_dict)
-        else:
-            raise ValueError(f"Unknown vary type: {self.vary_type}")
+                for val_tuple in zip(*self.vary_params.values()):
+                    vary_dict = dict(zip(self.vary_params.keys(), val_tuple))
+                    vary_dicts.append(vary_dict)
+            else:
+                raise ValueError(f"Unknown vary type: {self.vary_type}")
         return vary_dicts
 
     def get_param_dicts(self) -> list[dict[str, Any]]:
@@ -76,12 +79,16 @@ class BenchmarkConfig:
         """
         param_dicts = []
         vary_dicts = self._get_vary_param_dicts()
-        for vary_dict in vary_dicts:
-            param_dict = self.fixed_params.copy()
-            for k, v in vary_dict.items():
-                param_dict[k] = v
-            param_dicts.append(param_dict)
-        return param_dicts
+        if len(vary_dicts) == 0:
+            param_dicts.append(self.fixed_params)
+            return param_dicts
+        else:
+            for vary_dict in vary_dicts:
+                param_dict = self.fixed_params.copy()
+                for k, v in vary_dict.items():
+                    param_dict[k] = v
+                param_dicts.append(param_dict)
+            return param_dicts
 
     def get_plot_title(self) -> str:
         title = self.benchmark_name

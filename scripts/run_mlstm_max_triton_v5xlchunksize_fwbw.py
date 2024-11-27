@@ -5,17 +5,17 @@ import argparse
 import os
 
 os.environ["TRITON_PRINT_AUTOTUNING"] = "1"
+import torch
+import triton
+from torch.profiler import ProfilerActivity, profile, record_function
+from tqdm import tqdm
+
 from mlstm_kernels.mlstm.chunkwise.max_triton_fwbw_v5xlchunksize.triton_fwbw import (
     mlstm_chunkwise_max_triton as mlstm_chunkwise_max_triton_v5,
 )
 from mlstm_kernels.test_utils.test_losses import (
     loss_layernorm_offset_quadratic as loss_fn,
 )
-
-import torch
-import triton
-from torch.profiler import ProfilerActivity, profile, record_function
-from tqdm import tqdm
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
@@ -152,9 +152,15 @@ if __name__ == "__main__":
                 with record_function("bw"):
                     loss_tr_v5.backward()
 
-        print(prof.key_averages().table(sort_by=sort_by_keyword, row_limit=50, max_name_column_width=100))
+        print(
+            prof.key_averages().table(
+                sort_by=sort_by_keyword, row_limit=50, max_name_column_width=100
+            )
+        )
     else:
         for i in tqdm(range(warmup_iters), desc="warmup"):
+            torch.cuda.nvtx.range_push(f"iter-{i}")
             (matH_tr_v5, _) = kernel_fn(**inputs)
             loss_tr_v5 = loss_fn(matH_tr_v5, seed=LOSS_SEED, eps=LN_EPS)
             loss_tr_v5.backward()
+            torch.cuda.nvtx.range_pop()

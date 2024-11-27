@@ -70,28 +70,58 @@ class FlashAttentionBenchmark(mLSTMBenchmark):
     def _get_input_tensors(self) -> tuple[torch.Tensor, ...]:
         if self.kernel_name == "torch_cudnn":
             q = torch.randn(
-                (self.batch_size, self.sequence_length, self.num_heads, self.head_dim_qk),
+                (
+                    self.batch_size,
+                    self.sequence_length,
+                    self.num_heads,
+                    self.head_dim_qk,
+                ),
                 dtype=torch.float32,
             )
             k = torch.randn(
-                (self.batch_size, self.sequence_length, self.num_heads, self.head_dim_qk),
+                (
+                    self.batch_size,
+                    self.sequence_length,
+                    self.num_heads,
+                    self.head_dim_qk,
+                ),
                 dtype=torch.float32,
             )
             v = torch.randn(
-                (self.batch_size, self.sequence_length, self.num_heads, self.head_dim_v),
+                (
+                    self.batch_size,
+                    self.sequence_length,
+                    self.num_heads,
+                    self.head_dim_v,
+                ),
                 dtype=torch.float32,
             )
         else:
             q = torch.randn(
-                (self.batch_size, self.num_heads, self.sequence_length, self.head_dim_qk),
+                (
+                    self.batch_size,
+                    self.num_heads,
+                    self.sequence_length,
+                    self.head_dim_qk,
+                ),
                 dtype=torch.float32,
             )
             k = torch.randn(
-                (self.batch_size, self.num_heads, self.sequence_length, self.head_dim_qk),
+                (
+                    self.batch_size,
+                    self.num_heads,
+                    self.sequence_length,
+                    self.head_dim_qk,
+                ),
                 dtype=torch.float32,
             )
             v = torch.randn(
-                (self.batch_size, self.num_heads, self.sequence_length, self.head_dim_v),
+                (
+                    self.batch_size,
+                    self.num_heads,
+                    self.sequence_length,
+                    self.head_dim_v,
+                ),
                 dtype=torch.float32,
             )
         return q, k, v
@@ -154,12 +184,13 @@ class mLSTMXLChunkSizeTuneBenchmark(mLSTMBenchmark):
     def _get_kernel_fn(self) -> Callable[[tuple[torch.Tensor, ...]], torch.Tensor]:
         from functools import partial
 
-        assert self.kernel_name == "mlstm_chunkwise__xl_chunk", "Only supports mlstm_chunkwise__xl_chunk kernel"
+        assert (
+            self.kernel_name == "mlstm_chunkwise__xl_chunk"
+        ), "Only supports mlstm_chunkwise__xl_chunk kernel"
 
         from mlstm_kernels.torch.chunkwise.triton_xl_chunk import (
             mlstm_chunkwise__xl_chunk,
         )
-
 
         kernel_fn = mlstm_chunkwise__xl_chunk
         kernel_fn = partial(
@@ -167,7 +198,9 @@ class mLSTMXLChunkSizeTuneBenchmark(mLSTMBenchmark):
             chunk_size_inter=self.chunk_size_inter,
             chunk_size_intra=self.chunk_size_intra,
             siz_b_L_parallel=self.siz_b_L_parallel,
-            siz_b_L_loop=self.siz_b_L_loop if self.siz_b_L_loop is not None else self.siz_b_L_parallel,
+            siz_b_L_loop=self.siz_b_L_loop
+            if self.siz_b_L_loop is not None
+            else self.siz_b_L_parallel,
             siz_b_DH_parallel=self.siz_b_DH_parallel,
             siz_b_DH_loop=self.siz_b_DH_loop,
             num_warps_intra=self.num_warps_intra,
@@ -182,19 +215,33 @@ class mLSTMXLChunkSizeTuneBenchmark(mLSTMBenchmark):
     def available_kernels(self) -> list[str]:
         return ["mlstm_chunkwise__xl_chunk"]
 
-def create_training_kernel_benchmark(kernel_spec: KernelSpec, param_dict: dict[str, Any]) -> BenchmarkInterface:
+
+def create_training_kernel_benchmark(
+    kernel_spec: KernelSpec, param_dict: dict[str, Any]
+) -> BenchmarkInterface:
     mlstm_benchmark = mLSTMBenchmark()
     flashattention_benchmark = FlashAttentionBenchmark()
     mlstm_xl_chunk_size_tune_benchmark = mLSTMXLChunkSizeTuneBenchmark()
+
+    all_available_kernels = (
+        mlstm_benchmark.available_kernels()
+        + flashattention_benchmark.available_kernels()
+        + mlstm_xl_chunk_size_tune_benchmark.available_kernels()
+    )
 
     if kernel_spec.kernel_name in mlstm_benchmark.available_kernels():
         benchmark = mlstm_benchmark
     elif kernel_spec.kernel_name in flashattention_benchmark.available_kernels():
         benchmark = flashattention_benchmark
-    elif kernel_spec.kernel_name in mlstm_xl_chunk_size_tune_benchmark.available_kernels():
+    elif (
+        kernel_spec.kernel_name
+        in mlstm_xl_chunk_size_tune_benchmark.available_kernels()
+    ):
         benchmark = mlstm_xl_chunk_size_tune_benchmark
     else:
-        raise ValueError(f"Unknown kernel name: {kernel_spec.kernel_name}")
+        raise ValueError(
+            f"Unknown kernel name: {kernel_spec.kernel_name}, available kernels: {all_available_kernels}"
+        )
 
     benchmark.kernel_name = kernel_spec.kernel_name
     benchmark.dtype = kernel_spec.dtype
