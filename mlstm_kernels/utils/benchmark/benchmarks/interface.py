@@ -12,7 +12,7 @@ LOGGER = logging.getLogger(__name__)
 
 
 @dataclass
-class BenchmarkInterface:
+class KernelBenchmarkInterface:
     warmup: int = 25
     """Warmup time (in ms) or warmup iterations."""
     rep: int = 1000
@@ -74,7 +74,10 @@ class BenchmarkInterface:
 
         inputs = self._get_input_tensors()
 
-        inputs = [x.to(device=self.device, dtype=torch_dtype).requires_grad_(self.fwbw) for x in inputs]
+        inputs = [
+            x.to(device=self.device, dtype=torch_dtype).requires_grad_(self.fwbw)
+            for x in inputs
+        ]
         self.kernel_inputs = inputs
 
         kernel_fn = self._get_kernel_fn()
@@ -109,4 +112,4 @@ class BenchmarkInterface:
         return runtime
 
 
-BenchmarkCreator = Callable[[KernelSpec, dict[str, Any]], BenchmarkInterface]
+BenchmarkCreator = Callable[[KernelSpec, dict[str, Any]], KernelBenchmarkInterface]

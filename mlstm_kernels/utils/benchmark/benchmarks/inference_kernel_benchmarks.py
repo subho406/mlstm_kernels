@@ -6,11 +6,11 @@ from typing import Any
 import torch
 
 from ..param_handling import KernelSpec
-from .interface import BenchmarkInterface
+from .interface import KernelBenchmarkInterface
 
 
 @dataclass
-class mLSTMStepKernelBenchmark(BenchmarkInterface):
+class mLSTMStepKernelBenchmark(KernelBenchmarkInterface):
     batch_size: int = None
     num_heads: int = None
     head_dim_qk: int = None
@@ -28,12 +28,20 @@ class mLSTMStepKernelBenchmark(BenchmarkInterface):
             (self.batch_size, self.num_heads, self.head_dim_qk, self.head_dim_v),
             dtype=torch.float32,
         )
-        n_old = torch.zeros((self.batch_size, self.num_heads, self.head_dim_qk), dtype=torch.float32)
+        n_old = torch.zeros(
+            (self.batch_size, self.num_heads, self.head_dim_qk), dtype=torch.float32
+        )
         m_old = torch.zeros((self.batch_size, self.num_heads, 1), dtype=torch.float32)
 
-        q = torch.randn((self.batch_size, self.num_heads, self.head_dim_qk), dtype=torch.float32)
-        k = torch.randn((self.batch_size, self.num_heads, self.head_dim_qk), dtype=torch.float32)
-        v = torch.randn((self.batch_size, self.num_heads, self.head_dim_v), dtype=torch.float32)
+        q = torch.randn(
+            (self.batch_size, self.num_heads, self.head_dim_qk), dtype=torch.float32
+        )
+        k = torch.randn(
+            (self.batch_size, self.num_heads, self.head_dim_qk), dtype=torch.float32
+        )
+        v = torch.randn(
+            (self.batch_size, self.num_heads, self.head_dim_v), dtype=torch.float32
+        )
         i = torch.randn((self.batch_size, self.num_heads, 1), dtype=torch.float32)
         f = torch.randn((self.batch_size, self.num_heads, 1), dtype=torch.float32) + 4.5
 
@@ -75,7 +83,9 @@ class mLSTMStepKernelBenchmark(BenchmarkInterface):
         return get_available_mlstm_step_kernels()
 
 
-def create_inference_kernel_benchmark(kernel_spec: KernelSpec, param_dict: dict[str, Any]) -> BenchmarkInterface:
+def create_inference_kernel_benchmark(
+    kernel_spec: KernelSpec, param_dict: dict[str, Any]
+) -> KernelBenchmarkInterface:
     mlstm_step_kernel_benchmark = mLSTMStepKernelBenchmark()
 
     if kernel_spec.kernel_name in mlstm_step_kernel_benchmark.available_kernels():

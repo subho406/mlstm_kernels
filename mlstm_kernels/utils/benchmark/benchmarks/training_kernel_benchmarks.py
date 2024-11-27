@@ -6,13 +6,13 @@ from typing import Any, Literal
 import torch
 
 from ..param_handling import KernelSpec
-from .interface import BenchmarkInterface
+from .interface import KernelBenchmarkInterface
 
 LOGGER = logging.getLogger(__name__)
 
 
 @dataclass
-class mLSTMBenchmark(BenchmarkInterface):
+class mLSTMBenchmark(KernelBenchmarkInterface):
     batch_size: int = None
     sequence_length: int = None
     num_heads: int = None
@@ -218,7 +218,7 @@ class mLSTMXLChunkSizeTuneBenchmark(mLSTMBenchmark):
 
 def create_training_kernel_benchmark(
     kernel_spec: KernelSpec, param_dict: dict[str, Any]
-) -> BenchmarkInterface:
+) -> KernelBenchmarkInterface:
     mlstm_benchmark = mLSTMBenchmark()
     flashattention_benchmark = FlashAttentionBenchmark()
     mlstm_xl_chunk_size_tune_benchmark = mLSTMXLChunkSizeTuneBenchmark()
