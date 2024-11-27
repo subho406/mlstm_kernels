@@ -17,7 +17,7 @@
             "justMyCode": false,
             "args": [
                 // "-cn",
-                "${workspaceFolder}/tests/test_mlstm/test_parallel/test_parallel_torch.py",
+                "${workspaceFolder}/tests/torch/test_arbitrary_sequence_length.py",
             ],
             "env": {
                 "CUDA_VISIBLE_DEVICES": "0",

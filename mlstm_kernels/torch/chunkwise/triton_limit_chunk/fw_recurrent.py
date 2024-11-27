@@ -16,7 +16,7 @@ def mlstm_chunkwise__recurrent_fw_C(
     scaMinter_states: torch.Tensor = None,  # (B, NH, (NC + 1)
     matC_initial: torch.Tensor = None,  # (B, NH, DHQK, DHHV)
     vecN_initial: torch.Tensor = None,  # (B, NH, DHQK)
-    scaMinter_initial: torch.Tensor = None,  # (B, NH)
+    scaMinter_initial: torch.Tensor = None,  # (B, NH, 1)
     qk_scale: float = None,
     CHUNK_SIZE: int = 64,
     NUM_CHUNKS: int = 1,

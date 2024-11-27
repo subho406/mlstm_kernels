@@ -15,7 +15,7 @@ def mlstm_chunkwise_fw(
     vecF: torch.Tensor,  # (B, NH, S)
     matC_initial: torch.Tensor = None,  # (B, NH, DHQK, DHV)
     vecN_initial: torch.Tensor = None,  # (B, NH, DHQK)
-    scaM_initial: torch.Tensor = None,  # (B, NH)
+    scaM_initial: torch.Tensor = None,  # (B, NH, 1)
     qk_scale: float = None,
     return_last_states: bool = False,
     return_all_states: bool = False,
@@ -28,7 +28,7 @@ def mlstm_chunkwise_fw(
     None
     | (
         tuple[torch.Tensor, torch.Tensor, torch.Tensor]
-    ),  # last_states (matC_states (B, NH, DHQK, DHV), vecN_states (B, NH, DHQK), scaMinter_states (B, NH))
+    ),  # last_states (matC_states (B, NH, DHQK, DHV), vecN_states (B, NH, DHQK), scaMinter_states (B, NH, 1))
     None
     | (
         tuple[torch.Tensor, torch.Tensor, torch.Tensor]
@@ -94,7 +94,7 @@ def mlstm_chunkwise_fw(
             (
                 matC_k_states[:, :, -DHQK:, :],
                 vecN_k_states[:, :, -DHQK:],
-                scaMinter_k_states[:, :, -1],
+                scaMinter_k_states[:, :, -1:],
             ),
         )
     else:

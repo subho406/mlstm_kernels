@@ -8,19 +8,19 @@ In this repository we collect clean implementations of the different mLSTM formu
 def mlstm_interface(
     q: torch.Tensor, # (B, NH, S, DHQK)
     k: torch.Tensor, # (B, NH, S, DHQK)
-    v: torch.Tensor, # (B, NH, S, DHV)
+    v: torch.Tensor, # (B, NH, S, DHHV)
     i: torch.Tensor, # (B, NH, S)
     f: torch.Tensor, # (B, NH, S)
-    c_initial: torch.Tensor = None, # (B, NH, DHQK, DHV)
+    c_initial: torch.Tensor = None, # (B, NH, DHQK, DHHV)
     n_initial: torch.Tensor = None, # (B, NH, DHQK)
-    m_initial: torch.Tensor = None, # (B, NH) # TODO change the shape of this to (B, NH, 1)
+    m_initial: torch.Tensor = None, # (B, NH, 1)
     return_last_states: bool = False,
     eps: float = 1e-6,
-    autocast_kernel_dtype: torch.dtype = torch.float16,
+    autocast_kernel_dtype: torch.dtype = torch.bfloat16,
     chunk_size: int = 64,
     **kwargs,
 ) -> torch.Tensor | tuple[torch.Tensor, tuple[torch.Tensor, torch.Tensor, torch.Tensor]]:
-    # (B, NH, S, DHV) | ((B, NH, S, DHV), ((B, NH, DHQK, DHV), (B, NH, DHQK), (B, NH)))
+    # (B, NH, S, DHHV) | ((B, NH, S, DHHV), ((B, NH, DHQK, DHHV), (B, NH, DHQK), (B, NH)))
     """
     Returns:
         torch.Tensor: matH outputs (no n and m values, no last states)
@@ -35,17 +35,17 @@ def mlstm_interface(
 def mlstm_step_interface(
     q: torch.Tensor,  # (B, NH, DHQK)
     k: torch.Tensor,  # (B, NH, DHQK)
-    v: torch.Tensor,  # (B, NH, DHV)
+    v: torch.Tensor,  # (B, NH, DHHV)
     i: torch.Tensor,  # (B, NH, 1)
     f: torch.Tensor,  # (B, NH, 1)
-    c: torch.Tensor,  # (B, NH, DHQK, DHV)
+    c: torch.Tensor,  # (B, NH, DHQK, DHHV)
     n: torch.Tensor,  # (B, NH, DHQK)
     m: torch.Tensor,  # (B, NH, 1)
     eps: float = 1e-6,
     **kwargs,
 ) -> tuple[
     torch.Tensor, tuple[torch.Tensor, torch.Tensor, torch.Tensor]
-]:  # vecH, (matC_state_new (B, NH, DHQK, DHV), vecN_state_new (B, NH, DHQK), vecM_state_new (B, NH, 1))
+]:  # vecH, (matC_state_new (B, NH, DHQK, DHHV), vecN_state_new (B, NH, DHQK), vecM_state_new (B, NH, 1))
 ```
 
 ## Kernel variants

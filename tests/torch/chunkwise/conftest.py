@@ -2,13 +2,6 @@ import numpy as np
 import pytest
 import torch
 
-from .template_test_parallel_interface import template_test_parallel_interface
-
-
-@pytest.fixture
-def mlstm_parallel_interface_test() -> callable:
-    return template_test_parallel_interface
-
 
 @pytest.fixture
 def state_passing_qkvif() -> (
@@ -33,10 +26,10 @@ def mlstm_state_passing_test() -> callable:
         v: torch.Tensor,
         igate_preact: torch.Tensor,
         fgate_preact: torch.Tensor,
-        num_chunks: int,
-        rtol: float,
-        atol: float,
-        device: str,
+        num_chunks: int = 4,
+        rtol: float = 1e-5,
+        atol: float = 1e-5,
+        device: str = "cuda",
     ) -> torch.Tensor:
         ctx_len = q.shape[2]
         B, NH, S, DHQK = q.shape

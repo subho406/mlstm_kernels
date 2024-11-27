@@ -19,18 +19,19 @@ def _mlstm_chunkwise_fwbw_generator(autocast_kernel_dtype=torch.float16) -> Call
             ctx,
             matQ: torch.Tensor,  # (B, NH, S, DHQK)
             matK: torch.Tensor,  # (B, NH, S, DHQK)
-            matV: torch.Tensor,  # (B, NH, S, DHV)
+            matV: torch.Tensor,  # (B, NH, S, DHHV)
             vecI: torch.Tensor,  # (B, NH, S)
             vecF: torch.Tensor,  # (B, NH, S)
-            matC_initial: torch.Tensor = None,  # (B, NH, DHQK, DHV)
+            matC_initial: torch.Tensor = None,  # (B, NH, DHQK, DHHV)
             vecN_initial: torch.Tensor = None,  # (B, NH, DHQK)
-            scaM_initial: torch.Tensor = None,  # (B, NH)
+            scaM_initial: torch.Tensor = None,  # (B, NH, 1)
             qk_scale: float = None,
             return_last_states: bool = False,
             RECOMPUTE_STATES_IN_BW: bool = True,
             CHUNK_SIZE: int = 64,
             EPS: float = 1e-6,
         ) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor]:
+            # matH_out (B, NH, S, DHHV), matC_last (B, NH, DHQK, DHHV), vecN_last (B, NH, DHQK), scaM_last (B, NH, 1)
             B, NH, S, DHQK = matQ.shape
             if qk_scale is None:
                 qk_scale = DHQK**-0.5
@@ -102,7 +103,7 @@ def _mlstm_chunkwise_fwbw_generator(autocast_kernel_dtype=torch.float16) -> Call
                 EPS,
             ) = ctx.saved_tensors
             B, NH, S, DHQK = matQ.shape
-            DHV = matV.shape[-1]
+            DHHV = matV.shape[-1]
 
             (
                 matDeltaQ,
