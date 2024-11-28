@@ -52,11 +52,24 @@ def run_benchmarks(
                     f" Runtime: {runtime_results.runtime} ms. Peak memory: {float(runtime_results.peak_memory_allocated / 10**9)} GB.",
                 )
             )
+            del benchmark
             gc.collect()
             torch.cuda.empty_cache()
         results.append(result_dict)
 
     return pd.DataFrame(results)
+
+
+def run_benchmarks_swap_loop_order(
+    benchmark_config: BenchmarkConfig,
+    benchmark_creator: BenchmarkCreator,
+    param_prefix: str = "P--",
+    additional_param_name_short: bool = True,
+    runtime_prefix: str = "R--",
+    memory_prefix: str = "M--",
+) -> pd.DataFrame:
+    # TODO from here
+    pass
 
 
 def run_and_record_benchmarks(
