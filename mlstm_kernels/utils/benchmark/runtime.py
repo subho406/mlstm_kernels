@@ -99,7 +99,7 @@ def measure_runtime(
             end_event[i].record()
             peak_memory_allocated_iter = torch.cuda.max_memory_allocated(device=device)
             peak_memory_allocated.append(peak_memory_allocated_iter)
-
+            torch.cuda.reset_peak_memory_stats(device=device)
             if free_memory:
                 gc.collect()
                 torch.cuda.empty_cache()

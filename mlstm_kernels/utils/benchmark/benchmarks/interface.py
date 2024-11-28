@@ -64,11 +64,12 @@ class BenchmarkInterface(ABC):
                 warmup_and_rep_in_ms=self.warmup_and_rep_in_ms,
                 return_mode=return_mode,
                 grad_to_none=grad_to_none,
+                device=self.device,
             )
         except Exception as e:
             LOGGER.warning(f"Error: {e}")
             LOGGER.warning(traceback.format_exc())
-            runtime = float("nan")
+            runtime = RuntimeResult(runtime=float("nan"), peak_memory_allocated=-1)
         return runtime
 
 
