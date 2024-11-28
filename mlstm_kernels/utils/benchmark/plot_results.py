@@ -14,6 +14,8 @@ def plot_benchmark_result_table(
     grid_alpha: float = 0.2,
     plot_kwargs: dict[str, Any] = {"marker": "o", "linestyle": "-"},
     style_dict: dict[str, Any] = None,
+    additional_exclude_col_regex: str = None,
+    y_label: str = "Time [ms]",
     ax=None,
 ):
     if ax is None:
@@ -25,7 +27,12 @@ def plot_benchmark_result_table(
 
     x_axis_vals = result_df[f"P--{x_axis_param}"]
 
-    y_axis_val_df = result_df.drop(result_df.filter(regex="P--.*|Unnamed.*", axis=1).columns, axis=1)
+    exclude_regex = "P--.*|Unnamed.*"
+    if additional_exclude_col_regex is not None:
+        exclude_regex += f"|{additional_exclude_col_regex}"
+    y_axis_val_df = result_df.drop(
+        result_df.filter(regex=exclude_regex, axis=1).columns, axis=1
+    )
 
     for col in y_axis_val_df.columns:
         if style_dict is not None:
@@ -33,7 +40,7 @@ def plot_benchmark_result_table(
         ax.plot(x_axis_vals, y_axis_val_df[col].values, label=col, **plot_kwargs)
 
     ax.set_xlabel(x_axis_param)
-    ax.set_ylabel("Time [ms]")
+    ax.set_ylabel(y_label)
     ax.legend(**legend_args)
     ax.grid(alpha=grid_alpha)
     return f

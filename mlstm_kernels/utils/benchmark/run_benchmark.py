@@ -19,6 +19,8 @@ def run_benchmarks(
     benchmark_creator: BenchmarkCreator,
     param_prefix: str = "P--",
     additional_param_name_short: bool = True,
+    runtime_prefix: str = "R--",
+    memory_prefix: str = "M--",
 ) -> pd.DataFrame:
     """Runs the different kernel configurations and summarizes the results in a DataFrame.
 
@@ -37,10 +39,18 @@ def run_benchmarks(
             benchmark = benchmark_creator(kernel_spec, param_dict)
             benchmark.set_params(kernel_spec.additional_params)
             benchmark.setup_benchmark()
-            runtime = benchmark.run_benchmark()
-            result_dict[kernel_spec.to_string(short_param_name=additional_param_name_short)] = runtime
+            runtime_results = benchmark.run_benchmark()
+            result_dict[
+                f"{runtime_prefix}{kernel_spec.to_string(short_param_name=additional_param_name_short)}"
+            ] = runtime_results.runtime
+            result_dict[
+                f"{memory_prefix}{kernel_spec.to_string(short_param_name=additional_param_name_short)}"
+            ] = runtime_results.peak_memory_allocated
             LOGGER.info(
-                f"Kernel ({k+1}/{len(kernel_specs)}): {kernel_spec.to_string()} finished. Runtime: {runtime} ms"
+                (
+                    f"Kernel ({k+1}/{len(kernel_specs)}): {kernel_spec.to_string()} finished.",
+                    f" Runtime: {runtime_results.runtime} ms. Peak memory: {float(runtime_results.peak_memory_allocated / 10**9)} GB.",
+                )
             )
             gc.collect()
             torch.cuda.empty_cache()
@@ -50,7 +60,9 @@ def run_benchmarks(
 
 
 def run_and_record_benchmarks(
-    benchmark_config: BenchmarkConfig, benchmark_creator: BenchmarkCreator, output_folder: Path
+    benchmark_config: BenchmarkConfig,
+    benchmark_creator: BenchmarkCreator,
+    output_folder: Path,
 ):
     import logging
 
@@ -63,31 +75,50 @@ def run_and_record_benchmarks(
     benchmark_folder = output_folder / benchmark_config.benchmark_name
     benchmark_folder.mkdir(parents=True, exist_ok=False)
 
-    OmegaConf.save(OmegaConf.create(asdict(benchmark_config)), benchmark_folder / "config.yaml")
-
-    result_df = run_benchmarks(
-        benchmark_config=benchmark_config, benchmark_creator=benchmark_creator, additional_param_name_short=True
+    OmegaConf.save(
+        OmegaConf.create(asdict(benchmark_config)), benchmark_folder / "config.yaml"
     )
 
-    LOGGER.info(f"Results:\n{tabulate.tabulate(result_df, headers='keys', tablefmt='pretty')}")
+    result_df = run_benchmarks(
+        benchmark_config=benchmark_config,
+        benchmark_creator=benchmark_creator,
+        additional_param_name_short=True,
+    )
+
+    LOGGER.info(
+        f"Results:\n{tabulate.tabulate(result_df, headers='keys', tablefmt='pretty')}"
+    )
     LOGGER.info(f"Saving results to {benchmark_folder}")
     result_df.to_csv(benchmark_folder / "results.csv")
 
-    fig = plot_benchmark_result_table(
-        result_df,
-        benchmark_config.x_axis_param,
-        title=benchmark_config.get_plot_title(),
-    )
-    fig.savefig(
-        benchmark_folder / f"plot_{benchmark_config.benchmark_name}.png",
-        dpi=300,
-        bbox_inches="tight",
-    )
-    fig.savefig(
-        benchmark_folder / f"plot_{benchmark_config.benchmark_name}.pdf",
-        bbox_inches="tight",
-    )
-    fig.savefig(
-        benchmark_folder / f"plot_{benchmark_config.benchmark_name}.svg",
-        bbox_inches="tight",
-    )
+    def plot_result_table(
+        additional_exclude_col_regex: str, plot_name_suffix: str, y_label: str
+    ):
+        fig = plot_benchmark_result_table(
+            result_df,
+            benchmark_config.x_axis_param,
+            title=f"Runtime--{benchmark_config.get_plot_title()}",
+            additional_exclude_col_regex=additional_exclude_col_regex,
+            y_label=y_label,
+        )
+        fig.savefig(
+            benchmark_folder
+            / f"plot_{benchmark_config.benchmark_name}_{plot_name_suffix}.png",
+            dpi=300,
+            bbox_inches="tight",
+        )
+        fig.savefig(
+            benchmark_folder
+            / f"plot_{benchmark_config.benchmark_name}_{plot_name_suffix}.pdf",
+            bbox_inches="tight",
+        )
+        fig.savefig(
+            benchmark_folder
+            / f"plot_{benchmark_config.benchmark_name}_{plot_name_suffix}.svg",
+            bbox_inches="tight",
+        )
+
+    # runtime plot
+    plot_result_table("M--.*", "runtime", "Time [ms]")
+    # memory plot
+    plot_result_table("R--.*", "memory", "Memory [bytes]")

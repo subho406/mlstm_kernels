@@ -8,7 +8,7 @@ from typing import Any, Literal
 import torch
 
 from ..param_handling import KernelSpec
-from ..runtime import measure_runtime
+from ..runtime import RuntimeResult, measure_runtime
 
 LOGGER = logging.getLogger(__name__)
 
@@ -51,7 +51,7 @@ class BenchmarkInterface(ABC):
         self,
         return_mode: Literal["mean", "median"] = "mean",
         grad_to_none: tuple[torch.Tensor, ...] | None = None,
-    ) -> int:
+    ) -> RuntimeResult:
         """Runs the benchmark and returns the runtime in milliseconds."""
 
         if self.benchmark_fn is None:
@@ -130,7 +130,7 @@ class KernelBenchmarkInterface(BenchmarkInterface):
         self,
         return_mode: Literal["mean"] | Literal["median"] = "mean",
         grad_to_none: tuple[torch.Tensor, ...] | None = None,
-    ) -> int:
+    ) -> RuntimeResult:
         return super().run_benchmark(return_mode, grad_to_none)
 
 

@@ -16,7 +16,7 @@ def _throughput_benchmark(output_folder: Path, generation_length: int = 100):
     cfg_yaml = """
 vary_type: grid
 vary_params:
-  batch_size: [1, 2, 4, 8, 16, 32]
+  batch_size: [1, 2, 4]#, 8] #[8, 16, 32, 64, 128, 256]
 fixed_params:
   prefill_length: 0
   generation_length: 100
@@ -47,31 +47,42 @@ kernel_specs:
     additional_params:
       use_torch_compile_generate: False
       inference_state_dtype: float32
-  - model_name: "mLSTM"
-    amp_enabled: True
-    amp_dtype: bfloat16
-    weight_dtype: float32
-    use_torch_compile_model: True
-    additional_params:
-      use_torch_compile_generate: False
-      inference_state_dtype: float32
-  - model_name: "mLSTM"
-    amp_enabled: True
-    amp_dtype: bfloat16
-    weight_dtype: float32
-    use_torch_compile_model: True
-    additional_params:
-      use_torch_compile_generate: True
-      inference_state_dtype: float32
 
   - model_name: "mLSTM"
     amp_enabled: True
     amp_dtype: bfloat16
     weight_dtype: bfloat16
-    use_torch_compile_model: True
+    use_torch_compile_model: False
     additional_params:
-      use_torch_compile_generate: True
+      use_torch_compile_generate: False
       inference_state_dtype: bfloat16
+
+#! torch.compile does not work atm
+#   - model_name: "mLSTM"
+#     amp_enabled: True
+#     amp_dtype: bfloat16
+#     weight_dtype: float32
+#     use_torch_compile_model: True
+#     additional_params:
+#       use_torch_compile_generate: False
+#       inference_state_dtype: float32
+#   - model_name: "mLSTM"
+#     amp_enabled: True
+#     amp_dtype: bfloat16
+#     weight_dtype: float32
+#     use_torch_compile_model: True
+#     additional_params:
+#       use_torch_compile_generate: True
+#       inference_state_dtype: float32
+
+#   - model_name: "mLSTM"
+#     amp_enabled: True
+#     amp_dtype: bfloat16
+#     weight_dtype: bfloat16
+#     use_torch_compile_model: True
+#     additional_params:
+#       use_torch_compile_generate: True
+#       inference_state_dtype: bfloat16
 
 benchmark_name: "mlstm_7B_throughput"
 """
