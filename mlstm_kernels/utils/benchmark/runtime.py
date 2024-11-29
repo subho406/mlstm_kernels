@@ -1,5 +1,8 @@
 import gc
+import typing
 from dataclasses import dataclass
+from typing import Literal
+from collections.abc import Callable
 
 
 @dataclass
@@ -15,15 +18,18 @@ class RuntimeResult:
     runtime_quantiles: list[float] = None
 
 
+ReturnModes = Literal["min", "max", "mean", "median"]
+
+
 def measure_runtime(
-    fn,
-    warmup=25,
-    rep=100,
+    fn: Callable,
+    warmup: int = 25,
+    rep: int = 100,
     warmup_and_rep_in_ms: bool = True,
     grad_to_none: tuple = None,
-    quantiles=None,
-    fast_flush=True,
-    return_mode="mean",
+    quantiles: list[float] = None,
+    fast_flush: bool = True,
+    return_mode: ReturnModes = "mean",
     device: str = None,
     free_memory: bool = True,
 ) -> RuntimeResult:
@@ -34,8 +40,9 @@ def measure_runtime(
     (https://github.com/triton-lang/triton/blob/main/python/triton/testing.py).
 
     """
-    return_modes = ["min", "max", "mean", "median"]
-    assert return_mode in return_modes
+    assert return_mode in typing.get_args(
+        ReturnModes
+    ), f"return_mode must be one of {typing.get_args(ReturnModes)}"
     import torch
     from torch.profiler import record_function
 
@@ -124,9 +131,12 @@ def measure_runtime(
     runtime_result = RuntimeResult(
         runtime=get_stat(times, return_mode),
         peak_memory_allocated=int(get_stat(peak_memory_allocated, return_mode)),
-        runtime_stats={mode: get_stat(times, mode) for mode in return_modes},
+        runtime_stats={
+            mode: get_stat(times, mode) for mode in typing.get_args(ReturnModes)
+        },
         peak_memory_allocated_stats={
-            mode: int(get_stat(peak_memory_allocated, mode)) for mode in return_modes
+            mode: int(get_stat(peak_memory_allocated, mode))
+            for mode in typing.get_args(ReturnModes)
         },
         runtime_quantiles=runtime_quantiles,
     )
