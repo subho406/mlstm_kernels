@@ -12,6 +12,8 @@ from ..runtime import RuntimeResult, measure_runtime
 
 LOGGER = logging.getLogger(__name__)
 
+BenchmarkCreator = Callable[[KernelSpec, dict[str, Any]], "BenchmarkInterface"]
+
 
 @dataclass
 class BenchmarkInterface(ABC):
@@ -133,6 +135,3 @@ class KernelBenchmarkInterface(BenchmarkInterface):
         grad_to_none: tuple[torch.Tensor, ...] | None = None,
     ) -> RuntimeResult:
         return super().run_benchmark(return_mode, grad_to_none)
-
-
-BenchmarkCreator = Callable[[KernelSpec, dict[str, Any]], KernelBenchmarkInterface]
