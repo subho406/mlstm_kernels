@@ -11,7 +11,7 @@ LOGGER = logging.getLogger(__name__)
 
 
 @dataclass
-class MLSTMSimpleModelBenchmark(BenchmarkInterface):
+class mLSTMSimpleModelBenchmark(BenchmarkInterface):
     model_name: str = "mLSTM"
 
     embedding_dim: int = 256
@@ -115,7 +115,7 @@ class MLSTMSimpleModelBenchmark(BenchmarkInterface):
 def create_mlstm_model_benchmark(
     model_spec: ModelSpec, param_dict: dict[str, Any]
 ) -> BenchmarkInterface:
-    mlstm_model_benchmark = MLSTMSimpleModelBenchmark()
+    mlstm_model_benchmark = mLSTMSimpleModelBenchmark()
 
     mlstm_model_benchmark.model_name = model_spec.model_name
     mlstm_model_benchmark.amp_enabled = model_spec.amp_enabled
