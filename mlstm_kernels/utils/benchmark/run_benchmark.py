@@ -114,22 +114,17 @@ def run_and_record_benchmarks(
             additional_exclude_col_regex=additional_exclude_col_regex,
             y_label=y_label,
         )
-        fig.savefig(
-            benchmark_folder
-            / f"plot_{benchmark_config.benchmark_name}_{plot_name_suffix}.png",
-            dpi=300,
-            bbox_inches="tight",
-        )
-        fig.savefig(
-            benchmark_folder
-            / f"plot_{benchmark_config.benchmark_name}_{plot_name_suffix}.pdf",
-            bbox_inches="tight",
-        )
-        fig.savefig(
-            benchmark_folder
-            / f"plot_{benchmark_config.benchmark_name}_{plot_name_suffix}.svg",
-            bbox_inches="tight",
-        )
+
+        def savefig(file_ending):
+            fig.savefig(
+                benchmark_folder
+                / f"plot_{benchmark_config.benchmark_name}_{plot_name_suffix}.{file_ending}",
+                dpi=300,
+                bbox_inches="tight",
+            )
+
+        for file_ending in ["png", "pdf", "svg"]:
+            savefig(file_ending)
 
     # runtime plot
     plot_result_table("M--.*", "runtime", "Time [ms]")
