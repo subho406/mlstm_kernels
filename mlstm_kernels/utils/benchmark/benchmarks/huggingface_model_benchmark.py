@@ -417,7 +417,7 @@ class HFModelBenchmark(ModelBenchmarkInterface):
             "codestral_mamba": dict(
                 dynamic=False, fullgraph=False, mode="reduce-overhead"
             ),
-            "xlstm": dict(dynamic=False, fullgraph=True, mode="reduce-overhead"),
+            "xlstm": dict(dynamic=False, fullgraph=False, mode="default"),
             "falcon_mamba": dict(disable=True),
             "zamba2": dict(
                 dynamic=False, fullgraph=False, mode="reduce-overhead"
@@ -446,10 +446,22 @@ class HFModelBenchmark(ModelBenchmarkInterface):
 
         self.model.generation_config.cache_implementation = "static"
 
+        model_torch_compile_config = self.get_hf_model_torch_compile_config(
+            self.model_name
+        )
+
         if self.use_torch_compile_model:
-            self.model.forward = torch.compile(
-                self.model.forward, dynamic=False, fullgraph=False, mode="default"
+            LOGGER.info(
+                f"Compiling model {self.model_name} with config: {model_torch_compile_config}"
             )
+            self.model.forward = torch.compile(
+                self.model.forward, **model_torch_compile_config
+            )
+
+        # if self.use_torch_compile_generate:
+        #     self.model.generate = torch.compile(
+        #         self.model.generate, dynamic=False, fullgraph=False, mode="default"
+        #     )
 
     def setup_benchmark(self) -> None:
         if self.model is None:
