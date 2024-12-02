@@ -104,9 +104,7 @@ def run_model_benchmarks(
 
             benchmark.set_params(param_dict)
             benchmark.setup_benchmark()
-            if profiler is not None:
-                profiler.start()
-            runtime_results = benchmark.run_benchmark()
+            runtime_results = benchmark.run_benchmark(profiler=profiler)
             results[i][
                 f"{runtime_prefix}{kernel_spec.to_string(short_param_name=additional_param_name_short)}"
             ] = runtime_results.runtime
@@ -116,7 +114,8 @@ def run_model_benchmarks(
             LOGGER.info(
                 (
                     f"Parameter combination ({i+1}/{len(param_dicts)}) finished.",
-                    f" Runtime: {runtime_results.runtime} ms. Peak memory: {float(runtime_results.peak_memory_allocated / 10**9)} GB.",
+                    f" Runtime: {runtime_results.runtime} ms.",
+                    f" Peak memory: {float(runtime_results.peak_memory_allocated / 10**9)} GB.",
                 )
             )
             if setup_model_on_every_param_combination:
