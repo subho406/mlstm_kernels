@@ -307,6 +307,12 @@ class MambaKernelBenchmark(KernelBenchmarkInterface):
     use_torch_compile: bool = False
 
     def _get_input_tensors(self) -> tuple[torch.Tensor, ...]:
+        # equivalence to Mamba notation:
+        # head_dim_qk === state_dim
+        # head_dim_v === inner_dim
+        # num_heads === num_heads
+        # For Mamba (v1): inner_dim = self.num_heads * self.head_dim_v
+
         # see: https://github.com/state-spaces/mamba/blob/
         # 442fab4b1fd5226c1b5939b37d91ede430b5d1ae/mamba_ssm/ops/selective_scan_interface.py#L91
         if "mamba" == self.kernel_name:
