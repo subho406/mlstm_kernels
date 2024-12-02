@@ -35,31 +35,32 @@ vary_params:
 fixed_params:
   sequence_length: {seq_len}
   batch_size: {batch_size}
+  rep: 1000  # debugging: 10
 
 x_axis_param: "head_dim_v"
 
 kernel_specs:
-  - kernel_name: "parallel--triton_limit_headdim"
-    fwbw: True
-    dtype: bfloat16
-  ####
-  #? chunk size 64 is optimal
+  # - kernel_name: "parallel--triton_limit_headdim"
+  #   fwbw: True
+  #   dtype: bfloat16
+  # ####
+  # #? chunk size 64 is optimal
   - kernel_name: "chunkwise--triton_limit_chunk"
     fwbw: True
     dtype: bfloat16
     additional_params:
       chunk_size: 64
 
-  # - kernel_name: "chunkwise--triton_limit_chunk"
-  #   fwbw: True
-  #   dtype: bfloat16
-  #   additional_params:
-  #     chunk_size: 128
-  # - kernel_name: "chunkwise--triton_limit_chunk"
-  #   fwbw: True
-  #   dtype: bfloat16
-  #   additional_params:
-  #     chunk_size: 32
+  - kernel_name: "chunkwise--triton_limit_chunk"
+    fwbw: True
+    dtype: bfloat16
+    additional_params:
+      chunk_size: 128
+  - kernel_name: "chunkwise--triton_limit_chunk"
+    fwbw: True
+    dtype: bfloat16
+    additional_params:
+      chunk_size: 32
   ####
   - kernel_name: "chunkwise--triton_xl_chunk"
     fwbw: True
@@ -67,12 +68,12 @@ kernel_specs:
     additional_params:
       chunk_size: 128
   ####
-  # - kernel_name: "chunkwise--native_custbw"
-  #   fwbw: True
-  #   dtype: bfloat16
-  #   use_torch_compile: False
-  #   additional_params:
-  #     chunk_size: 64
+  - kernel_name: "chunkwise--native_custbw"
+    fwbw: True
+    dtype: bfloat16
+    use_torch_compile: False
+    additional_params:
+      chunk_size: 64
 
   - kernel_name: "chunkwise--native_custbw"
     fwbw: True
@@ -99,11 +100,41 @@ kernel_specs:
     additional_params:
       chunk_size: 1024
 
-  # - kernel_name: "chunkwise--native_autograd"
-  #   fwbw: True
-  #   dtype: bfloat16
-  #   use_torch_compile: False
+  - kernel_name: "chunkwise--native_autograd"
+    fwbw: True
+    dtype: bfloat16
+    use_torch_compile: False
+    additional_params:
+      chunk_size: 256
   ####
+  - kernel_name: "chunk_gla"
+    fwbw: True
+    dtype: bfloat16
+    use_torch_compile: False
+  - kernel_name: "fused_chunk_gla"
+    fwbw: True
+    dtype: bfloat16
+  - kernel_name: "fused_recurrent_gla"
+    fwbw: True
+    dtype: bfloat16
+  - kernel_name: "mamba"
+    fwbw: True
+    dtype: bfloat16
+    use_torch_compile: False
+  - kernel_name: "mamba2"
+    fwbw: True
+    dtype: bfloat16
+    use_torch_compile: False
+  - kernel_name: "mamba2_noconv"
+    fwbw: True
+    dtype: bfloat16
+    use_torch_compile: False
+  - kernel_name: "flashattn3"
+    fwbw: True
+    dtype: bfloat16
+    use_torch_compile: False
+  
+
 
 benchmark_name: {bench_name}
 """
@@ -189,6 +220,67 @@ kernel_specs:
       head_dim_qk: {head_dim//2}
       head_dim_v: {head_dim}
       chunk_size: 128
+  
+  - kernel_name: "chunk_gla"
+    fwbw: True
+    dtype: bfloat16
+    additional_params:
+      num_heads: {num_heads}
+      head_dim_qk: {head_dim//2}
+      head_dim_v: {head_dim}
+
+    use_torch_compile: False
+  - kernel_name: "fused_chunk_gla"
+    fwbw: True
+    dtype: bfloat16
+    additional_params:
+      num_heads: {num_heads}
+      head_dim_qk: {head_dim}
+      head_dim_v: {head_dim}
+
+  - kernel_name: "fused_recurrent_gla"
+    fwbw: True
+    dtype: bfloat16
+    additional_params:
+      num_heads: {num_heads}
+      head_dim_qk: {head_dim}
+      head_dim_v: {head_dim}
+
+  - kernel_name: "mamba"
+    fwbw: True
+    dtype: bfloat16
+    use_torch_compile: False
+    additional_params:
+      num_heads: {num_heads}
+      head_dim_qk: {head_dim}
+      head_dim_v: {head_dim}
+
+  - kernel_name: "mamba2"
+    fwbw: True
+    dtype: bfloat16
+    use_torch_compile: False
+    additional_params:
+      num_heads: {num_heads}
+      head_dim_qk: {head_dim}
+      head_dim_v: {head_dim}
+
+  - kernel_name: "mamba2_noconv"
+    fwbw: True
+    dtype: bfloat16
+    use_torch_compile: False
+    additional_params:
+      num_heads: {num_heads}
+      head_dim_qk: {head_dim}
+      head_dim_v: {head_dim}
+
+  - kernel_name: "flashattn3"
+    fwbw: True
+    dtype: bfloat16
+    use_torch_compile: False
+    additional_params:
+      num_heads: {num_heads}
+      head_dim_qk: {head_dim}
+      head_dim_v: {head_dim}
 
 benchmark_name: "sequence_length_7B--{bench_name_params}"
 """
@@ -297,6 +389,67 @@ kernel_specs:
 
       # chunk_size_intra: 128
       # chunk_size_inter: 128
+  
+  - kernel_name: "chunk_gla"
+    fwbw: True
+    dtype: bfloat16
+    use_torch_compile: False
+    additional_params:
+      num_heads: {num_heads}
+      head_dim_qk: {head_dim}
+      head_dim_v: {head_dim}
+
+  - kernel_name: "fused_chunk_gla"
+    fwbw: True
+    dtype: bfloat16
+    additional_params:
+      num_heads: {num_heads}
+      head_dim_qk: {head_dim}
+      head_dim_v: {head_dim}
+
+  - kernel_name: "fused_recurrent_gla"
+    fwbw: True
+    dtype: bfloat16
+    additional_params:
+      num_heads: {num_heads}
+      head_dim_qk: {head_dim}
+      head_dim_v: {head_dim}
+
+  - kernel_name: "mamba"
+    fwbw: True
+    dtype: bfloat16
+    use_torch_compile: False
+    additional_params:
+      num_heads: {num_heads}
+      head_dim_qk: {head_dim}
+      head_dim_v: {head_dim}
+
+  - kernel_name: "mamba2"
+    fwbw: True
+    dtype: bfloat16
+    use_torch_compile: False
+    additional_params:
+      num_heads: {num_heads}
+      head_dim_qk: {head_dim}
+      head_dim_v: {head_dim}
+
+  - kernel_name: "mamba2_noconv"
+    fwbw: True
+    dtype: bfloat16
+    use_torch_compile: False
+    additional_params:
+      num_heads: {num_heads}
+      head_dim_qk: {head_dim}
+      head_dim_v: {head_dim}
+
+  - kernel_name: "flashattn3"
+    fwbw: True
+    dtype: bfloat16
+    use_torch_compile: False
+    additional_params:
+      num_heads: {num_heads}
+      head_dim_qk: {head_dim}
+      head_dim_v: {head_dim}
 
 
 benchmark_name: "batch_size_7B--{bench_name_params}"
@@ -315,8 +468,8 @@ def run_multiple_benchmarks(
 ):
     output_folder = setup_output_folder(output_dir, name_suffix=output_folder_suffix)
 
-    # _sequence_length_benchmark(output_folder, batch_size=1, num_heads=16, head_dim=256)
-    # _batch_size_benchmark(output_folder, seq_len=8192, num_heads=16, head_dim=256)
+    _sequence_length_benchmark(output_folder, batch_size=1, num_heads=16, head_dim=256)
+    _batch_size_benchmark(output_folder, seq_len=8192, num_heads=16, head_dim=256)
     _sequence_length_benchmark(output_folder, batch_size=1, num_heads=8, head_dim=512)
     _batch_size_benchmark(output_folder, seq_len=8192, num_heads=8, head_dim=512)
 

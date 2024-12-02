@@ -216,17 +216,342 @@ class mLSTMXLChunkSizeTuneBenchmark(mLSTMBenchmark):
         return ["mlstm_chunkwise__xl_chunk"]
 
 
+
+@dataclass
+class FlashLinearAttentionKernelBenchmark(KernelBenchmarkInterface):
+    batch_size: int = None
+    num_heads: int = None
+    sequence_length: int = None
+    head_dim_qk: int = None
+    head_dim_v: int = None
+
+    use_torch_compile: bool = False
+
+    def _get_input_tensors(self) -> tuple[torch.Tensor, ...]:
+        q = torch.randn(
+            (self.batch_size, self.num_heads, self.sequence_length, self.head_dim_qk),
+            dtype=torch.float32,
+        )
+        k = torch.randn(
+            (self.batch_size, self.num_heads, self.sequence_length, self.head_dim_qk),
+            dtype=torch.float32,
+        )
+        v = torch.randn(
+            (self.batch_size, self.num_heads, self.sequence_length, self.head_dim_v),
+            dtype=torch.float32,
+        )
+        if "simple_gla" in self.kernel_name:
+            fg = torch.randn(
+                (self.batch_size, self.num_heads, self.sequence_length),
+                dtype=torch.float32,
+            )
+            return q, k, v, fg
+        if "gla" in self.kernel_name:
+            fg = torch.randn(
+                (self.batch_size, self.num_heads, self.sequence_length, self.head_dim_qk),
+                dtype=torch.float32,
+            )
+            return q, k, v, fg
+        return q, k, v
+
+    def _get_kernel_fn(self) -> Callable[[tuple[torch.Tensor, ...]], torch.Tensor]:
+        from fla.ops.gla import chunk_gla, fused_chunk_gla, fused_recurrent_gla
+        from fla.ops.retention import chunk_retention, parallel_retention
+        from fla.ops.retention.naive import naive_retention
+
+        if self.kernel_name == "chunk_gla":
+            kernel_pre_fn = chunk_gla
+        elif self.kernel_name == "fused_chunk_gla":
+            kernel_pre_fn = fused_chunk_gla
+        elif self.kernel_name == "fused_recurrent_gla":
+            kernel_pre_fn = fused_recurrent_gla
+        elif self.kernel_name == "chunk_retention":
+            kernel_pre_fn = chunk_retention
+        elif self.kernel_name == "parallel_retention":
+            kernel_pre_fn = parallel_retention
+        elif self.kernel_name == "naive_retention":
+            kernel_pre_fn = naive_retention
+        else:
+            raise ValueError(f"Bad kernel name {self.kernel_name} not in {self.available_kernels()}")
+
+        # only take first output of tuple
+        def kernel_fn(*args, **kwargs):
+            return kernel_pre_fn(*args, **kwargs)[0]
+
+        if self.use_torch_compile:
+            kernel_fn = torch.compile(kernel_fn)
+        return kernel_fn
+
+    def available_kernels(self) -> list[str]:
+        return [
+            "chunk_gla", "fused_chunk_gla", "fused_recurrent_gla",
+            "chunk_retention", "parallel_retention", "naive_retention",]
+
+
+@dataclass
+class MambaKernelBenchmark(KernelBenchmarkInterface):
+    batch_size: int = None
+    num_heads: int = None
+    sequence_length: int = None
+    head_dim_qk: int = None
+    head_dim_v: int = None
+    num_groups: int = 1
+    width: int = 4  # convolution kernel size
+
+    use_torch_compile: bool = False
+
+    def __post_init__(self):
+        # this does not work!! (is not called)
+        if "mamba" == self.kernel_name:
+            self.head_dim_qk = 16  # maximal value for mamba kernel size
+
+    def _get_input_tensors(self) -> tuple[torch.Tensor, ...]:
+        if "mamba" == self.kernel_name:
+            x = torch.randn(
+                (self.batch_size, self.num_heads*self.head_dim_v, self.sequence_length,),
+                dtype=torch.float32,
+            )
+            dt = torch.randn(
+                (self.batch_size, self.num_heads*self.head_dim_v, self.sequence_length,),
+                dtype=torch.float32,
+            )
+            A = torch.randn(
+                (self.num_heads*self.head_dim_v, self.head_dim_qk),
+                dtype=torch.float32,
+            )
+            B = torch.randn(
+                (self.batch_size, self.head_dim_qk, self.sequence_length),
+                dtype=torch.float32,
+            )
+            C = torch.randn(
+                (self.batch_size, self.head_dim_qk, self.sequence_length),
+                dtype=torch.float32,
+            )
+            D = torch.randn(
+                (self.num_heads*self.head_dim_v),
+                dtype=torch.float32,
+            )
+            z = torch.randn(
+                (self.batch_size, self.num_heads*self.head_dim_v, self.sequence_length,),
+                dtype=torch.float32,
+            )
+            return x, dt, A, B, C, D, z
+        if "mamba2_noconv" == self.kernel_name:
+            x = torch.randn(
+                (self.batch_size, self.sequence_length,  self.num_heads, self.head_dim_v),
+                dtype=torch.float32,
+            )
+            dt = torch.randn(
+                (self.batch_size, self.sequence_length,  self.num_heads),
+                dtype=torch.float32,
+            )
+            A = torch.randn(
+                (self.num_heads),
+                dtype=torch.float32,
+            )
+            B = torch.randn(
+                (self.batch_size, self.sequence_length, self.num_heads, self.head_dim_qk),
+                dtype=torch.float32,
+            )
+            C = torch.randn(
+                (self.batch_size, self.sequence_length, self.num_heads, self.head_dim_qk),
+                dtype=torch.float32,
+            )
+            chunk_size = 256
+
+            return x, dt, A, B, C, chunk_size
+        if "mamba2" == self.kernel_name:
+            zxbcdt = torch.randn(
+                (self.batch_size, self.sequence_length,  + 2*self.num_heads *self.head_dim_v + 2*self.head_dim_qk*self.num_groups + self.num_heads),
+                dtype=torch.float32,
+            )
+            conv1d_weight = torch.randn(
+                (self.num_heads*self.head_dim_v + 2*self.num_groups*self.head_dim_qk, self.width),
+                dtype=torch.float32,
+            )
+            conv1d_bias = torch.randn(
+                (self.num_heads*self.head_dim_v + 2*self.num_groups*self.head_dim_qk),
+                dtype=torch.float32,
+            )
+            dt_bias = torch.randn(
+                (self.num_heads),
+                dtype=torch.float32,
+            )
+            A = torch.randn(
+                (self.num_heads),
+                dtype=torch.float32,
+            )
+            D = torch.randn(
+                (self.num_heads, self.head_dim_v),
+                dtype=torch.float32,
+            )
+            chunk_size = 256
+            return zxbcdt, conv1d_weight, conv1d_bias, dt_bias, A, D, chunk_size
+        raise ValueError(f"Bad kernel name {self.kernel_name} not in {self.available_kernels()}")
+
+    def _get_kernel_fn(self) -> Callable[[tuple[torch.Tensor, ...]], torch.Tensor]:
+        from mamba_ssm.ops.selective_scan_interface import selective_scan_fn
+        from mamba_ssm.ops.triton.ssd_combined import (
+            mamba_chunk_scan_combined,
+            mamba_split_conv1d_scan_combined,
+        )
+        
+        if self.kernel_name == "mamba":
+            kernel_pre_fn = selective_scan_fn
+        elif self.kernel_name == "mamba2_noconv":
+            kernel_pre_fn = mamba_chunk_scan_combined
+        elif self.kernel_name == "mamba2":
+            kernel_pre_fn = mamba_split_conv1d_scan_combined
+        else:
+            raise ValueError(f"Bad kernel name {self.kernel_name} not in {self.available_kernels()}")
+
+        # only take first output of tuple
+        def kernel_fn(*args, **kwargs):
+            return kernel_pre_fn(*args, **kwargs)[0]
+
+        if self.use_torch_compile:
+            kernel_fn = torch.compile(kernel_fn)
+        return kernel_fn
+
+
+    def setup_benchmark(self) -> None:
+        torch_dtype = getattr(torch, self.dtype)
+
+        inputs = self._get_input_tensors()
+
+        inputs = [
+            x.to(device=self.device).requires_grad_(self.fwbw) if isinstance(x, torch.Tensor) else x
+            for x in inputs
+        ]
+
+        if self.kernel_name == "mamba":
+            x, dt, A, B, C, D, z = inputs
+            x, dt, B, C, z = (
+                x.to(dtype=torch_dtype), dt.to(dtype=torch_dtype),
+                B.to(dtype=torch_dtype), C.to(dtype=torch_dtype),
+                z.to(dtype=torch_dtype)
+            )
+            inputs = x, dt, A, B, C, D, z
+        elif self.kernel_name == "mamba2_noconv":
+            x, dt, A, B, C, chunk_size = inputs
+            x, dt, B, C = (
+                x.to(dtype=torch_dtype),
+                dt.to(dtype=torch_dtype),
+                B.to(dtype=torch_dtype),
+                C.to(dtype=torch_dtype)
+            )
+            inputs = x, dt, A, B, C, chunk_size
+        elif self.kernel_name == "mamba2":
+            zxbcdt, conv1d_weight, conv1d_bias, dt_bias, A, D, chunk_size = inputs
+            zxbcdt, conv1d_weight, conv1d_bias, dt_bias, D = (
+                zxbcdt.to(dtype=torch_dtype),
+                conv1d_weight.to(dtype=torch_dtype),
+                conv1d_bias.to(dtype=torch_dtype),
+                dt_bias.to(dtype=torch_dtype),
+                D.to(dtype=torch_dtype),
+            )
+            inputs = zxbcdt, conv1d_weight, conv1d_bias, dt_bias, A, D, chunk_size
+        self.kernel_inputs = inputs
+
+        kernel_fn = self._get_kernel_fn()
+
+        loss_fn = self._get_loss_fn()
+
+        def benchmark_fn() -> None:
+            output = kernel_fn(*self.kernel_inputs)
+            if self.fwbw:
+                loss = loss_fn(output)
+                loss.backward()
+
+        self.benchmark_fn = benchmark_fn
+
+
+    def available_kernels(self) -> list[str]:
+        return [
+            "mamba", "mamba2", "mamba2_noconv"]
+
+
+
+
+@dataclass
+class FlashAttention3Benchmark(mLSTMBenchmark):
+    batch_size: int = None
+    sequence_length: int = None
+    num_heads: int = None
+    head_dim_qk: int = None
+    head_dim_v: int = None
+
+    chunk_size: int = None
+
+    kernel_name: str = None
+
+    use_torch_compile: bool = False
+    
+    def _get_input_tensors(self) -> tuple[torch.Tensor, ...]:
+        q = torch.randn(
+            (self.batch_size, self.num_heads, self.sequence_length, self.head_dim_qk),
+            dtype=torch.float32,
+        )
+        k = torch.randn(
+            (self.batch_size, self.num_heads, self.sequence_length, self.head_dim_qk),
+            dtype=torch.float32,
+        )
+        v = torch.randn(
+            (self.batch_size, self.num_heads, self.sequence_length, self.head_dim_v),
+            dtype=torch.float32,
+        )
+        return q, k, v
+
+    def _get_kernel_fn(self) -> Callable[[tuple[torch.Tensor, ...]], torch.Tensor]:
+        from functools import partial
+
+        assert (
+            self.kernel_name == "flashattn3"
+        ), "Only supports flashattn3"
+
+        import os
+        import sys
+        from pathlib import Path
+        sys.path.append(str(Path(os.path.abspath(__file__)).parent.parent.parent.parent.parent.parent / "flash-attention" / "hopper"))
+        from flash_attn_interface import flash_attn_func
+
+        kernel_fn = partial(
+            flash_attn_func,
+            causal=True,
+            deterministic=False,
+            gqa_parallel=False,
+            softmax_scale=None,
+            window_size=(-1, -1),
+            descale_q=None,
+            descale_k=None,
+            descale_v=None,
+        )
+
+        def kernel_fn2(q, k, v):
+            return kernel_fn(q, k, v)[0]
+        
+        return kernel_fn2
+
+    def available_kernels(self) -> list[str]:
+        return ["flashattn3"]
+
+
+
 def create_training_kernel_benchmark(
     kernel_spec: KernelSpec, param_dict: dict[str, Any]
 ) -> KernelBenchmarkInterface:
     mlstm_benchmark = mLSTMBenchmark()
     flashattention_benchmark = FlashAttentionBenchmark()
     mlstm_xl_chunk_size_tune_benchmark = mLSTMXLChunkSizeTuneBenchmark()
+    flashlinearattention_benchmark = FlashLinearAttentionKernelBenchmark()
+    mamba_benchmark = MambaKernelBenchmark()
+    flashattn3_benchmark = FlashAttention3Benchmark()
 
     all_available_kernels = (
         mlstm_benchmark.available_kernels()
         + flashattention_benchmark.available_kernels()
         + mlstm_xl_chunk_size_tune_benchmark.available_kernels()
+        + flashlinearattention_benchmark.available_kernels()
     )
 
     if kernel_spec.kernel_name in mlstm_benchmark.available_kernels():
@@ -238,6 +563,22 @@ def create_training_kernel_benchmark(
         in mlstm_xl_chunk_size_tune_benchmark.available_kernels()
     ):
         benchmark = mlstm_xl_chunk_size_tune_benchmark
+    elif (
+        kernel_spec.kernel_name
+        in flashlinearattention_benchmark.available_kernels()
+    ):
+        benchmark = flashlinearattention_benchmark
+    
+    elif (
+        kernel_spec.kernel_name
+        in mamba_benchmark.available_kernels()
+    ):
+        benchmark = mamba_benchmark
+    elif (
+        kernel_spec.kernel_name
+        in flashattn3_benchmark.available_kernels()
+    ):
+        benchmark = flashattn3_benchmark
     else:
         raise ValueError(
             f"Unknown kernel name: {kernel_spec.kernel_name}, available kernels: {all_available_kernels}"

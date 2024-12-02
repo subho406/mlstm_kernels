@@ -112,7 +112,7 @@ class KernelBenchmarkInterface(BenchmarkInterface):
         inputs = self._get_input_tensors()
 
         inputs = [
-            x.to(device=self.device, dtype=torch_dtype).requires_grad_(self.fwbw)
+            x.to(device=self.device, dtype=torch_dtype).requires_grad_(self.fwbw) if isinstance(x, torch.Tensor) else x
             for x in inputs
         ]
         self.kernel_inputs = inputs

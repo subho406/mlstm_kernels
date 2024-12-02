@@ -14,7 +14,7 @@ from mlstm_kernels.utils.benchmark.utils import setup_output_folder
 
 def _head_dim_benchmark(output_folder: Path, half_qkdim=False, batch_size: int = 1):
     ### head dimension benchmark 7B
-    head_dims_v = [64, 128, 256, 512, 1024, 2048]
+    head_dims_v = [64, 128, 256, 512, 1024] # , 2048]
     embedding_dim = 4096
     num_heads = [embedding_dim // head_dim for head_dim in head_dims_v]
     if half_qkdim:
@@ -32,8 +32,10 @@ vary_params:
   head_dim_v: {head_dims_v}
 fixed_params:
   batch_size: {batch_size}
-  rep: 2500
-  warmup: 500
+  # rep: 2500
+  rep: 20 # debugging
+  # warmup: 500
+  warmup: 20 #  debugging
 
 x_axis_param: "head_dim_v"
 
@@ -42,21 +44,26 @@ kernel_specs:
     dtype: bfloat16
   - kernel_name: "triton_fused"
     dtype: float32
-  # - kernel_name: "triton"
+  # - kernel_name: "native"
   #   dtype: bfloat16
-  # - kernel_name: "triton"
+  #   use_torch_compile: True
+  # - kernel_name: "native"
   #   dtype: float32
-  - kernel_name: "native"
-    dtype: bfloat16
-    use_torch_compile: True
-  - kernel_name: "native"
-    dtype: float32
-    use_torch_compile: True
+  #   use_torch_compile: True
   - kernel_name: "native"
     dtype: bfloat16
     use_torch_compile: False
   - kernel_name: "native"
     dtype: float32
+    use_torch_compile: False
+  - kernel_name: "mamba"
+    dtype: bfloat16
+    use_torch_compile: False
+  - kernel_name: "mamba2"
+    dtype: bfloat16
+    use_torch_compile: False
+  - kernel_name: "fused_recurrent_gla"
+    dtype: bfloat16
     use_torch_compile: False
 
 benchmark_name: {bench_name}
@@ -112,6 +119,15 @@ kernel_specs:
     use_torch_compile: False
   - kernel_name: "native"
     dtype: float32
+    use_torch_compile: False
+  - kernel_name: "mamba"
+    dtype: bfloat16
+    use_torch_compile: False
+  - kernel_name: "mamba2"
+    dtype: bfloat16
+    use_torch_compile: False
+  - kernel_name: "fused_recurrent_gla"
+    dtype: bfloat16
     use_torch_compile: False
 
 
