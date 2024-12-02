@@ -300,11 +300,6 @@ class MambaKernelBenchmark(KernelBenchmarkInterface):
 
     use_torch_compile: bool = False
 
-    def __post_init__(self):
-        # this does not work!! (is not called)
-        if "mamba" == self.kernel_name:
-            self.head_dim_qk = 16  # maximal value for mamba kernel size
-
     def _get_input_tensors(self) -> tuple[torch.Tensor, ...]:
         # see: https://github.com/state-spaces/mamba/blob/
         # 442fab4b1fd5226c1b5939b37d91ede430b5d1ae/mamba_ssm/ops/selective_scan_interface.py#L91
@@ -521,7 +516,7 @@ class FlashAttention3Benchmark(mLSTMBenchmark):
         import os
         import sys
         from pathlib import Path
-        sys.path.append(str(Path(os.path.abspath(__file__)).parent.parent.parent.parent.parent.parent / "flash-attention" / "hopper"))
+        sys.path.append(str(Path(os.path.abspath(__file__)).parents[5] / "flash-attention" / "hopper"))
         from flash_attn_interface import flash_attn_func
 
         kernel_fn = partial(

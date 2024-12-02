@@ -294,7 +294,7 @@ kernel_specs:
     use_torch_compile: False
     additional_params:
       num_heads: {num_heads}
-      head_dim_qk: {head_dim}
+      head_dim_qk: 16  # standard mamba setting
       head_dim_v: {head_dim}
 
   - kernel_name: "mamba2"
@@ -468,7 +468,7 @@ kernel_specs:
     use_torch_compile: False
     additional_params:
       num_heads: {num_heads}
-      head_dim_qk: {head_dim}
+      head_dim_qk: 16  # standard mamba setting
       head_dim_v: {head_dim}
 
   - kernel_name: "mamba2"
