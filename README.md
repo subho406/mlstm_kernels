@@ -148,3 +148,26 @@ Command:
 ```bash
 PYTHONPATH=. ncu -o kernel_prof -f -c 1 -k _mlstm_chunkwise__parallel_fw_Hintra_kernel --set=full python ./scripts/run_mlstm_max_triton_v5xlchunksize_fwbw.p
 ```
+
+## Running kernel benchmarks with baselines
+
+To run the benchmarks including all baselines, you have to install:
+```bash
+pip install mamba_ssm causal_conv1d fla
+```
+For `FlashAttention3`, you have to clone the original repo `https://github.com/Dao-AILab/flash-attention`:
+```bash
+# clone FlashAttention
+cd ..
+git clone https://github.com/Dao-AILab/flash-attention
+# Apply CONDA ENV patch
+git apply ../mlstm_kernels/flash_attention.patch
+# Install flash attention 3
+cd hopper
+PYTHONPATH=. python3 setup.py install
+cd ..
+# Install regular flash attention 2
+python3 install -e .
+# Go back to this repo
+cd ../mlstm_kernels
+```
