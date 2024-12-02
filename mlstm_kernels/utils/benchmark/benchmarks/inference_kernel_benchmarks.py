@@ -166,7 +166,7 @@ class FlashLinearAttentionStepKernelBenchmark(KernelBenchmarkInterface):
     head_dim_v: int = None
 
     use_torch_compile: bool = False
-    kernel_name = "fused_recurrent_gla"
+    kernel_name: str = "fused_recurrent_gla"
 
     def _get_input_tensors(self) -> tuple[torch.Tensor, ...]:
         c_old = torch.zeros(
@@ -183,7 +183,12 @@ class FlashLinearAttentionStepKernelBenchmark(KernelBenchmarkInterface):
         v = torch.randn(
             (self.batch_size, 1, self.num_heads, self.head_dim_v), dtype=torch.float32
         )
-        g = torch.randn((self.batch_size, 1, self.num_heads, self.head_dim_qk), dtype=torch.float32) + 4.5
+        if self.kernel_name == "fused_recurrent_gla":
+            g = torch.randn((self.batch_size, 1, self.num_heads, self.head_dim_qk), dtype=torch.float32) + 4.5
+        elif self.kernel_name == "fused_recurrent_simple_gla":
+            g = torch.randn((self.batch_size, 1, self.num_heads), dtype=torch.float32) + 4.5
+        else:
+            raise ValueError(f"Bad kernel name {self.kernel_name} not in {self.available_kernels()}")
 
         return c_old, q, k, v, g
 
@@ -191,12 +196,20 @@ class FlashLinearAttentionStepKernelBenchmark(KernelBenchmarkInterface):
         from functools import partial
 
         from fla.ops.gla import fused_recurrent_gla
+        from fla.ops.simple_gla import fused_recurrent_simple_gla
 
         def kernel_fn(q, k, v, f, initial_state):
-            return fused_recurrent_gla(
-                q, k, v, f, gv=None, scale=None,
-                initial_state=initial_state, output_final_state=True)
-
+            if self.kernel_name == "fused_recurrent_gla":
+                return fused_recurrent_gla(
+                    q, k, v, f, gv=None, scale=None,
+                    initial_state=initial_state, output_final_state=True)
+            elif self.kernel_name == "fused_recurrent_simple_gla":
+                return fused_recurrent_simple_gla(
+                    q, k, v, g=f, scale=None,
+                    initial_state=initial_state, output_final_state=True)
+            else:
+                raise ValueError(f"Bad kernel name {self.kernel_name} not in {self.available_kernels()}")
+        
         if self.use_torch_compile:
             kernel_fn = torch.compile(kernel_fn)
         return kernel_fn
@@ -217,7 +230,7 @@ class FlashLinearAttentionStepKernelBenchmark(KernelBenchmarkInterface):
         self.benchmark_fn = benchmark_fn
 
     def available_kernels(self) -> list[str]:
-        return ["fused_recurrent_gla"]
+        return ["fused_recurrent_gla", "fused_recurrent_simple_gla"]
 
 
 

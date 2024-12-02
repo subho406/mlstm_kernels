@@ -11,6 +11,8 @@ from mlstm_kernels.utils.benchmark.param_handling import BenchmarkConfig
 from mlstm_kernels.utils.benchmark.run_benchmark import run_and_record_benchmarks
 from mlstm_kernels.utils.benchmark.utils import setup_output_folder
 
+DEBUG = True
+
 
 def _head_dim_benchmark(
     output_folder: Path, half_qkdim=False, seq_len: int = 8192, batch_size: int = 1
@@ -35,7 +37,8 @@ vary_params:
 fixed_params:
   sequence_length: {seq_len}
   batch_size: {batch_size}
-  rep: 1000  # debugging: 10
+  rep: {1000 if not DEBUG else 10}
+  warmup: {250 if not DEBUG else 10}
 
 x_axis_param: "head_dim_v"
 
@@ -151,7 +154,7 @@ kernel_specs:
   - kernel_name: "fused_chunk_gla"
     fwbw: True
     dtype: bfloat16
-  - kernel_name: "fused_recurrent_gla"
+  - kernel_name: "chunk_simple_gla"
     fwbw: True
     dtype: bfloat16
   - kernel_name: "mamba"
@@ -201,6 +204,8 @@ vary_params:
   sequence_length: {sequence_lengths}
 fixed_params:
   batch_size: {batch_size}
+  rep: {1000 if not DEBUG else 10}
+  warmup: {250 if not DEBUG else 10}
 
 x_axis_param: "sequence_length"
 
@@ -275,7 +280,7 @@ kernel_specs:
       head_dim_qk: {head_dim}
       head_dim_v: {head_dim}
 
-  - kernel_name: "fused_recurrent_gla"
+  - kernel_name: "chunk_simple_gla"
     fwbw: True
     dtype: bfloat16
     additional_params:
@@ -346,8 +351,8 @@ vary_params:
 fixed_params:
   sequence_length: {seq_len}
 
-  rep: 100
-  warmup: 10
+  rep: {1000 if not DEBUG else 10}
+  warmup: {250 if not DEBUG else 10}
 
 x_axis_param: "batch_size"
 
@@ -448,7 +453,7 @@ kernel_specs:
       head_dim_qk: {head_dim}
       head_dim_v: {head_dim}
 
-  - kernel_name: "fused_recurrent_gla"
+  - kernel_name: "chunk_simple_gla"
     fwbw: True
     dtype: bfloat16
     additional_params:

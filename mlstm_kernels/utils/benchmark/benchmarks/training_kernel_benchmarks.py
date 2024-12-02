@@ -254,16 +254,17 @@ class FlashLinearAttentionKernelBenchmark(KernelBenchmarkInterface):
         return q, k, v
 
     def _get_kernel_fn(self) -> Callable[[tuple[torch.Tensor, ...]], torch.Tensor]:
-        from fla.ops.gla import chunk_gla, fused_chunk_gla, fused_recurrent_gla
+        from fla.ops.gla import chunk_gla, fused_chunk_gla
         from fla.ops.retention import chunk_retention, parallel_retention
         from fla.ops.retention.naive import naive_retention
+        from fla.ops.simple_gla import chunk_simple_gla
 
         if self.kernel_name == "chunk_gla":
             kernel_pre_fn = chunk_gla
         elif self.kernel_name == "fused_chunk_gla":
             kernel_pre_fn = fused_chunk_gla
-        elif self.kernel_name == "fused_recurrent_gla":
-            kernel_pre_fn = fused_recurrent_gla
+        elif self.kernel_name == "chunk_simple_gla":
+            kernel_pre_fn = chunk_simple_gla
         elif self.kernel_name == "chunk_retention":
             kernel_pre_fn = chunk_retention
         elif self.kernel_name == "parallel_retention":
@@ -283,7 +284,7 @@ class FlashLinearAttentionKernelBenchmark(KernelBenchmarkInterface):
 
     def available_kernels(self) -> list[str]:
         return [
-            "chunk_gla", "fused_chunk_gla", "fused_recurrent_gla",
+            "chunk_gla", "fused_chunk_gla", "chunk_simple_gla",
             "chunk_retention", "parallel_retention", "naive_retention",]
 
 

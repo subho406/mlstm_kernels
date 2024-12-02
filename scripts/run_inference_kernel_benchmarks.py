@@ -11,6 +11,8 @@ from mlstm_kernels.utils.benchmark.param_handling import BenchmarkConfig
 from mlstm_kernels.utils.benchmark.run_benchmark import run_and_record_benchmarks
 from mlstm_kernels.utils.benchmark.utils import setup_output_folder
 
+DEBUG = True
+
 
 def _head_dim_benchmark(output_folder: Path, half_qkdim=False, batch_size: int = 1):
     ### head dimension benchmark 7B
@@ -32,10 +34,8 @@ vary_params:
   head_dim_v: {head_dims_v}
 fixed_params:
   batch_size: {batch_size}
-  # rep: 2500
-  rep: 20 # debugging
-  # warmup: 500
-  warmup: 20 #  debugging
+  rep: {2500 if not DEBUG else 10} 
+  warmup: {500 if not DEBUG else 10} 
 
 x_axis_param: "head_dim_v"
 
@@ -65,6 +65,10 @@ kernel_specs:
   - kernel_name: "fused_recurrent_gla"
     dtype: bfloat16
     use_torch_compile: False
+  - kernel_name: "fused_recurrent_simple_gla"
+    dtype: bfloat16
+    use_torch_compile: False
+
 
 benchmark_name: {bench_name}
 """
@@ -89,13 +93,13 @@ def _batch_size_benchmark(
     cfg_yaml = f"""
 vary_type: sequence
 vary_params:
-  batch_size: [1, 4, 16, 32, 64, 128, 256, 512, 1024, 2048]
+  batch_size: [1, 4, 16, 32, 64, 128, 256, 512, 1024, 2048] 
 fixed_params:
   num_heads: {num_heads}
   head_dim_qk: {head_dim_qk}
   head_dim_v: {head_dim_v}
-  rep: 2500
-  warmup: 500
+  rep: {2500 if not DEBUG else 10}
+  warmup: {500 if not DEBUG else 10}
 
 x_axis_param: "batch_size"
 
@@ -127,6 +131,9 @@ kernel_specs:
     dtype: bfloat16
     use_torch_compile: False
   - kernel_name: "fused_recurrent_gla"
+    dtype: bfloat16
+    use_torch_compile: False
+  - kernel_name: "fused_recurrent_simple_gla"
     dtype: bfloat16
     use_torch_compile: False
 
