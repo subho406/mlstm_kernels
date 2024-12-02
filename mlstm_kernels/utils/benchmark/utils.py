@@ -2,7 +2,7 @@ from pathlib import Path
 
 
 def setup_output_folder(
-    output_dir: str = "./outputs_kernel_benchmarks", name_suffix: str | None = None
+    output_dir: str = "./outputs_kernel_benchmarks", name_suffix: str | None = None, log_level: int | str | None = None,
 ) -> Path:
     import logging
     import sys
@@ -21,10 +21,12 @@ def setup_output_folder(
     logfile = output_folder / "benchmark.log"
     file_handler = logging.FileHandler(filename=logfile)
     stdout_handler = logging.StreamHandler(sys.stdout)
+    if log_level is None:
+        log_level = logging.INFO
     logging.basicConfig(
         handlers=[file_handler, stdout_handler],
-        format="%(asctime)s %(levelname)s %(message)s",
-        level=logging.INFO,
+        format="[%(asctime)s][%(name)s:%(lineno)d][%(levelname)s] - %(message)s",
+        level=log_level,
         force=True,
     )
     LOGGER = logging.getLogger(__name__)

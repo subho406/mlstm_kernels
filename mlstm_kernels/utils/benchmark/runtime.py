@@ -1,8 +1,11 @@
 import gc
+import logging
 import typing
 from collections.abc import Callable
 from dataclasses import dataclass
-from typing import Literal
+from typing import Any, Literal
+
+LOGGER = logging.getLogger(__name__)
 
 
 @dataclass
@@ -32,7 +35,7 @@ def measure_runtime(
     return_mode: ReturnModes = "mean",
     device: str = None,
     free_memory: bool = True,
-    profiler=None,
+    profiler: Any = None,
 ) -> RuntimeResult:
     """
     Benchmark the runtime of the provided function. By default, return the mean.
@@ -46,6 +49,10 @@ def measure_runtime(
     ), f"return_mode must be one of {typing.get_args(ReturnModes)}"
     import torch
     from torch.profiler import record_function
+    if profiler is not None:
+        assert isinstance(profiler, torch.profiler.profiler.profile), (
+            f"profiler must be a torch.profiler.profile object, but got {type(profiler)}."
+        )
 
     device = torch.device(device) if device is not None else None
 
@@ -68,9 +75,9 @@ def measure_runtime(
         start_event.record()
         for _ in range(5):
             cache.zero_()
+            fn()
             if profiler is not None:
                 profiler.step()
-            fn()
         end_event.record()
         torch.cuda.synchronize()
         estimate_ms = start_event.elapsed_time(end_event) / 5
@@ -87,15 +94,17 @@ def measure_runtime(
     peak_memory_allocated = []
     # Warm-up
     for i in range(n_warmup):
+        LOGGER.debug(f"Warmup iteration {i}")
         with record_function(f"warmup_iter_{i}"):
+            fn()
             if profiler is not None:
                 profiler.step()
-            fn()
     # Benchmark
     for i in range(n_repeat):
+        LOGGER.debug(f"Benchmark iteration {i}")
+        if profiler is not None:
+            LOGGER.debug(f"Profiler step {profiler.step_num}, Profiler Action {profiler.current_action}")
         with record_function(f"main_iter_{i}"):
-            if profiler is not None:
-                profiler.step()
             # we don't want `fn` to accumulate gradient values
             # if it contains a backward pass. So we clear the
             # provided gradients
@@ -117,6 +126,8 @@ def measure_runtime(
             if free_memory:
                 gc.collect()
                 torch.cuda.empty_cache()
+            if profiler is not None:
+                profiler.step()
 
     # Record clocks
     torch.cuda.synchronize()
@@ -124,6 +135,8 @@ def measure_runtime(
         [s.elapsed_time(e) for s, e in zip(start_event, end_event)], dtype=torch.float
     )
     peak_memory_allocated = torch.tensor(peak_memory_allocated, dtype=torch.int64)
+    LOGGER.debug(f"Times: {times}")
+    LOGGER.debug(f"Peak memory allocated: {peak_memory_allocated}")
 
     def get_stat(x, mode):
         return getattr(torch, mode)(x.to(dtype=torch.float64)).item()
