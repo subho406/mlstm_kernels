@@ -306,6 +306,8 @@ class MambaKernelBenchmark(KernelBenchmarkInterface):
             self.head_dim_qk = 16  # maximal value for mamba kernel size
 
     def _get_input_tensors(self) -> tuple[torch.Tensor, ...]:
+        # see: https://github.com/state-spaces/mamba/blob/
+        # 442fab4b1fd5226c1b5939b37d91ede430b5d1ae/mamba_ssm/ops/selective_scan_interface.py#L91
         if "mamba" == self.kernel_name:
             x = torch.randn(
                 (self.batch_size, self.num_heads*self.head_dim_v, self.sequence_length,),
@@ -336,6 +338,8 @@ class MambaKernelBenchmark(KernelBenchmarkInterface):
                 dtype=torch.float32,
             )
             return x, dt, A, B, C, D, z
+        # see: https://github.com/state-spaces/mamba/blob/
+        # 442fab4b1fd5226c1b5939b37d91ede430b5d1ae/mamba_ssm/ops/triton/ssd_combined.py#L933
         if "mamba2_noconv" == self.kernel_name:
             x = torch.randn(
                 (self.batch_size, self.sequence_length,  self.num_heads, self.head_dim_v),
@@ -360,9 +364,12 @@ class MambaKernelBenchmark(KernelBenchmarkInterface):
             chunk_size = 256
 
             return x, dt, A, B, C, chunk_size
+        # see: https://github.com/state-spaces/mamba/blob/
+        # 442fab4b1fd5226c1b5939b37d91ede430b5d1ae/mamba_ssm/ops/triton/ssd_combined.py#L933
         if "mamba2" == self.kernel_name:
             zxbcdt = torch.randn(
-                (self.batch_size, self.sequence_length,  + 2*self.num_heads *self.head_dim_v + 2*self.head_dim_qk*self.num_groups + self.num_heads),
+                (self.batch_size, self.sequence_length,  
+                2*self.num_heads *self.head_dim_v + 2*self.head_dim_qk*self.num_groups + self.num_heads),
                 dtype=torch.float32,
             )
             conv1d_weight = torch.randn(
@@ -423,6 +430,8 @@ class MambaKernelBenchmark(KernelBenchmarkInterface):
             x.to(device=self.device).requires_grad_(self.fwbw) if isinstance(x, torch.Tensor) else x
             for x in inputs
         ]
+
+        # see 
 
         if self.kernel_name == "mamba":
             x, dt, A, B, C, D, z = inputs

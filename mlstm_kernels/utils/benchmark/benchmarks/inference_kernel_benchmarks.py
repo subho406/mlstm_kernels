@@ -94,8 +94,8 @@ class MambaStepKernelBenchmark(KernelBenchmarkInterface):
     use_torch_compile: bool = False
 
     def _get_input_tensors(self) -> tuple[torch.Tensor, ...]:
-        # (state, x, dt, A, B, C, D=None, z=None, dt_bias=None, dt_softplus=False)
-        # state: (batch, dim, dstate) or (batch, nheads, dim, dstate)
+        # see: https://github.com/state-spaces/mamba/blob/
+        # 442fab4b1fd5226c1b5939b37d91ede430b5d1ae/mamba_ssm/ops/triton/selective_state_update.py#L204
         if self.kernel_name == "mamba2":
             state = torch.randn(self.batch_size, self.num_heads, self.head_dim_v, self.head_dim_qk)
             x = torch.randn(self.batch_size, self.num_heads, self.head_dim_v)
@@ -118,12 +118,6 @@ class MambaStepKernelBenchmark(KernelBenchmarkInterface):
             dt_bias = torch.randn(self.num_heads * self.head_dim_v)
         else:
             raise ValueError(f"Bad kernel name {self.kernel_name} not in {self.available_kernels()}")
-        # A: (dim, dstate) or (nheads, dim, dstate)
-        # B: (batch, dstate) or (batch, ngroups, dstate)
-        # C: (batch, dstate) or (batch, ngroups, dstate)
-        # D: (dim,) or (nheads, dim)
-        # z: (batch, dim) or (batch, nheads, dim)
-        # dt_bias: (dim,) or (nheads, dim)
         return state, x, dt, A, B, C, D, z, dt_bias
 
     def _get_kernel_fn(self) -> Callable[[tuple[torch.Tensor, ...]], torch.Tensor]:
