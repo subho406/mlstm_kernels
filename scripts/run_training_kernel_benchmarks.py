@@ -11,11 +11,10 @@ from mlstm_kernels.utils.benchmark.param_handling import BenchmarkConfig
 from mlstm_kernels.utils.benchmark.run_benchmark import run_and_record_benchmarks
 from mlstm_kernels.utils.benchmark.utils import setup_output_folder
 
-DEBUG = True
-
 
 def _head_dim_benchmark(
-    output_folder: Path, half_qkdim=False, seq_len: int = 8192, batch_size: int = 1
+    output_folder: Path, half_qkdim=False, seq_len: int = 8192, batch_size: int = 1,
+    debug: bool = False,
 ):
     ### head dimension benchmark 7B
     head_dims_v = [64, 128, 256, 512, 1024, 2048]
@@ -37,8 +36,8 @@ vary_params:
 fixed_params:
   sequence_length: {seq_len}
   batch_size: {batch_size}
-  rep: {1000 if not DEBUG else 10}
-  warmup: {250 if not DEBUG else 10}
+  rep: {1000 if not debug else 10}
+  warmup: {250 if not debug else 10}
 
 x_axis_param: "head_dim_v"
 
@@ -192,6 +191,7 @@ def _sequence_length_benchmark(
     batch_size: int = 1,
     num_heads: int = 16,
     head_dim: int = 256,
+    debug: bool = False,
 ):
     ### sequence length benchmark 7B
     sequence_lengths = [256, 512, 1024, 2048, 4096, 8192, 16384]
@@ -204,8 +204,8 @@ vary_params:
   sequence_length: {sequence_lengths}
 fixed_params:
   batch_size: {batch_size}
-  rep: {1000 if not DEBUG else 10}
-  warmup: {250 if not DEBUG else 10}
+  rep: {1000 if not debug else 10}
+  warmup: {250 if not debug else 10}
 
 x_axis_param: "sequence_length"
 
@@ -340,6 +340,7 @@ def _batch_size_benchmark(
     num_heads: int = 16,
     head_dim: int = 256,
     fwbw: bool = True,
+    debug: bool = False,
 ):
     bench_name_params = f"nh_{num_heads}_hd_{head_dim}_seq_{seq_len}"
 
@@ -347,12 +348,12 @@ def _batch_size_benchmark(
     cfg_yaml = f"""
 vary_type: sequence
 vary_params:
-  batch_size: [1, 2, 4, 8, 16, 32]
+  batch_size: [1, 2, 4, 8] #  16, 32]
 fixed_params:
   sequence_length: {seq_len}
 
-  rep: {1000 if not DEBUG else 10}
-  warmup: {250 if not DEBUG else 10}
+  rep: {1000 if not debug else 10}
+  warmup: {250 if not debug else 10}
 
 x_axis_param: "batch_size"
 
@@ -511,32 +512,33 @@ benchmark_name: "batch_size_7B--{bench_name_params}"
 def run_multiple_benchmarks(
     output_dir: str = "./outputs_kernel_benchmarks",
     output_folder_suffix: str | None = None,
+    debug: bool = False,
 ):
     output_folder = setup_output_folder(output_dir, name_suffix=output_folder_suffix)
 
-    # _sequence_length_benchmark(output_folder, batch_size=1, num_heads=16, head_dim=256)
-    # _batch_size_benchmark(output_folder, seq_len=8192, num_heads=16, head_dim=256)
-    # _sequence_length_benchmark(output_folder, batch_size=1, num_heads=8, head_dim=512)
+    # _sequence_length_benchmark(output_folder, batch_size=1, num_heads=16, head_dim=256, debug=debug,)
+    # _batch_size_benchmark(output_folder, seq_len=8192, num_heads=16, head_dim=256, debug=debug,)
+    # _sequence_length_benchmark(output_folder, batch_size=1, num_heads=8, head_dim=512, debug=debug,)
     # _batch_size_benchmark(
-    #     output_folder, seq_len=128, num_heads=8, head_dim=512, fwbw=False
+    #     output_folder, seq_len=128, num_heads=8, head_dim=512, fwbw=False, debug=debug,
     # )
     # _batch_size_benchmark(
-    #     output_folder, seq_len=512, num_heads=8, head_dim=512, fwbw=False
+    #     output_folder, seq_len=512, num_heads=8, head_dim=512, fwbw=False, debug=debug,
     # )
     _batch_size_benchmark(
-        output_folder, seq_len=1024, num_heads=8, head_dim=512, fwbw=False
+        output_folder, seq_len=1024, num_heads=8, head_dim=512, fwbw=False, debug=debug,
     )
     _batch_size_benchmark(
-        output_folder, seq_len=2048, num_heads=8, head_dim=512, fwbw=False
+        output_folder, seq_len=2048, num_heads=8, head_dim=512, fwbw=False, debug=debug,
     )
     _batch_size_benchmark(
-        output_folder, seq_len=4096, num_heads=8, head_dim=512, fwbw=False
+        output_folder, seq_len=4096, num_heads=8, head_dim=512, fwbw=False, debug=debug,
     )
-    # _head_dim_benchmark(output_folder, half_qkdim=False, seq_len=8192, batch_size=1)
-    # _head_dim_benchmark(output_folder, half_qkdim=True, seq_len=8192, batch_size=1)
+    # _head_dim_benchmark(output_folder, half_qkdim=False, seq_len=8192, batch_size=1, debug=debug)
+    # _head_dim_benchmark(output_folder, half_qkdim=True, seq_len=8192, batch_size=1, debug=debug)
 
     # debug:
-    # _head_dim_benchmark(output_folder, half_qkdim=False, seq_len=2048, batch_size=1)
+    # _head_dim_benchmark(output_folder, half_qkdim=False, seq_len=2048, batch_size=1, debug=debug)
 
 
 if __name__ == "__main__":
@@ -547,8 +549,9 @@ if __name__ == "__main__":
         required=False,
         help="Suffix that is appended to the output folder of the benchmark results.",
     )
+    parser.add_argument("--debug", action="store_true")
 
     args = parser.parse_args()
     print(args)
 
-    run_multiple_benchmarks(output_folder_suffix=args.folder_suffix)
+    run_multiple_benchmarks(output_folder_suffix=args.folder_suffix, debug=args.debug)
