@@ -27,6 +27,11 @@ def jax2triton_dtype(dtype):
     Returns:
         Triton dtype.
     """
+    # We need to grab the dtype from the dtype object in jax
+    # >> dt = jnp.float32
+    # >> str(dt), str(dt.dtype)
+    # Output:
+    # ("<class 'jax.numpy.float32'>", 'float32')
     if hasattr(dtype, "dtype"):
         dtype = dtype.dtype
     return getattr(tl, str(dtype))

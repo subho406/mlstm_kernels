@@ -76,13 +76,19 @@ def mlstm_chunkwise__parallel_fw_H_kernel(
     )
 
     # load vecB (L,)
-    vecB_val = tl.load(vecB + idx_b_BNH * str_vecBI_B_NH + idx_b_NC * str_vecBI_NC + tl.arange(0, L)).to(tl.float32)
+    vecB_val = tl.load(
+        vecB + idx_b_BNH * str_vecBI_B_NH + idx_b_NC * str_vecBI_NC + tl.arange(0, L)
+    ).to(tl.float32)
 
     # load vecI (L,)
-    vecI_val = tl.load(vecI + idx_b_BNH * str_vecBI_B_NH + idx_b_NC * str_vecBI_NC + tl.arange(0, L)).to(tl.float32)
+    vecI_val = tl.load(
+        vecI + idx_b_BNH * str_vecBI_B_NH + idx_b_NC * str_vecBI_NC + tl.arange(0, L)
+    ).to(tl.float32)
 
     # load scaMinter_km1 (1,)
-    scaMinter_km1_val = tl.load(scaMinter_states + idx_b_BNH * str_scaMinterstates_B_NH + idx_b_NC).to(tl.float32)
+    scaMinter_km1_val = tl.load(
+        scaMinter_states + idx_b_BNH * str_scaMinterstates_B_NH + idx_b_NC
+    ).to(tl.float32)
 
     # compute gate matrix matDbar (L, L)
     idx_mask = tl.arange(0, L)
@@ -163,7 +169,9 @@ def mlstm_chunkwise__parallel_fw_H_kernel(
         # load vecN_km1 (siz_b_DHQK,)
         vecN_km1_val = tl.load(vecN_km1_ptr).to(DTYPE)
         # accumulate vecH_k_inter_denom (L,)
-        vecH_inter_denom_val += tl.sum(matQbar_val * vecN_km1_val[None, :], axis=1)
+        vecH_inter_denom_val += tl.sum(
+            (matQbar_val * vecN_km1_val[None, :]).to(tl.float32), axis=1
+        )
 
     ## loop end
 
@@ -184,13 +192,15 @@ def mlstm_chunkwise__parallel_fw_H_kernel(
     # compute matH_k_intra (L, siz_b_DHHV)
     matH_intra_val = tl.dot(matSbar_val, matV_val)
     # compute vecH_k_intra_denom (L,)
-    vecH_intra_denom_val = tl.sum(matSbar_val, axis=1)
+    vecH_intra_denom_val = tl.sum(matSbar_val.to(tl.float32), axis=1)
 
     # compute matH_k_num (L, siz_b_DHHV)
     matH_num_val = matH_inter_val + matH_intra_val
 
     # compute H_k_denom (L,)
-    vecH_denom_val = tl.maximum(tl.abs(vecH_inter_denom_val + vecH_intra_denom_val), tl.exp(-vecM_combine_val))
+    vecH_denom_val = tl.maximum(
+        tl.abs(vecH_inter_denom_val + vecH_intra_denom_val), tl.exp(-vecM_combine_val)
+    )
 
     # compute matH_k_out (L, siz_b_DHHV)
     matHout_val = matH_num_val / (vecH_denom_val[:, None] + EPS)
@@ -204,8 +214,16 @@ def mlstm_chunkwise__parallel_fw_H_kernel(
         block_shape=(L, siz_b_DHHV),
         order=(1, 0),
     )
-    vecNout_ptr = vecNout + idx_b_BNH * str_vecMN_B_NH + (idx_b_NC * L + tl.arange(0, L)) * str_vecMN_S
-    vecMout_ptr = vecMout + idx_b_BNH * str_vecMN_B_NH + (idx_b_NC * L + tl.arange(0, L)) * str_vecMN_S
+    vecNout_ptr = (
+        vecNout
+        + idx_b_BNH * str_vecMN_B_NH
+        + (idx_b_NC * L + tl.arange(0, L)) * str_vecMN_S
+    )
+    vecMout_ptr = (
+        vecMout
+        + idx_b_BNH * str_vecMN_B_NH
+        + (idx_b_NC * L + tl.arange(0, L)) * str_vecMN_S
+    )
     tl.store(matHout_ptr, matHout_val.to(DTYPE), boundary_check=(0, 1))
     tl.store(vecNout_ptr, vecH_denom_val.to(tl.float32))
     tl.store(vecMout_ptr, vecM_combine_val.to(tl.float32))

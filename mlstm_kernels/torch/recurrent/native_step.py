@@ -76,15 +76,19 @@ def mlstm_recurrent_step__native_fw(
         vecK[:, :, :, None] @ vecV[:, :, None, :]
     )  # (B, NH, DHQK, DHV)
     vecN_state_new = scaF_act * vecN_old + scaI_act * vecK  # (B, NH, DHQK)
-    h_num = vecQ_scaled[:, :, None, :] @ matC_state_new.to(dtype=dtype_qkv)  # (B, NH, 1, DHV)
-    h_num = h_num.squeeze(2)  # (B, NH, DHV)
+    h_num = vecQ_scaled[:, :, None, :] @ matC_state_new.to(
+        dtype=dtype_qkv
+    )  # (B, NH, 1, DHV)
+    h_num = h_num.squeeze(2).to(dtype=dtype_state)  # (B, NH, DHV)
 
-    qn_dotproduct = (
-        vecQ_scaled[:, :, None, :] @ vecN_state_new[:, :, :, None].to(dtype=dtype_qkv)
+    qn_dotproduct = vecQ_scaled[:, :, None, :] @ vecN_state_new[:, :, :, None].to(
+        dtype=dtype_qkv
     )  # (B, NH, 1, 1)
     qn_dotproduct = qn_dotproduct.squeeze(2)  # (B, NH, 1)
     max_val = torch.exp(-scaM_state_new)  # (B, NH, 1)
-    h_denom = torch.maximum(qn_dotproduct.abs(), max_val) + eps  # (B, NH, 1)
+    h_denom = (torch.maximum(qn_dotproduct.abs(), max_val) + eps).to(
+        dtype=dtype_state
+    )  # (B, NH, 1)
     h = h_num / h_denom  # (B, NH, DHV) / (B, NH, 1) = (B, NH, DHV)
 
     h = h.to(dtype=dtype_qkv)

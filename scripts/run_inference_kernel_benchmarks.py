@@ -1,14 +1,15 @@
+import argparse
 from pathlib import Path
-
-from mlstm_kernels.benchmark_utils.benchmarks.inference_kernel_benchmarks import (
-    create_inference_kernel_benchmark,
-)
-from mlstm_kernels.benchmark_utils.param_handling import BenchmarkConfig
-from mlstm_kernels.benchmark_utils.run_benchmark import run_and_record_benchmarks
-from mlstm_kernels.benchmark_utils.utils import setup_output_folder
 
 from dacite import from_dict
 from omegaconf import OmegaConf
+
+from mlstm_kernels.utils.benchmark.benchmarks.inference_kernel_benchmarks import (
+    create_inference_kernel_benchmark,
+)
+from mlstm_kernels.utils.benchmark.param_handling import BenchmarkConfig
+from mlstm_kernels.utils.benchmark.run_benchmark import run_and_record_benchmarks
+from mlstm_kernels.utils.benchmark.utils import setup_output_folder
 
 
 def _head_dim_benchmark(output_folder: Path, half_qkdim=False, batch_size: int = 1):
@@ -37,24 +38,24 @@ fixed_params:
 x_axis_param: "head_dim_v"
 
 kernel_specs:
-  - kernel_name: "step_fused_triton"
+  - kernel_name: "triton_fused"
     dtype: bfloat16
-  - kernel_name: "step_fused_triton"
+  - kernel_name: "triton_fused"
     dtype: float32
-  - kernel_name: "step_triton"
-    dtype: bfloat16
-  - kernel_name: "step_triton"
-    dtype: float32
-  - kernel_name: "step_torch_autograd"
+  # - kernel_name: "triton"
+  #   dtype: bfloat16
+  # - kernel_name: "triton"
+  #   dtype: float32
+  - kernel_name: "native"
     dtype: bfloat16
     use_torch_compile: True
-  - kernel_name: "step_torch_autograd"
+  - kernel_name: "native"
     dtype: float32
     use_torch_compile: True
-  - kernel_name: "step_torch_autograd"
+  - kernel_name: "native"
     dtype: bfloat16
     use_torch_compile: False
-  - kernel_name: "step_torch_autograd"
+  - kernel_name: "native"
     dtype: float32
     use_torch_compile: False
 
@@ -92,24 +93,24 @@ fixed_params:
 x_axis_param: "batch_size"
 
 kernel_specs:
-  - kernel_name: "step_fused_triton"
+  - kernel_name: "triton_fused"
     dtype: bfloat16
-  - kernel_name: "step_fused_triton"
+  - kernel_name: "triton_fused"
     dtype: float32
-  - kernel_name: "step_triton"
-    dtype: bfloat16
-  - kernel_name: "step_triton"
-    dtype: float32
-  - kernel_name: "step_torch_autograd"
+  # - kernel_name: "triton"
+  #   dtype: bfloat16
+  # - kernel_name: "triton"
+  #   dtype: float32
+  - kernel_name: "native"
     dtype: bfloat16
     use_torch_compile: True
-  - kernel_name: "step_torch_autograd"
+  - kernel_name: "native"
     dtype: float32
     use_torch_compile: True
-  - kernel_name: "step_torch_autograd"
+  - kernel_name: "native"
     dtype: bfloat16
     use_torch_compile: False
-  - kernel_name: "step_torch_autograd"
+  - kernel_name: "native"
     dtype: float32
     use_torch_compile: False
 
@@ -124,8 +125,10 @@ benchmark_name: "batch_size_7B--{bench_name_params}"
     run_and_record_benchmarks(cfg, create_inference_kernel_benchmark, output_folder)
 
 
-def run_multiple_benchmarks(output_dir: str = "./outputs_kernel_benchmarks"):
-    output_folder = setup_output_folder(output_dir)
+def run_multiple_benchmarks(
+    output_dir: str = "./outputs_kernel_benchmarks", output_folder_suffix: str = ""
+):
+    output_folder = setup_output_folder(output_dir, name_suffix=output_folder_suffix)
 
     _batch_size_benchmark(output_folder, num_heads=8, head_dim_qk=256, head_dim_v=512)
 
@@ -134,4 +137,14 @@ def run_multiple_benchmarks(output_dir: str = "./outputs_kernel_benchmarks"):
 
 
 if __name__ == "__main__":
-    run_multiple_benchmarks()
+    parser = argparse.ArgumentParser()
+    parser.add_argument(
+        "--folder_suffix",
+        type=str,
+        required=False,
+        help="Suffix that is appended to the output folder of the benchmark results.",
+    )
+
+    args = parser.parse_args()
+    print(args)
+    run_multiple_benchmarks(output_folder_suffix=args.folder_suffix)

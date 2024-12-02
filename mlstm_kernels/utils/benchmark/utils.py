@@ -1,14 +1,20 @@
 from pathlib import Path
 
 
-def setup_output_folder(output_dir: str = "./outputs_kernel_benchmarks") -> Path:
+def setup_output_folder(
+    output_dir: str = "./outputs_kernel_benchmarks", name_suffix: str | None = None
+) -> Path:
     import logging
     import sys
     from datetime import datetime
 
     timestamp = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
 
-    output_folder = Path(output_dir) / timestamp
+    output_folder_name = timestamp
+    if name_suffix is not None:
+        output_folder_name += f"__{name_suffix}"
+
+    output_folder = Path(output_dir) / output_folder_name
 
     output_folder.mkdir(parents=True, exist_ok=False)
 

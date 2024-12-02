@@ -5,11 +5,9 @@ import argparse
 import os
 
 os.environ["TRITON_PRINT_AUTOTUNING"] = "1"
-from mlstm_kernels.components.ln import MultiHeadLayerNorm
-from mlstm_kernels.mlstm.parallel import mlstm_parallel_torch_autograd
-from mlstm_kernels.mlstm.recurrent._torch_fw_legacy import (
-    mlstm_recurrent_sequence_stabilized,
-)
+import torch
+from tqdm import tqdm
+
 from mlstm_kernels.mlstm.recurrent.torch_fw import (
     recurrent_step_fw as recurrent_step_fw_torch,
 )
@@ -20,13 +18,11 @@ from mlstm_kernels.mlstm.recurrent.triton_fw import (
     recurrent_step_fw as mlstm_recurrent_step_triton,
 )
 
-import torch
-import triton
-from tqdm import tqdm
-
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
-    parser.add_argument("--kernel", type=str, required=True, help="Kernel to benchmark.")
+    parser.add_argument(
+        "--kernel", type=str, required=True, help="Kernel to benchmark."
+    )
 
     args = parser.parse_args()
 
