@@ -295,6 +295,12 @@ class MambaKernelBenchmark(KernelBenchmarkInterface):
     sequence_length: int = None
     head_dim_qk: int = None
     head_dim_v: int = None
+    # num groups in Mamba is similar to an additional head dimension within the keys / queries
+    # it has to divide the number of heads and means that the same queries and keys are re-used for 
+    # nheads/ngroups values
+    # See: https://github.com/state-spaces/mamba/blob/
+    # 442fab4b1fd5226c1b5939b37d91ede430b5d1ae/mamba_ssm/ops/triton/selective_state_update.py#L255
+    # it is probably inspired by `arXiV:2305.13245`
     num_groups: int = 1
     width: int = 4  # convolution kernel size
 
