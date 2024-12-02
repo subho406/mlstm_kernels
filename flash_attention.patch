@@ -1,0 +1,14 @@
+diff --git a/hopper/setup.py b/hopper/setup.py
+index f9f3cfd..9098993 100644
+--- a/hopper/setup.py
++++ b/hopper/setup.py
+@@ -220,7 +220,8 @@ if not SKIP_CUDA_BUILD:
+             },
+             include_dirs=include_dirs,
+             # Without this we get and error about cuTensorMapEncodeTiled not defined
+-            libraries=["cuda"]
++            libraries=["cuda"],
++            extra_link_args=["-L"+os.environ["CONDA_PREFIX"]+"/lib/stubs"] if "CONDA_PREFIX" in os.environ else [],
+         )
+     )
+     # ext_modules.append(
