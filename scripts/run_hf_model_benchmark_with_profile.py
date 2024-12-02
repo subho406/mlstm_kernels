@@ -114,14 +114,8 @@ def run_multiple_benchmarks(
     output_folder_suffix: str | None = None,
 ):
     output_folder = setup_output_folder(output_dir, name_suffix=output_folder_suffix, log_level=logging.DEBUG)
-
-    # Create a symbolic link to the tensorboard trace folder in the shared output directory. This makes it easier to
-    # load all traces in a single tensorboard instance.
-    local_trace_folder = output_folder / "tensorboard"
-    local_trace_folder.mkdir(parents=True, exist_ok=False)
-    shared_trace_folder = Path(output_dir) / "tensorboard_trace"
-    shared_trace_folder.mkdir(parents=True, exist_ok=True)
-    os.symlink(local_trace_folder.absolute(), shared_trace_folder / output_folder.name)
+    trace_folder = output_folder / "tensorboard"
+    trace_folder.mkdir(parents=True, exist_ok=False)
 
     # _sequence_length_benchmark(output_folder, batch_size=1, num_heads=16, head_dim=256)
     # _batch_size_benchmark(output_folder, seq_len=8192, num_heads=16, head_dim=256)
@@ -142,7 +136,7 @@ def run_multiple_benchmarks(
         record_shapes=True,
         profile_memory=True,
         with_stack=False,
-        on_trace_ready=torch.profiler.tensorboard_trace_handler(local_trace_folder),
+        on_trace_ready=torch.profiler.tensorboard_trace_handler(trace_folder),
     ) as prof:
         _benchmark_to_profile(output_folder, profiler=prof)
 
