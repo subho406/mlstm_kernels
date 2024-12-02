@@ -1,3 +1,4 @@
+import copy
 from typing import Any
 
 import matplotlib.pyplot as plt
@@ -14,6 +15,8 @@ def plot_benchmark_result_table(
     grid_alpha: float = 0.2,
     plot_kwargs: dict[str, Any] = {"marker": "o", "linestyle": "-"},
     style_dict: dict[str, Any] = None,
+    style_dict_colname_mapping_exact: bool = True,
+    linestyle_mapping: dict[str, Any] = None,
     additional_exclude_col_regex: str = None,
     y_label: str = "Time [ms]",
     ax=None,
@@ -35,9 +38,24 @@ def plot_benchmark_result_table(
     )
 
     for col in y_axis_val_df.columns:
+        plot_kwargs_col = copy.deepcopy(plot_kwargs)
         if style_dict is not None:
-            plot_kwargs.update(style_dict.get(col, {}))
-        ax.plot(x_axis_vals, y_axis_val_df[col].values, label=col, **plot_kwargs)
+            if style_dict_colname_mapping_exact:
+                plot_kwargs_col.update(style_dict.get(col, {}))
+            else:
+                for col_key in style_dict.keys():
+                    if col_key in col:
+                        plot_kwargs_col.update(style_dict.get(col_key, {}))
+        if linestyle_mapping is not None:
+            for col_key in linestyle_mapping.keys():
+                if col_key in col:
+                    plot_kwargs_col.update(linestyle_mapping.get(col_key, {}))
+        if "label" in plot_kwargs_col:
+            ax.plot(x_axis_vals, y_axis_val_df[col].values, **plot_kwargs_col)
+        else:
+            ax.plot(
+                x_axis_vals, y_axis_val_df[col].values, label=col, **plot_kwargs_col
+            )
 
     ax.set_xlabel(x_axis_param)
     ax.set_ylabel(y_label)
