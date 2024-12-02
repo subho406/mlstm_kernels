@@ -146,11 +146,16 @@ def run_multiple_benchmarks(
     ) as prof:
         _benchmark_to_profile(output_folder, profiler=prof)
 
-    print(
-        prof.key_averages().table(
-            sort_by=sort_by_keyword, row_limit=50, max_name_column_width=100
+    try:
+        print(
+            prof.key_averages().table(
+                sort_by=sort_by_keyword, row_limit=50, max_name_column_width=100
+            )
         )
-    )
+    except AssertionError as e:
+        # If no profile data is available, the above will throw an assertion error.
+        print(e)
+        print("No profiling data available.")
 
 
 if __name__ == "__main__":
