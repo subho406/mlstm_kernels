@@ -315,6 +315,7 @@ kernel_specs:
     use_torch_compile_model: {use_torch_compile_model}
     additional_params:
       use_torch_compile_generate: False
+      use_cuda_graphs_generate: True
       inference_state_dtype: bfloat16
       embedding_dim: 4096
       num_heads: 8
@@ -328,106 +329,111 @@ kernel_specs:
       chunk_size: 128
       autocast_kernel_dtype: bfloat16
 
-  - model_name: "xlstm"
-    weight_dtype: {weight_dtype}
-    use_torch_compile_model: {use_torch_compile_model}
-    additional_params:
-      inference_state_dtype: bfloat16
-      embedding_dim: 4096
-      num_heads: 8
-      num_blocks: 32 #3 #32
-      vocab_size: 50304
+  # - model_name: "xlstm"
+  #   weight_dtype: {weight_dtype}
+  #   use_torch_compile_model: {use_torch_compile_model}
+  #   additional_params:
+  #     use_cuda_graphs_generate: True
+  #     inference_state_dtype: bfloat16
+  #     embedding_dim: 4096
+  #     num_heads: 8
+  #     num_blocks: 32 #3 #32
+  #     vocab_size: 50304
 
-      chunkwise_kernel: chunkwise--triton_xl_chunk
-      sequence_kernel: native_sequence__triton_step_fused
-      step_kernel: triton_fused
+  #     chunkwise_kernel: chunkwise--triton_xl_chunk
+  #     sequence_kernel: native_sequence__triton_step_fused
+  #     step_kernel: triton_fused
 
-      chunk_size: 128
-      autocast_kernel_dtype: bfloat16
+  #     chunk_size: 128
+  #     autocast_kernel_dtype: bfloat16
 
   - model_name: "llama2"
     weight_dtype: {weight_dtype}
     use_torch_compile_model: {use_torch_compile_model}
+    additional_params:
+      use_cuda_graphs_generate: True
 
   - model_name: "llama3"
     weight_dtype: {weight_dtype}
     use_torch_compile_model: {use_torch_compile_model}
+    additional_params:
+      use_cuda_graphs_generate: True
 
-  - model_name: "ministral8b"
-    weight_dtype: {weight_dtype}
-    use_torch_compile_model: {use_torch_compile_model}
+  # - model_name: "ministral8b"
+  #   weight_dtype: {weight_dtype}
+  #   use_torch_compile_model: {use_torch_compile_model}
 
-  - model_name: "codestral_mamba"
-    weight_dtype: {weight_dtype}
-    use_torch_compile_model: {use_torch_compile_model}
+  # - model_name: "codestral_mamba"
+  #   weight_dtype: {weight_dtype}
+  #   use_torch_compile_model: {use_torch_compile_model}
 
-  - model_name: "falcon_mamba"
-    weight_dtype: {weight_dtype}
-    use_torch_compile_model: {use_torch_compile_model}
+  # - model_name: "falcon_mamba"
+  #   weight_dtype: {weight_dtype}
+  #   use_torch_compile_model: {use_torch_compile_model}
 
-  - model_name: "zamba2"
-    weight_dtype: {weight_dtype}
-    use_torch_compile_model: {use_torch_compile_model}
+  # - model_name: "zamba2"
+  #   weight_dtype: {weight_dtype}
+  #   use_torch_compile_model: {use_torch_compile_model}
 
 ############## NO TORCH COMPILE ####################
-  - model_name: "mlstm_simple"
-    weight_dtype: {weight_dtype}
-    use_torch_compile_model: False #{use_torch_compile_model}
-    additional_params:
-      use_torch_compile_generate: False
-      inference_state_dtype: bfloat16
-      embedding_dim: 4096
-      num_heads: 8
-      num_blocks: 32 #3 #32
-      vocab_size: 50304
+  # - model_name: "mlstm_simple"
+  #   weight_dtype: {weight_dtype}
+  #   use_torch_compile_model: False #{use_torch_compile_model}
+  #   additional_params:
+  #     use_torch_compile_generate: False
+  #     inference_state_dtype: bfloat16
+  #     embedding_dim: 4096
+  #     num_heads: 8
+  #     num_blocks: 32 #3 #32
+  #     vocab_size: 50304
 
-      chunkwise_kernel: chunkwise--triton_xl_chunk
-      sequence_kernel: native_sequence__triton_step_fused
-      step_kernel: triton_fused
+  #     chunkwise_kernel: chunkwise--triton_xl_chunk
+  #     sequence_kernel: native_sequence__triton_step_fused
+  #     step_kernel: triton_fused
 
-      chunk_size: 128
-      autocast_kernel_dtype: bfloat16
+  #     chunk_size: 128
+  #     autocast_kernel_dtype: bfloat16
 
-  - model_name: "xlstm"
-    weight_dtype: {weight_dtype}
-    use_torch_compile_model: False #{use_torch_compile_model}
-    additional_params:
-      inference_state_dtype: bfloat16
-      embedding_dim: 4096
-      num_heads: 8
-      num_blocks: 32 #3 #32
-      vocab_size: 50304
+  # - model_name: "xlstm"
+  #   weight_dtype: {weight_dtype}
+  #   use_torch_compile_model: False #{use_torch_compile_model}
+  #   additional_params:
+  #     inference_state_dtype: bfloat16
+  #     embedding_dim: 4096
+  #     num_heads: 8
+  #     num_blocks: 32 #3 #32
+  #     vocab_size: 50304
 
-      chunkwise_kernel: chunkwise--triton_xl_chunk
-      sequence_kernel: native_sequence__triton_step_fused
-      step_kernel: triton_fused
+  #     chunkwise_kernel: chunkwise--triton_xl_chunk
+  #     sequence_kernel: native_sequence__triton_step_fused
+  #     step_kernel: triton_fused
 
-      chunk_size: 128
-      autocast_kernel_dtype: bfloat16
+  #     chunk_size: 128
+  #     autocast_kernel_dtype: bfloat16
 
-  - model_name: "llama2"
-    weight_dtype: {weight_dtype}
-    use_torch_compile_model: False #{use_torch_compile_model}
+  # - model_name: "llama2"
+  #   weight_dtype: {weight_dtype}
+  #   use_torch_compile_model: False #{use_torch_compile_model}
 
-  - model_name: "llama3"
-    weight_dtype: {weight_dtype}
-    use_torch_compile_model: False #{use_torch_compile_model}
+  # - model_name: "llama3"
+  #   weight_dtype: {weight_dtype}
+  #   use_torch_compile_model: False #{use_torch_compile_model}
 
-  - model_name: "ministral8b"
-    weight_dtype: {weight_dtype}
-    use_torch_compile_model: False #{use_torch_compile_model}
+  # - model_name: "ministral8b"
+  #   weight_dtype: {weight_dtype}
+  #   use_torch_compile_model: False #{use_torch_compile_model}
 
-  - model_name: "codestral_mamba"
-    weight_dtype: {weight_dtype}
-    use_torch_compile_model: False #{use_torch_compile_model}
+  # - model_name: "codestral_mamba"
+  #   weight_dtype: {weight_dtype}
+  #   use_torch_compile_model: False #{use_torch_compile_model}
 
-  - model_name: "falcon_mamba"
-    weight_dtype: {weight_dtype}
-    use_torch_compile_model: False #{use_torch_compile_model}
+  # - model_name: "falcon_mamba"
+  #   weight_dtype: {weight_dtype}
+  #   use_torch_compile_model: False #{use_torch_compile_model}
 
-  - model_name: "zamba2"
-    weight_dtype: {weight_dtype}
-    use_torch_compile_model: False #{use_torch_compile_model}
+  # - model_name: "zamba2"
+  #   weight_dtype: {weight_dtype}
+  #   use_torch_compile_model: False #{use_torch_compile_model}
 
 benchmark_name: "hf_7B_timtofirsttok__bs{batch_size}_gl{generation_length}_tc{use_torch_compile_model}_weightdtype{weight_dtype}"
 """

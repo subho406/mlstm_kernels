@@ -45,6 +45,9 @@ class mLSTMSimpleModelBenchmark(ModelBenchmarkInterface):
 
     use_torch_compile_model: bool = True
     use_torch_compile_generate: bool = False
+    use_cuda_graphs_model: bool = False
+    use_cuda_graphs_generate: bool = False
+    cuda_graph_warmups: int = 3
 
     batch_size: int = 1
     prefill_length: int = 128
@@ -124,12 +127,6 @@ class mLSTMSimpleModelBenchmark(ModelBenchmarkInterface):
         elif self.benchmark_fn_context_manager == "inference_mode":
             benchmark_fn_context_manager = torch.inference_mode
 
-        # setup generation function
-        def llm_forward(tokens, state):
-            return self.model(
-                x=tokens,
-                state=state,
-            )
 
         self.generate_fn = generate_tokens
         if self.use_torch_compile_generate:
@@ -140,6 +137,44 @@ class mLSTMSimpleModelBenchmark(ModelBenchmarkInterface):
         self.generated_tokens = torch.empty(
             (self.batch_size, self.generation_length + 1), dtype=torch.long
         ).to(device=torch.device(self.device))
+
+        # setup generation function
+        if not self.use_cuda_graphs_model:
+            def llm_forward(tokens, state):
+                return self.model(
+                    x=tokens,
+                    state=state,
+                )
+        else:
+            import jax
+            LOGGER.info("Setting up model with CUDA graphs on forward function.")
+            input_tokens = self.generated_tokens.new_empty((self.batch_size, 1))
+            # Infer state shape.
+            _, state = self.model(x=input_tokens, state=None)
+            input_state = jax.tree.map(lambda x: torch.empty_like(x), state)
+            s = torch.cuda.Stream()
+            s.wait_stream(torch.cuda.current_stream())
+            with torch.cuda.stream(s):
+                for _ in range(self.cuda_graph_warmups):
+                    logits, output_state = self.model(x=input_tokens, state=input_state)
+                s.synchronize()
+                if torch.distributed.is_initialized():
+                    torch.distributed.barrier()
+            torch.cuda.current_stream().wait_stream(s)
+
+            graph = torch.cuda.CUDAGraph()
+            with torch.cuda.graph(graph):
+                logits, output_state = self.model(x=input_tokens, state=input_state)
+            
+            def llm_forward(tokens, state):
+                input_tokens.copy_(tokens)
+                if state is None:
+                    jax.tree.map(lambda x: x.zero_(), input_state)
+                else:
+                    jax.tree.map(lambda x, y: x.copy_(y), input_state, state)
+                graph.replay()
+                return logits, output_state
+            
 
         def benchmark_fn():
             with torch.autocast(
@@ -161,7 +196,26 @@ class mLSTMSimpleModelBenchmark(ModelBenchmarkInterface):
                             == (self.batch_size, self.generation_length + 1)
                         ), f"Generated tokens shape: {tuple(generated_tokens.shape)}, expected {(self.batch_size, self.generation_length+1)}"
 
-        self.benchmark_fn = benchmark_fn
+        if self.use_cuda_graphs_generate:
+            LOGGER.info("Setting up benchmark with CUDA graphs on benchmark function.")
+            # TODO: Refactor to use a shared function with hf model benchmark
+            s = torch.cuda.Stream()
+            s.wait_stream(torch.cuda.current_stream())
+            with torch.cuda.stream(s):
+                for _ in range(self.cuda_graph_warmups):
+                    benchmark_fn()
+                s.synchronize()
+                if torch.distributed.is_initialized():
+                    torch.distributed.barrier()
+            torch.cuda.current_stream().wait_stream(s)
+
+            graph = torch.cuda.CUDAGraph()
+            with torch.cuda.graph(graph):
+                benchmark_fn()
+            
+            self.benchmark_fn = lambda: graph.replay()
+        else:
+            self.benchmark_fn = benchmark_fn
 
     def available_kernels(self) -> list[str]:
         return ["mlstm_simple"]

@@ -1,10 +1,13 @@
 import contextlib
+import gc
 import logging
 import typing
 from dataclasses import dataclass
 from typing import Any
 
 import torch
+import transformers
+from transformers import GenerationConfig
 
 from ..param_handling import ModelSpec
 from .interface import BenchmarkFnContextManagerCfgType, ModelBenchmarkInterface
@@ -131,6 +134,9 @@ llama_3_1_config = {
     "transformers_version": "4.43.0.dev0",
     "use_cache": True,
     "vocab_size": 128256,
+    # TODO: Currently errors are thrown with flash attention due to access to attention mask - check if this can be
+    # resolved.
+    # "attn_implementation": "flash_attention_2",
 }
 
 falcon_mamba_config = {
@@ -321,6 +327,8 @@ class HFModelBenchmark(ModelBenchmarkInterface):
 
     use_torch_compile_model: bool = True
     use_torch_compile_generate: bool = False  # unused for now
+    use_cuda_graphs_generate: bool = False
+    cuda_graphs_warmups: int = 3
 
     apply_overrides_to_hf_model: bool = False
 
@@ -488,21 +496,64 @@ class HFModelBenchmark(ModelBenchmarkInterface):
         elif self.benchmark_fn_context_manager == "inference_mode":
             benchmark_fn_context_manager = torch.inference_mode
 
+        # CUDA graphs do not allow for CPU tensors to be forwarded to GPU within the graph; needs to be pushed
+        # to the GPU before the graph is created.
+        pad_token_id = None
+        bos_token_id = torch.tensor(1, dtype=torch.long, device=torch.device(self.device))
+        eos_token_id = torch.tensor(2, dtype=torch.long, device=torch.device(self.device))
+
         def benchmark_fn():
-            with benchmark_fn_context_manager():
-                outputs = self.model.generate(
-                    inputs=self.prefill_tokens,
-                    max_new_tokens=self.generation_length,
-                    min_new_tokens=self.generation_length,
-                    do_sample=False,
-                    use_cache=True,
-                )
+            with torch.autocast(  # Needed to make LLama run on 16k contexts
+                device_type=torch.device(self.device).type, enabled=self.amp_enabled
+            ):
+                with benchmark_fn_context_manager():
+                    outputs = self.model.generate(
+                        inputs=self.prefill_tokens,
+                        generation_config=GenerationConfig(
+                            max_new_tokens=self.generation_length,
+                            min_new_tokens=self.generation_length,
+                            do_sample=False,
+                            pad_token_id=pad_token_id,
+                            bos_token_id=bos_token_id,
+                            eos_token_id=eos_token_id,
+                        ),
+                        use_cache=True,
+                    )
             assert (
                 outputs.shape
                 == (self.batch_size, self.prefill_length + self.generation_length)
             ), f"Unexpected output shape: {outputs.shape}, expected: {(self.batch_size, self.prefill_length + self.generation_length)}"
 
-        self.benchmark_fn = benchmark_fn
+
+        if self.use_cuda_graphs_generate:
+            gc.collect()
+            torch.cuda.empty_cache()
+            # NOTE: This requires that we forced is_torchdynamo_compiling() to be True.
+            # TODO: Currently done manually in the transformer library. Check if possible by forcing torch functions
+            # to be True for torchdynamo.
+            assert transformers.utils.is_torchdynamo_compiling(), (
+                "TorchDynamo must be set to compile Huggingface Models with CUDA graphs."
+            )
+            LOGGER.info("Setting up benchmark with CUDA graphs on benchmark function.")
+            # TODO: Refactor as a shared function with model benchmark.
+            s = torch.cuda.Stream()
+            s.wait_stream(torch.cuda.current_stream())
+            with torch.cuda.stream(s):
+                for _ in range(self.cuda_graphs_warmups):
+                    benchmark_fn()
+                s.synchronize()
+                if torch.distributed.is_initialized():
+                    torch.distributed.barrier()
+            torch.cuda.current_stream().wait_stream(s)
+
+            graph = torch.cuda.CUDAGraph()
+            with torch.cuda.graph(graph):
+                benchmark_fn()
+            
+            self.benchmark_fn = lambda: graph.replay()
+        else:
+            self.benchmark_fn = benchmark_fn
+
 
     def available_kernels(self) -> list[str]:
         hf_models = list(self.get_hf_model_registry().keys())
