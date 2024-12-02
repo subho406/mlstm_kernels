@@ -1,4 +1,5 @@
 import jax
+import jax.numpy as jnp
 import jax_triton as jt
 import triton
 
@@ -23,6 +24,7 @@ def mlstm_recurrent_step__triton_fused_fw(
     scaM_new: jax.Array | None = None,  # (B, NH, 1)
     qk_scale: float | None = None,
     eps: float = 1e-6,
+    dtype_state: jnp.dtype = jnp.float32,
 ):
     B, NH, DHQK, DHHV = matC_state.shape
 
@@ -96,6 +98,7 @@ def mlstm_recurrent_step__triton_fused_fw(
         siz_b_DHHV=siz_b_DHHV,
         EPS=eps,
         DTYPE=jax2triton_dtype(DTYPE),
+        DTYPE_STATE=jax2triton_dtype(dtype_state),
         grid=grid,
         kernel=recurrent_step_fw_kernel,
         num_warps=num_warps,
@@ -115,6 +118,7 @@ def mlstm_recurrent_step__triton_fused(
     n: jax.Array,  # (B, NH, DHQK)
     m: jax.Array,  # (B, NH, 1)
     eps: float = 1e-6,
+    dtype_state: jnp.dtype = jnp.float32,
     **kwargs,
 ) -> tuple[
     jax.Array, tuple[jax.Array, jax.Array, jax.Array]
@@ -130,5 +134,6 @@ def mlstm_recurrent_step__triton_fused(
         scaI=i,
         scaF=f,
         eps=eps,
+        dtype_state=dtype_state,
         **kwargs,
     )

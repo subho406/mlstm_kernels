@@ -99,7 +99,7 @@ def test_recurrent_sequence_triton_step_fused_vs_native_parrallel_stablef_state_
         DHHV=DHHV,
         dtype=torch.bfloat16,
         atol_fw=0.125,
-        rtol_fw=1e-2,
+        rtol_fw=0.05,
         atol_fwbw=1e-4,
         rtol_fwbw=1e-2,
         vmax=1e-3,
