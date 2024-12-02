@@ -13,7 +13,8 @@ from mlstm_kernels.utils.benchmark.utils import setup_output_folder
 
 
 def _head_dim_benchmark(
-    output_folder: Path, half_qkdim=False, seq_len: int = 8192, batch_size: int = 1
+    output_folder: Path, half_qkdim=False, seq_len: int = 8192, batch_size: int = 1,
+    debug: bool = False,
 ):
     ### head dimension benchmark 7B
     head_dims_v = [64, 128, 256, 512, 1024, 2048]
@@ -35,6 +36,8 @@ vary_params:
 fixed_params:
   sequence_length: {seq_len}
   batch_size: {batch_size}
+  rep: {1000 if not debug else 10}
+  warmup: {250 if not debug else 10}
 
 x_axis_param: "head_dim_v"
 
@@ -104,6 +107,73 @@ kernel_specs:
   #   dtype: bfloat16
   #   use_torch_compile: False
   ####
+  - kernel_name: "chunkwise--native_custbw"
+    fwbw: True
+    dtype: bfloat16
+    use_torch_compile: False
+    additional_params:
+      chunk_size: 64
+
+  - kernel_name: "chunkwise--native_custbw"
+    fwbw: True
+    dtype: bfloat16
+    use_torch_compile: False
+    additional_params:
+      chunk_size: 128
+  - kernel_name: "chunkwise--native_custbw"
+    fwbw: True
+    dtype: bfloat16
+    use_torch_compile: False
+    additional_params:
+      chunk_size: 256
+  - kernel_name: "chunkwise--native_custbw"
+    fwbw: True
+    dtype: bfloat16
+    use_torch_compile: False
+    additional_params:
+      chunk_size: 512
+  - kernel_name: "chunkwise--native_custbw"
+    fwbw: True
+    dtype: bfloat16
+    use_torch_compile: False
+    additional_params:
+      chunk_size: 1024
+
+  - kernel_name: "chunkwise--native_autograd"
+    fwbw: True
+    dtype: bfloat16
+    use_torch_compile: False
+    additional_params:
+      chunk_size: 256
+  ####
+  - kernel_name: "chunk_gla"
+    fwbw: True
+    dtype: bfloat16
+    use_torch_compile: False
+  - kernel_name: "fused_chunk_gla"
+    fwbw: True
+    dtype: bfloat16
+  - kernel_name: "chunk_simple_gla"
+    fwbw: True
+    dtype: bfloat16
+  - kernel_name: "mamba"
+    fwbw: True
+    dtype: bfloat16
+    use_torch_compile: False
+  - kernel_name: "mamba2"
+    fwbw: True
+    dtype: bfloat16
+    use_torch_compile: False
+  - kernel_name: "mamba2_noconv"
+    fwbw: True
+    dtype: bfloat16
+    use_torch_compile: False
+  - kernel_name: "flashattn3"
+    fwbw: True
+    dtype: bfloat16
+    use_torch_compile: False
+  
+
 
 benchmark_name: {bench_name}
 """
@@ -121,6 +191,7 @@ def _sequence_length_benchmark(
     batch_size: int = 1,
     num_heads: int = 16,
     head_dim: int = 256,
+    debug: bool = False,
 ):
     ### sequence length benchmark 7B
     sequence_lengths = [256, 512, 1024, 2048, 4096, 8192, 16384]
@@ -133,6 +204,8 @@ vary_params:
   sequence_length: {sequence_lengths}
 fixed_params:
   batch_size: {batch_size}
+  rep: {1000 if not debug else 10}
+  warmup: {250 if not debug else 10}
 
 x_axis_param: "sequence_length"
 
@@ -189,6 +262,67 @@ kernel_specs:
       head_dim_qk: {head_dim//2}
       head_dim_v: {head_dim}
       chunk_size: 128
+  
+  - kernel_name: "chunk_gla"
+    fwbw: True
+    dtype: bfloat16
+    additional_params:
+      num_heads: {num_heads}
+      head_dim_qk: {head_dim//2}
+      head_dim_v: {head_dim}
+
+    use_torch_compile: False
+  - kernel_name: "fused_chunk_gla"
+    fwbw: True
+    dtype: bfloat16
+    additional_params:
+      num_heads: {num_heads}
+      head_dim_qk: {head_dim}
+      head_dim_v: {head_dim}
+
+  - kernel_name: "chunk_simple_gla"
+    fwbw: True
+    dtype: bfloat16
+    additional_params:
+      num_heads: {num_heads}
+      head_dim_qk: {head_dim}
+      head_dim_v: {head_dim}
+
+  - kernel_name: "mamba"
+    fwbw: True
+    dtype: bfloat16
+    use_torch_compile: False
+    additional_params:
+      num_heads: {num_heads}
+      head_dim_qk: 16  # standard mamba setting
+      head_dim_v: {head_dim}
+
+  - kernel_name: "mamba2"
+    fwbw: True
+    dtype: bfloat16
+    use_torch_compile: False
+    additional_params:
+      num_heads: {num_heads}
+      head_dim_qk: {head_dim}
+      head_dim_v: {head_dim}
+
+  - kernel_name: "mamba2_noconv"
+    fwbw: True
+    dtype: bfloat16
+    use_torch_compile: False
+    additional_params:
+      num_heads: {num_heads}
+      head_dim_qk: {head_dim}
+      head_dim_v: {head_dim}
+
+  - kernel_name: "flashattn3"
+    fwbw: True
+    dtype: bfloat16
+    use_torch_compile: False
+    additional_params:
+      num_heads: {num_heads}
+      head_dim_qk: {head_dim}
+      head_dim_v: {head_dim}
 
 benchmark_name: "sequence_length_7B--{bench_name_params}"
 """
@@ -206,6 +340,7 @@ def _batch_size_benchmark(
     num_heads: int = 16,
     head_dim: int = 256,
     fwbw: bool = True,
+    debug: bool = False,
 ):
     bench_name_params = f"nh_{num_heads}_hd_{head_dim}_seq_{seq_len}"
 
@@ -213,12 +348,12 @@ def _batch_size_benchmark(
     cfg_yaml = f"""
 vary_type: sequence
 vary_params:
-  batch_size: [1, 2, 4, 8, 16, 32]
+  batch_size: [1, 2, 4, 8] #  16, 32]
 fixed_params:
   sequence_length: {seq_len}
 
-  rep: 100
-  warmup: 10
+  rep: {1000 if not debug else 10}
+  warmup: {250 if not debug else 10}
 
 x_axis_param: "batch_size"
 
@@ -239,40 +374,40 @@ kernel_specs:
   #     head_dim_qk: 128
   #     head_dim_v: 128
 
-  # - kernel_name: "chunkwise--triton_limit_chunk"
-  #   fwbw: {fwbw}
-  #   dtype: bfloat16
-  #   additional_params:
-  #     num_heads: {num_heads}
-  #     head_dim_qk: {head_dim}
-  #     head_dim_v: {head_dim}
-  #     chunk_size: 64
+  - kernel_name: "chunkwise--triton_limit_chunk"
+    fwbw: True
+    dtype: bfloat16
+    additional_params:
+      num_heads: {num_heads}
+      head_dim_qk: {head_dim}
+      head_dim_v: {head_dim}
+      chunk_size: 64
 
-  # - kernel_name: "chunkwise--triton_xl_chunk"
-  #   fwbw: {fwbw}
-  #   dtype: bfloat16
-  #   additional_params:
-  #     num_heads: {num_heads}
-  #     head_dim_qk: {head_dim}
-  #     head_dim_v: {head_dim}
+  - kernel_name: "chunkwise--triton_xl_chunk"
+    fwbw: True
+    dtype: bfloat16
+    additional_params:
+      num_heads: {num_heads}
+      head_dim_qk: {head_dim}
+      head_dim_v: {head_dim}
 
-  #     chunk_size: 128
+      chunk_size: 128
 
-  #     # siz_b_L_parallel: 64
-  #     # siz_b_L_loop: 64
-  #     # siz_b_DH_parallel: 128
-  #     # siz_b_DH_loop: 64
+      # siz_b_L_parallel: 64
+      # siz_b_L_loop: 64
+      # siz_b_DH_parallel: 128
+      # siz_b_DH_loop: 64
 
-  #     # num_warps_intra: 4
-  #     # num_warps_inter: 4
-  #     # num_stages_intra: 1
-  #     # num_stages_inter: 1
+      # num_warps_intra: 4
+      # num_warps_inter: 4
+      # num_stages_intra: 1
+      # num_stages_inter: 1
 
-  #     # chunk_size_intra: 128
+      # chunk_size_intra: 128
       # chunk_size_inter: 128
 
   - kernel_name: "chunkwise--triton_limit_chunk"
-    fwbw: {fwbw}
+    fwbw: True
     dtype: bfloat16
     additional_params:
       num_heads: {num_heads}
@@ -301,6 +436,67 @@ kernel_specs:
 
       # chunk_size_intra: 128
       # chunk_size_inter: 128
+  
+  - kernel_name: "chunk_gla"
+    fwbw: True
+    dtype: bfloat16
+    use_torch_compile: False
+    additional_params:
+      num_heads: {num_heads}
+      head_dim_qk: {head_dim}
+      head_dim_v: {head_dim}
+
+  - kernel_name: "fused_chunk_gla"
+    fwbw: True
+    dtype: bfloat16
+    additional_params:
+      num_heads: {num_heads}
+      head_dim_qk: {head_dim}
+      head_dim_v: {head_dim}
+
+  - kernel_name: "chunk_simple_gla"
+    fwbw: True
+    dtype: bfloat16
+    additional_params:
+      num_heads: {num_heads}
+      head_dim_qk: {head_dim}
+      head_dim_v: {head_dim}
+
+  - kernel_name: "mamba"
+    fwbw: True
+    dtype: bfloat16
+    use_torch_compile: False
+    additional_params:
+      num_heads: {num_heads}
+      head_dim_qk: 16  # standard mamba setting
+      head_dim_v: {head_dim}
+
+  - kernel_name: "mamba2"
+    fwbw: True
+    dtype: bfloat16
+    use_torch_compile: False
+    additional_params:
+      num_heads: {num_heads}
+      head_dim_qk: {head_dim}
+      head_dim_v: {head_dim}
+
+  - kernel_name: "mamba2_noconv"
+    fwbw: True
+    dtype: bfloat16
+    use_torch_compile: False
+    additional_params:
+      num_heads: {num_heads}
+      head_dim_qk: {head_dim}
+      head_dim_v: {head_dim}
+
+  - kernel_name: "flashattn3"
+    fwbw: True
+    dtype: bfloat16
+    use_torch_compile: False
+    additional_params:
+      num_heads: {num_heads}
+      head_dim_qk: {head_dim}
+      head_dim_v: {head_dim}
 
 
 benchmark_name: "batch_size_7B--{bench_name_params}"
@@ -316,32 +512,33 @@ benchmark_name: "batch_size_7B--{bench_name_params}"
 def run_multiple_benchmarks(
     output_dir: str = "./outputs_kernel_benchmarks",
     output_folder_suffix: str | None = None,
+    debug: bool = False,
 ):
     output_folder = setup_output_folder(output_dir, name_suffix=output_folder_suffix)
 
-    # _sequence_length_benchmark(output_folder, batch_size=1, num_heads=16, head_dim=256)
-    # _batch_size_benchmark(output_folder, seq_len=8192, num_heads=16, head_dim=256)
-    # _sequence_length_benchmark(output_folder, batch_size=1, num_heads=8, head_dim=512)
+    # _sequence_length_benchmark(output_folder, batch_size=1, num_heads=16, head_dim=256, debug=debug,)
+    # _batch_size_benchmark(output_folder, seq_len=8192, num_heads=16, head_dim=256, debug=debug,)
+    # _sequence_length_benchmark(output_folder, batch_size=1, num_heads=8, head_dim=512, debug=debug,)
     # _batch_size_benchmark(
-    #     output_folder, seq_len=128, num_heads=8, head_dim=512, fwbw=False
+    #     output_folder, seq_len=128, num_heads=8, head_dim=512, fwbw=False, debug=debug,
     # )
     # _batch_size_benchmark(
-    #     output_folder, seq_len=512, num_heads=8, head_dim=512, fwbw=False
+    #     output_folder, seq_len=512, num_heads=8, head_dim=512, fwbw=False, debug=debug,
     # )
     _batch_size_benchmark(
-        output_folder, seq_len=1024, num_heads=8, head_dim=512, fwbw=False
+        output_folder, seq_len=1024, num_heads=8, head_dim=512, fwbw=False, debug=debug,
     )
     _batch_size_benchmark(
-        output_folder, seq_len=2048, num_heads=8, head_dim=512, fwbw=False
+        output_folder, seq_len=2048, num_heads=8, head_dim=512, fwbw=False, debug=debug,
     )
     _batch_size_benchmark(
-        output_folder, seq_len=4096, num_heads=8, head_dim=512, fwbw=False
+        output_folder, seq_len=4096, num_heads=8, head_dim=512, fwbw=False, debug=debug,
     )
-    # _head_dim_benchmark(output_folder, half_qkdim=False, seq_len=8192, batch_size=1)
-    # _head_dim_benchmark(output_folder, half_qkdim=True, seq_len=8192, batch_size=1)
+    # _head_dim_benchmark(output_folder, half_qkdim=False, seq_len=8192, batch_size=1, debug=debug)
+    # _head_dim_benchmark(output_folder, half_qkdim=True, seq_len=8192, batch_size=1, debug=debug)
 
     # debug:
-    # _head_dim_benchmark(output_folder, half_qkdim=False, seq_len=2048, batch_size=1)
+    # _head_dim_benchmark(output_folder, half_qkdim=False, seq_len=2048, batch_size=1, debug=debug)
 
 
 if __name__ == "__main__":
@@ -352,8 +549,9 @@ if __name__ == "__main__":
         required=False,
         help="Suffix that is appended to the output folder of the benchmark results.",
     )
+    parser.add_argument("--debug", action="store_true")
 
     args = parser.parse_args()
     print(args)
 
-    run_multiple_benchmarks(output_folder_suffix=args.folder_suffix)
+    run_multiple_benchmarks(output_folder_suffix=args.folder_suffix, debug=args.debug)
