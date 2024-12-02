@@ -216,7 +216,6 @@ class mLSTMXLChunkSizeTuneBenchmark(mLSTMBenchmark):
         return ["mlstm_chunkwise__xl_chunk"]
 
 
-
 @dataclass
 class FlashLinearAttentionKernelBenchmark(KernelBenchmarkInterface):
     batch_size: int = None
@@ -552,6 +551,8 @@ def create_training_kernel_benchmark(
         + flashattention_benchmark.available_kernels()
         + mlstm_xl_chunk_size_tune_benchmark.available_kernels()
         + flashlinearattention_benchmark.available_kernels()
+        + mamba_benchmark.available_kernels()
+        + flashattn3_benchmark.available_kernels()
     )
 
     if kernel_spec.kernel_name in mlstm_benchmark.available_kernels():

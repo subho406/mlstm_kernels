@@ -2,12 +2,13 @@ import gc
 import logging
 from dataclasses import asdict
 from pathlib import Path
+from typing import Literal
 
 import pandas as pd
 import torch
 from omegaconf import OmegaConf
 
-from .benchmarks.interface import BenchmarkCreator
+from .benchmarks.interface import BenchmarkCreator, ModelBenchmarkCreator
 from .param_handling import BenchmarkConfig
 from .plot_results import plot_benchmark_result_table
 
@@ -60,22 +61,79 @@ def run_benchmarks(
     return pd.DataFrame(results)
 
 
-def run_benchmarks_swap_loop_order(
+def run_model_benchmarks(
     benchmark_config: BenchmarkConfig,
-    benchmark_creator: BenchmarkCreator,
+    benchmark_creator: ModelBenchmarkCreator,
     param_prefix: str = "P--",
     additional_param_name_short: bool = True,
     runtime_prefix: str = "R--",
     memory_prefix: str = "M--",
+    setup_model_on_every_param_combination: bool = False,
+    profiler=None,
 ) -> pd.DataFrame:
-    # TODO from here
-    pass
+    """Runs the different model configurations and summarizes the results in a DataFrame.
+    This differs from the kernel benchmark in that way that the two loops are switched.
+    The reason for this is that for model benchmarks the model loading can take a long time.
+    So we want to do that once for every parameter combination and then run the different kernels.
+    """
+    param_dicts = benchmark_config.get_param_dicts()
+    kernel_specs = benchmark_config.kernel_specs
+    results = [
+        {f"{param_prefix}{k}": v for k, v in param_dict.items()}
+        for param_dict in param_dicts
+    ]
+    for k, kernel_spec in enumerate(kernel_specs):
+        LOGGER.info(f"Model ({k+1}/{len(kernel_specs)}): {kernel_spec.to_string()}")
+
+        if not setup_model_on_every_param_combination:
+            benchmark = benchmark_creator(kernel_spec, kernel_spec.additional_params)
+            benchmark.setup_model()
+
+        for i, param_dict in enumerate(param_dicts):
+            if setup_model_on_every_param_combination:
+                benchmark = benchmark_creator(
+                    kernel_spec, kernel_spec.additional_params
+                )
+                benchmark.setup_model()
+
+            LOGGER.info(
+                f"Parameter combination ({i+1}/{len(param_dicts)}): {param_dict}"
+            )
+            # add a prefix to easily identify the parameters in the DataFrame
+            # result_dict = {f"{param_prefix}{k}": v for k, v in param_dict.items()}
+
+            benchmark.set_params(param_dict)
+            benchmark.setup_benchmark()
+            if profiler is not None:
+                profiler.start()
+            runtime_results = benchmark.run_benchmark()
+            results[i][
+                f"{runtime_prefix}{kernel_spec.to_string(short_param_name=additional_param_name_short)}"
+            ] = runtime_results.runtime
+            results[i][
+                f"{memory_prefix}{kernel_spec.to_string(short_param_name=additional_param_name_short)}"
+            ] = runtime_results.peak_memory_allocated
+            LOGGER.info(
+                (
+                    f"Parameter combination ({i+1}/{len(param_dicts)}) finished.",
+                    f" Runtime: {runtime_results.runtime} ms. Peak memory: {float(runtime_results.peak_memory_allocated / 10**9)} GB.",
+                )
+            )
+            if setup_model_on_every_param_combination:
+                del benchmark
+            gc.collect()
+            torch.cuda.empty_cache()
+
+    LOGGER.info("Finished all benchmarks.")
+    return pd.DataFrame(results)
 
 
 def run_and_record_benchmarks(
     benchmark_config: BenchmarkConfig,
     benchmark_creator: BenchmarkCreator,
     output_folder: Path,
+    benchmark_type: Literal["model", "kernel"] = "kernel",
+    **kwargs,
 ):
     import logging
 
@@ -92,10 +150,18 @@ def run_and_record_benchmarks(
         OmegaConf.create(asdict(benchmark_config)), benchmark_folder / "config.yaml"
     )
 
-    result_df = run_benchmarks(
+    if benchmark_type == "kernel":
+        run_benchmarks_fn = run_benchmarks
+    elif benchmark_type == "model":
+        run_benchmarks_fn = run_model_benchmarks
+    else:
+        raise ValueError(f"Unknown benchmark type: {benchmark_type}")
+
+    result_df = run_benchmarks_fn(
         benchmark_config=benchmark_config,
         benchmark_creator=benchmark_creator,
         additional_param_name_short=True,
+        **kwargs,
     )
 
     LOGGER.info(

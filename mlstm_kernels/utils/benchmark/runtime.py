@@ -1,8 +1,8 @@
 import gc
 import typing
+from collections.abc import Callable
 from dataclasses import dataclass
 from typing import Literal
-from collections.abc import Callable
 
 
 @dataclass
@@ -32,6 +32,7 @@ def measure_runtime(
     return_mode: ReturnModes = "mean",
     device: str = None,
     free_memory: bool = True,
+    profiler=None,
 ) -> RuntimeResult:
     """
     Benchmark the runtime of the provided function. By default, return the mean.
@@ -67,6 +68,8 @@ def measure_runtime(
         start_event.record()
         for _ in range(5):
             cache.zero_()
+            if profiler is not None:
+                profiler.step()
             fn()
         end_event.record()
         torch.cuda.synchronize()
@@ -85,10 +88,14 @@ def measure_runtime(
     # Warm-up
     for i in range(n_warmup):
         with record_function(f"warmup_iter_{i}"):
+            if profiler is not None:
+                profiler.step()
             fn()
     # Benchmark
     for i in range(n_repeat):
         with record_function(f"main_iter_{i}"):
+            if profiler is not None:
+                profiler.step()
             # we don't want `fn` to accumulate gradient values
             # if it contains a backward pass. So we clear the
             # provided gradients

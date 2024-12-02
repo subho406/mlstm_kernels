@@ -6,13 +6,15 @@ from dataclasses import dataclass
 from typing import Any, Literal
 
 import torch
+from torch import nn
 
-from ..param_handling import KernelSpec
+from ..param_handling import KernelSpec, ModelSpec
 from ..runtime import RuntimeResult, measure_runtime
 
 LOGGER = logging.getLogger(__name__)
 
 BenchmarkCreator = Callable[[KernelSpec, dict[str, Any]], "BenchmarkInterface"]
+ModelBenchmarkCreator = Callable[[ModelSpec, dict[str, Any]], "ModelBenchmarkInterface"]
 
 
 @dataclass
@@ -53,6 +55,7 @@ class BenchmarkInterface(ABC):
         self,
         return_mode: Literal["mean", "median"] = "mean",
         grad_to_none: tuple[torch.Tensor, ...] | None = None,
+        profiler=None,
     ) -> RuntimeResult:
         """Runs the benchmark and returns the runtime in milliseconds."""
 
@@ -67,12 +70,35 @@ class BenchmarkInterface(ABC):
                 return_mode=return_mode,
                 grad_to_none=grad_to_none,
                 device=self.device,
+                profiler=profiler,
             )
         except Exception as e:
             LOGGER.warning(f"Error: {e}")
             LOGGER.warning(traceback.format_exc())
             runtime = RuntimeResult(runtime=float("nan"), peak_memory_allocated=-1)
         return runtime
+
+
+BenchmarkFnContextManagerCfgType = Literal["none", "no_grad", "inference_mode"]
+
+
+@dataclass
+class ModelBenchmarkInterface(BenchmarkInterface):
+    model: nn.Module = None
+    """The model to benchmark."""
+    use_torch_compile_model: bool = True
+    """If true, the model will be wrapped with torch.compile."""
+    benchmark_fn_context_manager: BenchmarkFnContextManagerCfgType = "none"
+
+    def setup_model(self) -> None:
+        """Use this method to setup (i.e. load & initialize) the model.
+        Can improve the runtime of the benchmark.
+        Note that this method is optional and will be called once before the varying
+        parameters are set and the benchmark is run.
+        CAREFUL: If there is a model parameter in the varying parameters, the
+        benchmark will not run the correct model.
+        """
+        pass
 
 
 @dataclass

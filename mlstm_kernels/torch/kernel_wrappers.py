@@ -22,6 +22,7 @@ def wrap_chunkwise__arbitrary_sequence_length(
     eps: float = 1e-6,
     autocast_kernel_dtype: torch.dtype = torch.bfloat16,
     chunk_size: int = 64,
+    enable_logging: bool = False,
 ) -> (
     torch.Tensor | tuple[torch.Tensor, tuple[torch.Tensor, torch.Tensor, torch.Tensor]]
 ):  # matH (B, NH, S, DHHV), tuple[matC_state_last (B, NH, DHQK, DHHV), vecN_states_last (B, NH, DHQK), scaMinter_states_last (B, NH, 1)]
@@ -56,6 +57,7 @@ def wrap_chunkwise__arbitrary_sequence_length(
         eps: The epsilon value used for numerical stability
         autocast_kernel_dtype: The dtype used for the kernel computation
         chunk_size: The chunk size used for the chunkwise kernel
+        enable_logging: If True, the function will log debug information. Default is False.
 
     Returns:
         The last hidden state tensor (B, NH, S, DHHV) or a tuple containing the last hidden state tensor and the last states of the mLSTM
@@ -71,7 +73,9 @@ def wrap_chunkwise__arbitrary_sequence_length(
         chunk_sizes.append(kcs)
         kcs = kcs // 2
 
-    LOGGER.debug(f"Trying chunk_sizes={chunk_sizes}")
+    # Note: we are in a compiled region, so we cannot log without a graph break
+    # therefore we make this optional
+    LOGGER.debug(f"Trying chunk_sizes={chunk_sizes}") if enable_logging else None
 
     c_state = (
         c_initial
@@ -91,31 +95,33 @@ def wrap_chunkwise__arbitrary_sequence_length(
 
     if S > 1:
         # process the sequence length in chunks
-        LOGGER.debug("Regular Mode: Processing sequence length in chunks")
+        LOGGER.debug(
+            "Regular Mode: Processing sequence length in chunks"
+        ) if enable_logging else None
         h_outs = []
         seq_len_start_idx = 0
         for chunk_size_iter in chunk_sizes:
             LOGGER.debug(
                 f"c_state.shape={c_state.shape}, n_state.shape={n_state.shape}, m_state.shape={m_state.shape}"
-            )
+            ) if enable_logging else None
             LOGGER.debug(
                 f"c_state.stride(0)= {c_state.stride(0)}, c_state.stride(1)= {c_state.stride(1)}, c_state.stride(2)= {c_state.stride(2)}, matC_cur.stride(3)= {c_state.stride(3)}"
-            )
+            ) if enable_logging else None
             remaining_seq_len = S - seq_len_start_idx
             num_chunks = remaining_seq_len // chunk_size_iter
             LOGGER.debug(
                 f"chunk_size={chunk_size_iter}, remaining_seq_len={remaining_seq_len}"
-            )
+            ) if enable_logging else None
             if remaining_seq_len < chunk_size_iter:
                 LOGGER.debug(
                     f"Skipping chunk_size={chunk_size_iter} as remaining_seq_len={remaining_seq_len} < {chunk_size_iter}"
-                )
+                ) if enable_logging else None
                 continue
             iter_seq_len = chunk_size_iter * num_chunks
             seq_len_idx = seq_len_start_idx + iter_seq_len
             LOGGER.debug(
                 f"Mid OR Final: compute last state for seq[{seq_len_start_idx}:{seq_len_idx}], NC={num_chunks}, chunk_size={chunk_size_iter}"
-            )
+            ) if enable_logging else None
             h_out, (c_state, n_state, m_state) = mlstm_chunkwise_kernel(
                 q=q[..., seq_len_start_idx:seq_len_idx, :].contiguous(),
                 k=k[..., seq_len_start_idx:seq_len_idx, :].contiguous(),
@@ -135,7 +141,7 @@ def wrap_chunkwise__arbitrary_sequence_length(
             if remaining_seq_len % chunk_size_iter == 0:
                 LOGGER.debug(
                     f"Finished processing sequence length in chunks, seq_len_start_idx={seq_len_start_idx}, S={S}"
-                )
+                ) if enable_logging else None
                 break
 
         remaining_seq_len = S - seq_len_start_idx
@@ -143,7 +149,7 @@ def wrap_chunkwise__arbitrary_sequence_length(
         if remaining_seq_len > 0:
             LOGGER.debug(
                 f"Final: Recurrent step mode: compute last state for seq[{seq_len_start_idx}:{S}], remaining_seq_len={remaining_seq_len}"
-            )
+            ) if enable_logging else None
             # we use here matK as q as this kernel does not need a query, since we do not care about the outputs only about the last state
             h_out, (c_state, n_state, m_state) = mlstm_sequence_kernel(
                 q=q[..., seq_len_start_idx:S, :].contiguous(),
@@ -167,7 +173,9 @@ def wrap_chunkwise__arbitrary_sequence_length(
         # process the sequence length in a single step
         # while this case is also captured by the regular mode above,
         # it avoids the overhead of the loop and calls the step kernel directly
-        LOGGER.debug("Single step mode: Processing sequence length in a single step")
+        LOGGER.debug(
+            "Single step mode: Processing sequence length in a single step"
+        ) if enable_logging else None
         # The step function does not want a sequence dimension
         # qkv shape is (B, NH, DHQK/DHV)
         # i, f shape is (B, NH, 1)

@@ -1,17 +1,20 @@
+import contextlib
 import logging
+import typing
 from dataclasses import dataclass
+from pprint import pprint
 from typing import Any
 
 import torch
 
 from ..param_handling import ModelSpec
-from .interface import BenchmarkInterface
+from .interface import BenchmarkFnContextManagerCfgType, ModelBenchmarkInterface
 
 LOGGER = logging.getLogger(__name__)
 
 
 @dataclass
-class mLSTMSimpleModelBenchmark(BenchmarkInterface):
+class mLSTMSimpleModelBenchmark(ModelBenchmarkInterface):
     model_name: str = "mLSTM"
 
     embedding_dim: int = 256
@@ -35,19 +38,19 @@ class mLSTMSimpleModelBenchmark(BenchmarkInterface):
     autocast_kernel_dtype: str = "bfloat16"
 
     # benchmark
-    amp_enabled: bool = True
+    # amp does not work with torch compile
+    amp_enabled: bool = False
     amp_dtype: str = "bfloat16"
     weight_dtype: str = "float32"
 
-    use_torch_compile_model: bool = False
+    use_torch_compile_model: bool = True
     use_torch_compile_generate: bool = False
 
     batch_size: int = 1
     prefill_length: int = 128
     generation_length: int = 1
 
-    def setup_benchmark(self) -> None:
-        from mlstm_simple.generate import generate_tokens
+    def setup_model(self) -> None:
         from mlstm_simple.model import mLSTM, mLSTMConfig
 
         mlstm_config = mLSTMConfig(
@@ -74,9 +77,24 @@ class mLSTMSimpleModelBenchmark(BenchmarkInterface):
         )
 
         LOGGER.info(f"Setting up model: {self.model}")
+        LOGGER.info(f"Model config: {pprint(mlstm_config)}")
+
+        def count_num_params(model):
+            return sum(p.numel() for p in model.parameters())
+
+        LOGGER.info(f"Model number of parameters: {count_num_params(self.model)}")
 
         if self.use_torch_compile_model:
-            self.model = torch.compile(self.model)
+            # Note: reduce-overhead gives torch.compile error (inplace copy: copy_ shows up in log, but unclear what the reason is)
+            self.model = torch.compile(
+                self.model, dynamic=False, fullgraph=True, mode="default"
+            )
+
+    def setup_benchmark(self) -> None:
+        if self.model is None:
+            self.setup_model()
+
+        from mlstm_simple.generate import generate_tokens
 
         # setup prefill inputs
         if self.prefill_length > 0:
@@ -85,6 +103,26 @@ class mLSTMSimpleModelBenchmark(BenchmarkInterface):
             ).to(device=torch.device(self.device))
         else:
             self.prefill_tokens = None
+        pf_shape = (
+            self.prefill_tokens.shape if self.prefill_tokens is not None else None
+        )
+        LOGGER.info(
+            f"Prefill tokens shape: {pf_shape}, Generating {self.generation_length} tokens."
+        )
+
+        assert self.benchmark_fn_context_manager in typing.get_args(
+            BenchmarkFnContextManagerCfgType
+        ), (
+            f"Invalid benchmark_fn_context_manager: {self.benchmark_fn_context_manager},",
+            f" expected one of {typing.get_args(BenchmarkFnContextManagerCfgType)}",
+        )
+
+        if self.benchmark_fn_context_manager == "none":
+            benchmark_fn_context_manager = contextlib.nullcontext
+        elif self.benchmark_fn_context_manager == "no_grad":
+            benchmark_fn_context_manager = torch.no_grad
+        elif self.benchmark_fn_context_manager == "inference_mode":
+            benchmark_fn_context_manager = torch.inference_mode
 
         # setup generation function
         def llm_forward(tokens, state):
@@ -95,26 +133,43 @@ class mLSTMSimpleModelBenchmark(BenchmarkInterface):
 
         self.generate_fn = generate_tokens
         if self.use_torch_compile_generate:
-            self.generate_fn = torch.compile(self.generate_fn)
+            self.generate_fn = torch.compile(
+                self.generate_fn, dynamic=False, fullgraph=False, mode="reduce-overhead"
+            )
+
+        self.generated_tokens = torch.empty(
+            (self.batch_size, self.generation_length + 1), dtype=torch.long
+        ).to(device=torch.device(self.device))
 
         def benchmark_fn():
             with torch.autocast(
                 device_type=torch.device(self.device).type, enabled=self.amp_enabled
             ):
-                generated_tokens, state = self.generate_fn(
-                    llm_forward=llm_forward,
-                    prefill_tokens=self.prefill_tokens,
-                    max_length=self.generation_length,
-                    batch_size_no_prefill=self.batch_size,
-                    device=self.device,
-                )
+                with benchmark_fn_context_manager():
+                    generated_tokens, state = self.generate_fn(
+                        llm_forward=llm_forward,
+                        prefill_tokens=self.prefill_tokens,
+                        max_length=self.generation_length,
+                        batch_size_no_prefill=self.batch_size,
+                        generated_tokens=self.generated_tokens,
+                        device=self.device,
+                    )
+                    if generated_tokens is not None:
+                        # +1 since in generate there is an beginning of sequence token added always
+                        assert (
+                            tuple(generated_tokens.shape)
+                            == (self.batch_size, self.generation_length + 1)
+                        ), f"Generated tokens shape: {tuple(generated_tokens.shape)}, expected {(self.batch_size, self.generation_length+1)}"
 
         self.benchmark_fn = benchmark_fn
+
+    def available_kernels(self) -> list[str]:
+        return ["mlstm_simple"]
 
 
 def create_mlstm_model_benchmark(
     model_spec: ModelSpec, param_dict: dict[str, Any]
-) -> BenchmarkInterface:
+) -> mLSTMSimpleModelBenchmark:
     mlstm_model_benchmark = mLSTMSimpleModelBenchmark()
 
     mlstm_model_benchmark.model_name = model_spec.model_name

@@ -259,7 +259,9 @@ def run_multiple_benchmarks(
 
     # Finding the correct setup:
     # _find_torchcompile_throughput_benchmark(output_folder)
-    # _find_weight_dtype_throughput_benchmark(output_folder, use_torch_compile=True, batch_size=1)
+    _find_weight_dtype_throughput_benchmark(
+        output_folder, use_torch_compile=True, batch_size=1
+    )
 
 
 if __name__ == "__main__":

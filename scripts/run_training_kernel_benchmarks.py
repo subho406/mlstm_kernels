@@ -40,33 +40,70 @@ fixed_params:
 x_axis_param: "head_dim_v"
 
 kernel_specs:
-  # - kernel_name: "parallel--triton_limit_headdim"
-  #   fwbw: True
-  #   dtype: bfloat16
-  # ####
-  # #? chunk size 64 is optimal
+  - kernel_name: "parallel--triton_limit_headdim"
+    fwbw: True
+    dtype: bfloat16
+  ####
+  #? chunk size 64 is optimal
   - kernel_name: "chunkwise--triton_limit_chunk"
     fwbw: True
     dtype: bfloat16
     additional_params:
       chunk_size: 64
 
-  - kernel_name: "chunkwise--triton_limit_chunk"
-    fwbw: True
-    dtype: bfloat16
-    additional_params:
-      chunk_size: 128
-  - kernel_name: "chunkwise--triton_limit_chunk"
-    fwbw: True
-    dtype: bfloat16
-    additional_params:
-      chunk_size: 32
+  # - kernel_name: "chunkwise--triton_limit_chunk"
+  #   fwbw: True
+  #   dtype: bfloat16
+  #   additional_params:
+  #     chunk_size: 128
+  # - kernel_name: "chunkwise--triton_limit_chunk"
+  #   fwbw: True
+  #   dtype: bfloat16
+  #   additional_params:
+  #     chunk_size: 32
   ####
   - kernel_name: "chunkwise--triton_xl_chunk"
     fwbw: True
     dtype: bfloat16
     additional_params:
       chunk_size: 128
+  ####
+  # - kernel_name: "chunkwise--native_custbw"
+  #   fwbw: True
+  #   dtype: bfloat16
+  #   use_torch_compile: False
+  #   additional_params:
+  #     chunk_size: 64
+
+  - kernel_name: "chunkwise--native_custbw"
+    fwbw: True
+    dtype: bfloat16
+    use_torch_compile: False
+    additional_params:
+      chunk_size: 128
+  - kernel_name: "chunkwise--native_custbw"
+    fwbw: True
+    dtype: bfloat16
+    use_torch_compile: False
+    additional_params:
+      chunk_size: 256
+  - kernel_name: "chunkwise--native_custbw"
+    fwbw: True
+    dtype: bfloat16
+    use_torch_compile: False
+    additional_params:
+      chunk_size: 512
+  - kernel_name: "chunkwise--native_custbw"
+    fwbw: True
+    dtype: bfloat16
+    use_torch_compile: False
+    additional_params:
+      chunk_size: 1024
+
+  # - kernel_name: "chunkwise--native_autograd"
+  #   fwbw: True
+  #   dtype: bfloat16
+  #   use_torch_compile: False
   ####
   - kernel_name: "chunkwise--native_custbw"
     fwbw: True
@@ -297,22 +334,26 @@ def _batch_size_benchmark(
     seq_len: int = 8192,
     num_heads: int = 16,
     head_dim: int = 256,
+    fwbw: bool = True,
 ):
-    bench_name_params = f"nh_{num_heads}_hd_{head_dim}"
+    bench_name_params = f"nh_{num_heads}_hd_{head_dim}_seq_{seq_len}"
 
     ### batch size benchmark 7B
     cfg_yaml = f"""
 vary_type: sequence
 vary_params:
-  batch_size: [1, 2, 4, 8]
+  batch_size: [1, 2, 4, 8, 16, 32]
 fixed_params:
   sequence_length: {seq_len}
+
+  rep: 100
+  warmup: 10
 
 x_axis_param: "batch_size"
 
 kernel_specs:
   - kernel_name: "torch_flash"
-    fwbw: True
+    fwbw: {fwbw}
     dtype: bfloat16
     additional_params:
       num_heads: 32
@@ -320,7 +361,7 @@ kernel_specs:
       head_dim_v: 128
 
   # - kernel_name: "parallel--triton"
-  #   fwbw: True
+  #   fwbw: {fwbw}
   #   dtype: bfloat16
   #   additional_params:
   #     num_heads: 32
@@ -369,7 +410,7 @@ kernel_specs:
       chunk_size: 64
 
   - kernel_name: "chunkwise--triton_xl_chunk"
-    fwbw: True
+    fwbw: {fwbw}
     dtype: bfloat16
     additional_params:
       num_heads: {num_heads}
@@ -468,13 +509,26 @@ def run_multiple_benchmarks(
 ):
     output_folder = setup_output_folder(output_dir, name_suffix=output_folder_suffix)
 
-    _sequence_length_benchmark(output_folder, batch_size=1, num_heads=16, head_dim=256)
-    _batch_size_benchmark(output_folder, seq_len=8192, num_heads=16, head_dim=256)
-    _sequence_length_benchmark(output_folder, batch_size=1, num_heads=8, head_dim=512)
-    _batch_size_benchmark(output_folder, seq_len=8192, num_heads=8, head_dim=512)
-
-    _head_dim_benchmark(output_folder, half_qkdim=False, seq_len=8192, batch_size=1)
-    _head_dim_benchmark(output_folder, half_qkdim=True, seq_len=8192, batch_size=1)
+    # _sequence_length_benchmark(output_folder, batch_size=1, num_heads=16, head_dim=256)
+    # _batch_size_benchmark(output_folder, seq_len=8192, num_heads=16, head_dim=256)
+    # _sequence_length_benchmark(output_folder, batch_size=1, num_heads=8, head_dim=512)
+    # _batch_size_benchmark(
+    #     output_folder, seq_len=128, num_heads=8, head_dim=512, fwbw=False
+    # )
+    # _batch_size_benchmark(
+    #     output_folder, seq_len=512, num_heads=8, head_dim=512, fwbw=False
+    # )
+    _batch_size_benchmark(
+        output_folder, seq_len=1024, num_heads=8, head_dim=512, fwbw=False
+    )
+    _batch_size_benchmark(
+        output_folder, seq_len=2048, num_heads=8, head_dim=512, fwbw=False
+    )
+    _batch_size_benchmark(
+        output_folder, seq_len=4096, num_heads=8, head_dim=512, fwbw=False
+    )
+    # _head_dim_benchmark(output_folder, half_qkdim=False, seq_len=8192, batch_size=1)
+    # _head_dim_benchmark(output_folder, half_qkdim=True, seq_len=8192, batch_size=1)
 
     # debug:
     # _head_dim_benchmark(output_folder, half_qkdim=False, seq_len=2048, batch_size=1)

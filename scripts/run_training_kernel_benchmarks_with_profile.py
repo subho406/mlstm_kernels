@@ -4,7 +4,7 @@ from pathlib import Path
 import torch
 from dacite import from_dict
 from omegaconf import OmegaConf
-from torch.profiler import ProfilerActivity, profile, record_function
+from torch.profiler import ProfilerActivity, profile, record_function, schedule
 
 from mlstm_kernels.utils.benchmark.benchmarks.training_kernel_benchmarks import (
     create_training_kernel_benchmark,
@@ -70,7 +70,7 @@ benchmark_name: "compare to flash_attention"
     run_and_record_benchmarks(cfg, create_training_kernel_benchmark, output_folder)
 
 
-def run_multiple_benchmarks(output_dir: str = "./outputs_kernel_benchmarks"):
+def run_multiple_benchmarks(output_dir: str = "./outputs_kernel_benchmarks_profiler"):
     output_folder = setup_output_folder(output_dir)
 
     # _sequence_length_benchmark(output_folder, batch_size=1, num_heads=16, head_dim=256)
