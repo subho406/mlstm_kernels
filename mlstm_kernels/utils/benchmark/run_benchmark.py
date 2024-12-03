@@ -84,7 +84,6 @@ def run_model_benchmarks(
     ]
     for k, kernel_spec in enumerate(kernel_specs):
         LOGGER.info(f"Model ({k+1}/{len(kernel_specs)}): {kernel_spec.to_string()}")
-
         if not setup_model_on_every_param_combination:
             benchmark = benchmark_creator(kernel_spec, kernel_spec.additional_params)
             benchmark.setup_model()
@@ -122,6 +121,10 @@ def run_model_benchmarks(
                 del benchmark
             gc.collect()
             torch.cuda.empty_cache()
+
+        del benchmark
+        gc.collect()
+        torch.cuda.empty_cache()
 
     LOGGER.info("Finished all benchmarks.")
     return pd.DataFrame(results)

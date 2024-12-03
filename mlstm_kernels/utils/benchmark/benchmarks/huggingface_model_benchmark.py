@@ -436,7 +436,7 @@ class HFModelBenchmark(ModelBenchmarkInterface):
             "codestral_mamba": dict(
                 dynamic=False, fullgraph=False, mode="reduce-overhead"
             ),
-            "xlstm": dict(dynamic=False, fullgraph=True, mode="reduce-overhead"),
+            "xlstm": dict(dynamic=False, fullgraph=False, mode="default"),
             "falcon_mamba": dict(disable=True),
             "zamba2": dict(
                 dynamic=False, fullgraph=False, mode="reduce-overhead"
@@ -547,6 +547,11 @@ class HFModelBenchmark(ModelBenchmarkInterface):
             # 3) Set the model forward to the graph.
             def new_forward(input_ids: torch.LongTensor, cache_params=None, **kwargs):
                 return fn_graph_call(input_ids=input_ids, cache_params=cache_params)
+
+        # if self.use_torch_compile_generate:
+        #     self.model.generate = torch.compile(
+        #         self.model.generate, dynamic=False, fullgraph=False, mode="default"
+        #     )
 
     def setup_benchmark(self) -> None:
         if self.model is None:

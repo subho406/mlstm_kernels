@@ -222,8 +222,112 @@ kernel_specs:
     weight_dtype: {weight_dtype}
     use_torch_compile_model: {use_torch_compile_model}
 
-############## NO TORCH COMPILE ####################
+# Note: no NO_TORCH_COMPILE for generation time benchmark since runtime is so long
 
+benchmark_name: "hf_7B_generation_time__pfl{prefill_length}_bs{batch_size}_tc{use_torch_compile_model}_weightdtype{weight_dtype}"
+"""
+    cfg = from_dict(
+        data_class=BenchmarkConfig,
+        data=OmegaConf.to_container(OmegaConf.create(cfg_yaml)),
+    )
+    LOGGER.info(f"Running benchmark with config:\n{pprint.pformat(cfg)}")
+    run_and_record_benchmarks(
+        cfg,
+        create_hf_model_benchmark,
+        output_folder,
+        benchmark_type="model",
+        setup_model_on_every_param_combination=False,
+    )
+
+
+def _time_to_first_token_benchmark(
+    output_folder: Path,
+    batch_size: int = 8,
+    generation_length: int = 1,
+    use_torch_compile_model: bool = True,
+    weight_dtype: str = "bfloat16",
+):
+    cfg_yaml = f"""
+vary_type: grid
+vary_params:
+  prefill_length: [128, 512, 1024, 2048] # , 1024, 2048, 4096, 8192, 16384]
+fixed_params:
+  batch_size: {batch_size}
+  generation_length: {generation_length}
+
+  rep: 4
+  warmup: 2 #1
+  benchmark_fn_context_manager: "inference_mode"
+
+x_axis_param: "prefill_length"
+
+kernel_specs:
+  # - model_name: "mlstm_simple"
+  #   weight_dtype: {weight_dtype}
+  #   use_torch_compile_model: {use_torch_compile_model}
+  #   additional_params:
+  #     use_torch_compile_generate: False
+  #     use_cuda_graphs_generate: True
+  #     inference_state_dtype: bfloat16
+  #     embedding_dim: 4096
+  #     num_heads: 8
+  #     num_blocks: 32 #3 #32
+  #     vocab_size: 50304
+
+  #     chunkwise_kernel: chunkwise--triton_xl_chunk
+  #     sequence_kernel: native_sequence__triton_step_fused
+  #     step_kernel: triton_fused
+
+  #     chunk_size: 128
+  #     autocast_kernel_dtype: bfloat16
+
+  - model_name: "xlstm"
+    weight_dtype: {weight_dtype}
+    use_torch_compile_model: {use_torch_compile_model}
+    additional_params:
+      use_cuda_graphs_generate: True
+      inference_state_dtype: bfloat16
+      embedding_dim: 4096
+      num_heads: 8
+      num_blocks: 32 #3 #32
+      vocab_size: 50304
+
+      chunkwise_kernel: chunkwise--triton_xl_chunk
+      sequence_kernel: native_sequence__triton_step_fused
+      step_kernel: triton_fused
+
+      chunk_size: 128
+      autocast_kernel_dtype: bfloat16
+
+  - model_name: "llama2"
+    weight_dtype: {weight_dtype}
+    use_torch_compile_model: {use_torch_compile_model}
+    additional_params:
+      use_cuda_graphs_generate: True
+
+  - model_name: "llama3"
+    weight_dtype: {weight_dtype}
+    use_torch_compile_model: {use_torch_compile_model}
+    additional_params:
+      use_cuda_graphs_generate: True
+
+  # - model_name: "ministral8b"
+  #   weight_dtype: {weight_dtype}
+  #   use_torch_compile_model: {use_torch_compile_model}
+
+  # - model_name: "codestral_mamba"
+  #   weight_dtype: {weight_dtype}
+  #   use_torch_compile_model: {use_torch_compile_model}
+
+  # - model_name: "falcon_mamba"
+  #   weight_dtype: {weight_dtype}
+  #   use_torch_compile_model: {use_torch_compile_model}
+
+  # - model_name: "zamba2"
+  #   weight_dtype: {weight_dtype}
+  #   use_torch_compile_model: {use_torch_compile_model}
+
+############## NO TORCH COMPILE ####################
   # - model_name: "mlstm_simple"
   #   weight_dtype: {weight_dtype}
   #   use_torch_compile_model: False #{use_torch_compile_model}
@@ -259,7 +363,19 @@ kernel_specs:
   #     chunk_size: 128
   #     autocast_kernel_dtype: bfloat16
 
+  # - model_name: "llama2"
+  #   weight_dtype: {weight_dtype}
+  #   use_torch_compile_model: False #{use_torch_compile_model}
+
   # - model_name: "llama3"
+  #   weight_dtype: {weight_dtype}
+  #   use_torch_compile_model: False #{use_torch_compile_model}
+
+  # - model_name: "ministral8b"
+  #   weight_dtype: {weight_dtype}
+  #   use_torch_compile_model: False #{use_torch_compile_model}
+
+  # - model_name: "codestral_mamba"
   #   weight_dtype: {weight_dtype}
   #   use_torch_compile_model: False #{use_torch_compile_model}
 
@@ -298,7 +414,7 @@ def _time_to_first_token_benchmark(
     cfg_yaml = f"""
 vary_type: grid
 vary_params:
-  prefill_length: [128, 512, 1024, 2048] # , 1024, 2048, 4096, 8192, 16384]
+  prefill_length: [128, 512, 1024, 2048, 4096, 8192, 16384]
 fixed_params:
   batch_size: {batch_size}
   generation_length: {generation_length}
@@ -367,9 +483,9 @@ kernel_specs:
   #   weight_dtype: {weight_dtype}
   #   use_torch_compile_model: {use_torch_compile_model}
 
-  # - model_name: "falcon_mamba"
-  #   weight_dtype: {weight_dtype}
-  #   use_torch_compile_model: {use_torch_compile_model}
+  - model_name: "falcon_mamba"
+    weight_dtype: {weight_dtype}
+    use_torch_compile_model: {use_torch_compile_model}
 
   # - model_name: "zamba2"
   #   weight_dtype: {weight_dtype}
@@ -550,6 +666,7 @@ BenchmarkType = Literal["ttft", "gen_time", "throughput", "ttft_mlstm_simple"]
 def run_multiple_benchmarks(
     output_dir: str = "./outputs_kernel_benchmarks",
     benchmark_type: BenchmarkType = "ttft",
+    use_torch_compile: bool = True,
     output_folder_suffix: str | None = None,
 ):
     full_folder_suffix = (
@@ -564,31 +681,31 @@ def run_multiple_benchmarks(
             output_folder,
             prefill_length=0,
             generation_length=100,
-            use_torch_compile_model=True,
+            use_torch_compile_model=use_torch_compile,
             weight_dtype="bfloat16",
         )
     elif benchmark_type == "ttft":
-        batch_sizes = [1]  # [1, 4, 8]
-        generation_lengths = [10]  # [1, 10, 100]
+        batch_sizes = [1, 8]
+        generation_lengths = [1, 101]
         for batch_size in batch_sizes:
             for generation_length in generation_lengths:
                 _time_to_first_token_benchmark(
                     output_folder,
                     batch_size=batch_size,
                     generation_length=generation_length,
-                    use_torch_compile_model=True,
+                    use_torch_compile_model=use_torch_compile,
                     weight_dtype="bfloat16",
                 )
     elif benchmark_type == "gen_time":
         batch_sizes = [1, 8]
-        prefill_lengths = [256, 0]
+        prefill_lengths = [0]
         for batch_size in batch_sizes:
             for prefill_length in prefill_lengths:
                 _generation_time_benchmark(
                     output_folder,
                     prefill_length=prefill_length,
                     batch_size=batch_size,
-                    use_torch_compile_model=True,
+                    use_torch_compile_model=use_torch_compile,
                     weight_dtype="bfloat16",
                 )
     elif benchmark_type == "ttft_mlstm_simple":
@@ -618,12 +735,21 @@ if __name__ == "__main__":
         required=False,
         help="Suffix that is appended to the output folder of the benchmark results.",
     )
+    parser.add_argument(
+        "--use_torch_compile",
+        type=str,
+        required=False,
+        default="1",
+        help="Whether to use torch compile for the benchmark.",
+    )
 
     args = parser.parse_args()
     print(args)
 
     run_multiple_benchmarks(
-        output_folder_suffix=args.folder_suffix, benchmark_type=args.benchmark
+        output_folder_suffix=args.folder_suffix,
+        benchmark_type=args.benchmark,
+        use_torch_compile=bool(args.use_torch_compile == "1"),
     )
 
 # Run commands:
