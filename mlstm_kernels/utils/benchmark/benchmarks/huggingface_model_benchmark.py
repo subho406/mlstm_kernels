@@ -9,6 +9,7 @@ import torch
 import transformers
 from transformers import GenerationConfig
 
+from ..cuda_graphs import compile_with_cuda_graphs
 from ..param_handling import ModelSpec
 from .interface import BenchmarkFnContextManagerCfgType, ModelBenchmarkInterface
 
@@ -535,24 +536,7 @@ class HFModelBenchmark(ModelBenchmarkInterface):
                 "TorchDynamo must be set to compile Huggingface Models with CUDA graphs."
             )
             LOGGER.info("Setting up benchmark with CUDA graphs on benchmark function.")
-            # TODO: Refactor as a shared function with model benchmark.
-            s = torch.cuda.Stream()
-            s.wait_stream(torch.cuda.current_stream())
-            with torch.cuda.stream(s):
-                for idx in range(self.cuda_graphs_warmups):
-                    LOGGER.debug(f"Running CUDA Graph Warmup Step {idx + 1}/{self.cuda_graphs_warmups}")
-                    benchmark_fn()
-                s.synchronize()
-                if torch.distributed.is_initialized():
-                    torch.distributed.barrier()
-            torch.cuda.current_stream().wait_stream(s)
-
-            LOGGER.debug("Tracing CUDA Graph for benchmark function.")
-            graph = torch.cuda.CUDAGraph()
-            with torch.cuda.graph(graph):
-                benchmark_fn()
-            LOGGER.debug("CUDA Graph traced.")
-            
+            graph = compile_with_cuda_graphs(benchmark_fn, self.cuda_graphs_warmups)
             self.benchmark_fn = lambda: graph.replay()
         else:
             self.benchmark_fn = benchmark_fn

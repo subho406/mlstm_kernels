@@ -7,6 +7,7 @@ from typing import Any
 
 import torch
 
+from ..cuda_graphs import compile_with_cuda_graphs
 from ..param_handling import ModelSpec
 from .interface import BenchmarkFnContextManagerCfgType, ModelBenchmarkInterface
 
@@ -198,21 +199,7 @@ class mLSTMSimpleModelBenchmark(ModelBenchmarkInterface):
 
         if self.use_cuda_graphs_generate:
             LOGGER.info("Setting up benchmark with CUDA graphs on benchmark function.")
-            # TODO: Refactor to use a shared function with hf model benchmark
-            s = torch.cuda.Stream()
-            s.wait_stream(torch.cuda.current_stream())
-            with torch.cuda.stream(s):
-                for _ in range(self.cuda_graph_warmups):
-                    benchmark_fn()
-                s.synchronize()
-                if torch.distributed.is_initialized():
-                    torch.distributed.barrier()
-            torch.cuda.current_stream().wait_stream(s)
-
-            graph = torch.cuda.CUDAGraph()
-            with torch.cuda.graph(graph):
-                benchmark_fn()
-            
+            graph = compile_with_cuda_graphs(benchmark_fn, warmups=self.cuda_graph_warmups)
             self.benchmark_fn = lambda: graph.replay()
         else:
             self.benchmark_fn = benchmark_fn
