@@ -528,8 +528,6 @@ class HFModelBenchmark(ModelBenchmarkInterface):
 
 
         if self.use_cuda_graphs_generate:
-            gc.collect()
-            torch.cuda.empty_cache()
             # NOTE: This requires that we forced is_torchdynamo_compiling() to be True.
             # TODO: Currently done manually in the transformer library. Check if possible by forcing torch functions
             # to be True for torchdynamo.
