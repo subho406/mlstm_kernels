@@ -674,3 +674,6 @@ def create_hf_model_benchmark(
         mlstm_simple_benchmark.set_params(param_dict)
 
         return mlstm_simple_benchmark
+
+    else:
+        raise ValueError(f"Unknown model name: {model_name}")

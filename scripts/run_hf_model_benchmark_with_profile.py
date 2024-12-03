@@ -94,17 +94,17 @@ kernel_specs:
 #     additional_params:
 #       use_cuda_graphs_generate: True
 
-  - model_name: "falcon_mamba"
+#   - model_name: "falcon_mamba"
+#     weight_dtype: {weight_dtype}
+#     use_torch_compile_model: False
+#     additional_params:
+#       use_cuda_graphs_model: False
+
+  - model_name: "codestral_mamba"
     weight_dtype: {weight_dtype}
     use_torch_compile_model: True
     additional_params:
-        use_cuda_graphs_model: False
-
-#   - model_name: "codestral"
-#     weight_dtype: {weight_dtype}
-#     use_torch_compile_model: True
-#     additional_params:
-#         use_cuda_graphs_model: True
+      use_cuda_graphs_model: False
 
 #   - model_name: "zamba2"
 #     weight_dtype: {weight_dtype}
