@@ -462,53 +462,60 @@ class HFModelBenchmark(ModelBenchmarkInterface):
 
         self.model.generation_config.cache_implementation = "static"
 
+        forward_before_compilation = self.model.forward
         if self.use_torch_compile_model:
             torch._logging.set_logs(dynamo = logging.INFO)
-            forward_before_compilation = self.model.forward
             self.model.forward = torch.compile(
                 forward_before_compilation, dynamic=False, fullgraph=False, mode="default"
             )
-            if self.model_name in ["xlstm", "faclon_mamba"]:
+            if self.model_name in ["xlstm", "faclon_mamba"] and not self.use_cuda_graphs_model:
                 
                 old_forward = self.model.forward
-
-                if self.use_cuda_graphs_model:
-                    import jax
-                    # Set up one graph with the model forward call.
-                    # 1) infer cache structure by a single forward call.
-                    graph_input_ids = torch.zeros((1, 1), dtype=torch.long, device=torch.device(self.device))
-                    with torch.inference_mode():
-                        output = forward_before_compilation(
-                            input_ids=graph_input_ids,
-                            cache_params=None,
-                            use_cache=True,
-                            return_dict=True,
-                        )
-                        graph_cache_params = tree_map(
-                            lambda x: torch.zeros_like(x) if isinstance(x, torch.Tensor) else x,
-                            output["cache_params"]
-                        )
-                        # 2) compile the model with the cache structure.
-                        _, fn_graph_call = compile_kwargs_with_cuda_graphs(
-                            fn=partial(self.model.forward, use_cache=True, return_dict=True),
-                            inputs={"input_ids": graph_input_ids, "cache_params": graph_cache_params},
-                            warmups=self.cuda_graphs_warmups,
-                        )
-                    # 3) Set the model forward to the graph.
-                    def new_forward(input_ids: torch.LongTensor, cache_params = None, **kwargs):
-                        return fn_graph_call(input_ids=input_ids, cache_params=cache_params)
-                else:
-                    def new_forward(input_ids: torch.LongTensor, cache_position = None, attention_mask = None, **kwargs):
-                        # Remove cache position and attention mask from forward call, which differ in sizes.
-                        del cache_position
-                        del attention_mask
-                        # Copy input_ids to avoid different stride arguments, which cause recompilation.
-                        input_ids = torch.view_copy(input_ids, input_ids.shape)
-                        # Debugging
-                        out = old_forward(input_ids=input_ids, **kwargs)
-                        return out
+                def new_forward(input_ids: torch.LongTensor, attention_mask = None, **kwargs):
+                    # Remove attention mask from forward call, which differ in sizes.
+                    del attention_mask
+                    # Copy input_ids to avoid different stride arguments, which cause recompilation.
+                    input_ids = torch.view_copy(input_ids, input_ids.shape)
+                    # Debugging
+                    out = old_forward(input_ids=input_ids, **kwargs)
+                    return out
                 
                 self.model.forward = new_forward
+        
+        if self.use_cuda_graphs_model:
+            assert self.model_name in ["xlstm", "falcon_mamba"], (
+                "CUDA graphs are only supported for the xlstm and falcon_mamba models."
+            )
+            # Set up one graph with the model forward call.
+            # 1) infer cache structure by a single forward call.
+            graph_input_ids = torch.zeros((1, 1), dtype=torch.long, device=torch.device(self.device))
+            # 1.1) set cache position fixed, as different per model.
+            if self.model_name == "xlstm":
+                cache_position = None
+            elif self.model_name == "falcon_mamba":
+                cache_position = torch.arange(0, self.hf_model_config.conv_kernel, device=torch.device(self.device))
+            else:
+                raise ValueError(f"Model {self.model_name} not supported for CUDA graphs.")
+            with torch.inference_mode():
+                output = forward_before_compilation(
+                    input_ids=graph_input_ids,
+                    cache_params=None,
+                    use_cache=True,
+                    return_dict=True,
+                )
+                graph_cache_params = tree_map(
+                    lambda x: torch.zeros_like(x) if isinstance(x, torch.Tensor) else x,
+                    output["cache_params"]
+                )
+                # 2) compile the model with the cache structure.
+                _, fn_graph_call = compile_kwargs_with_cuda_graphs(
+                    fn=partial(self.model.forward, cache_position=cache_position, use_cache=True, return_dict=True),
+                    inputs={"input_ids": graph_input_ids, "cache_params": graph_cache_params},
+                    warmups=self.cuda_graphs_warmups,
+                )
+            # 3) Set the model forward to the graph.
+            def new_forward(input_ids: torch.LongTensor, cache_params = None, **kwargs):
+                return fn_graph_call(input_ids=input_ids, cache_params=cache_params)
 
 
     def setup_benchmark(self) -> None:

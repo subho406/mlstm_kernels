@@ -46,25 +46,25 @@ fixed_params:
 x_axis_param: "generation_length"
 
 kernel_specs:
-  - model_name: "mlstm_simple"
-    weight_dtype: {weight_dtype}
-    use_torch_compile_model: {use_torch_compile_model}
-    additional_params:
-      use_torch_compile_generate: False
-      use_cuda_graphs_model: True
-      use_cuda_graphs_generate: False
-      inference_state_dtype: bfloat16
-      embedding_dim: 4096
-      num_heads: 8
-      num_blocks: 32
-      vocab_size: 50304
+#   - model_name: "mlstm_simple"
+#     weight_dtype: {weight_dtype}
+#     use_torch_compile_model: {use_torch_compile_model}
+#     additional_params:
+#       use_torch_compile_generate: False
+#       use_cuda_graphs_model: True
+#       use_cuda_graphs_generate: False
+#       inference_state_dtype: bfloat16
+#       embedding_dim: 4096
+#       num_heads: 8
+#       num_blocks: 32
+#       vocab_size: 50304
 
-      chunkwise_kernel: chunkwise--triton_xl_chunk
-      sequence_kernel: native_sequence__triton_step_fused
-      step_kernel: triton_fused
+#       chunkwise_kernel: chunkwise--triton_xl_chunk
+#       sequence_kernel: native_sequence__triton_step_fused
+#       step_kernel: triton_fused
 
-      chunk_size: 128
-      autocast_kernel_dtype: bfloat16
+#       chunk_size: 128
+#       autocast_kernel_dtype: bfloat16
 
 #   - model_name: "xlstm"
 #     weight_dtype: {weight_dtype}
@@ -91,9 +91,11 @@ kernel_specs:
 #     additional_params:
 #       use_cuda_graphs_generate: True
 
-#   - model_name: "falcon_mamba"
-#     weight_dtype: {weight_dtype}
-#     use_torch_compile_model: {use_torch_compile_model}
+  - model_name: "falcon_mamba"
+    weight_dtype: {weight_dtype}
+    use_torch_compile_model: True 
+    additional_params:
+        use_cuda_graphs_model: True
 
 #   - model_name: "zamba2"
 #     weight_dtype: {weight_dtype}
@@ -135,7 +137,7 @@ def run_multiple_benchmarks(
         activities=activities,
         schedule=torch.profiler.schedule(
             skip_first=WARMUP_STEPS,  # Do not profile warm-up steps
-            wait=10,  # First step for actual runtime without profiler
+            wait=1,  # First step for actual runtime without profiler
             warmup=1,  # First step warms up profiler, usually has extra overhead
             active=2,  # Profile 2 steps
             repeat=1,  # Only do once.
