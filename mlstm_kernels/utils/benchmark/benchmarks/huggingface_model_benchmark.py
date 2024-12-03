@@ -477,6 +477,10 @@ class HFModelBenchmark(ModelBenchmarkInterface):
             ).to(device=torch.device(self.device), dtype=torch.long)
         else:
             self.prefill_tokens = None
+        
+        # Allow caching compiling of all generation steps.
+        if self.use_torch_compile_model:
+            torch._dynamo.config.cache_size_limit = self.generation_length * 2
 
         pf_shape = (
             self.prefill_tokens.shape if self.prefill_tokens is not None else None
@@ -503,9 +507,7 @@ class HFModelBenchmark(ModelBenchmarkInterface):
         eos_token_id = torch.tensor(2, dtype=torch.long, device=torch.device(self.device))
 
         def benchmark_fn():
-            with torch.autocast(  # Needed to make LLama run on 16k contexts
-                device_type=torch.device(self.device).type, enabled=self.amp_enabled
-            ):
+            with torch.nn.attention.sdpa_kernel(torch.nn.attention.SDPBackend.CUDNN_ATTENTION):
                 with benchmark_fn_context_manager():
                     outputs = self.model.generate(
                         inputs=self.prefill_tokens,
@@ -539,16 +541,19 @@ class HFModelBenchmark(ModelBenchmarkInterface):
             s = torch.cuda.Stream()
             s.wait_stream(torch.cuda.current_stream())
             with torch.cuda.stream(s):
-                for _ in range(self.cuda_graphs_warmups):
+                for idx in range(self.cuda_graphs_warmups):
+                    LOGGER.debug(f"Running CUDA Graph Warmup Step {idx + 1}/{self.cuda_graphs_warmups}")
                     benchmark_fn()
                 s.synchronize()
                 if torch.distributed.is_initialized():
                     torch.distributed.barrier()
             torch.cuda.current_stream().wait_stream(s)
 
+            LOGGER.debug("Tracing CUDA Graph for benchmark function.")
             graph = torch.cuda.CUDAGraph()
             with torch.cuda.graph(graph):
                 benchmark_fn()
+            LOGGER.debug("CUDA Graph traced.")
             
             self.benchmark_fn = lambda: graph.replay()
         else:

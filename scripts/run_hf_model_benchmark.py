@@ -298,13 +298,13 @@ def _time_to_first_token_benchmark(
     cfg_yaml = f"""
 vary_type: grid
 vary_params:
-  prefill_length: [128, 512, 1024, 2048, 4096, 8192, 16384]
+  prefill_length: [128, 512] # , 1024, 2048, 4096, 8192, 16384]
 fixed_params:
   batch_size: {batch_size}
   generation_length: {generation_length}
 
-  rep: 1
-  warmup: 1 #1
+  rep: 5
+  warmup: 2 #1
   benchmark_fn_context_manager: "inference_mode"
 
 x_axis_param: "prefill_length"
@@ -347,11 +347,11 @@ kernel_specs:
   #     chunk_size: 128
   #     autocast_kernel_dtype: bfloat16
 
-  - model_name: "llama2"
-    weight_dtype: {weight_dtype}
-    use_torch_compile_model: {use_torch_compile_model}
-    additional_params:
-      use_cuda_graphs_generate: True
+  # - model_name: "llama2"
+  #   weight_dtype: {weight_dtype}
+  #   use_torch_compile_model: {use_torch_compile_model}
+  #   additional_params:
+  #     use_cuda_graphs_generate: True
 
   - model_name: "llama3"
     weight_dtype: {weight_dtype}
@@ -568,8 +568,8 @@ def run_multiple_benchmarks(
             weight_dtype="bfloat16",
         )
     elif benchmark_type == "ttft":
-        batch_sizes = [1, 4, 8]
-        generation_lengths = [1, 10, 100]
+        batch_sizes = [1]  # [1, 4, 8]
+        generation_lengths = [100]  # [1, 10, 100]
         for batch_size in batch_sizes:
             for generation_length in generation_lengths:
                 _time_to_first_token_benchmark(
