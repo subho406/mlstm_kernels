@@ -3,13 +3,15 @@ import gc
 import logging
 import typing
 from dataclasses import dataclass
+from functools import partial
 from typing import Any
 
 import torch
+import torch._dynamo.cache_size
 import transformers
 from transformers import GenerationConfig
 
-from ..cuda_graphs import compile_with_cuda_graphs
+from ..cuda_graphs import compile_kwargs_with_cuda_graphs, compile_with_cuda_graphs
 from ..param_handling import ModelSpec
 from .interface import BenchmarkFnContextManagerCfgType, ModelBenchmarkInterface
 
@@ -328,6 +330,7 @@ class HFModelBenchmark(ModelBenchmarkInterface):
 
     use_torch_compile_model: bool = True
     use_torch_compile_generate: bool = False  # unused for now
+    use_cuda_graphs_model: bool = False
     use_cuda_graphs_generate: bool = False
     cuda_graphs_warmups: int = 3
 
@@ -456,9 +459,53 @@ class HFModelBenchmark(ModelBenchmarkInterface):
         self.model.generation_config.cache_implementation = "static"
 
         if self.use_torch_compile_model:
+            torch._logging.set_logs(dynamo = logging.INFO)
+            forward_before_compilation = self.model.forward
             self.model.forward = torch.compile(
-                self.model.forward, dynamic=False, fullgraph=False, mode="default"
+                forward_before_compilation, dynamic=False, fullgraph=False, mode="default"
             )
+            if self.model_name in ["xlstm", "faclon_mamba"]:
+                
+                old_forward = self.model.forward
+
+                if self.use_cuda_graphs_model:
+                    import jax
+                    # Set up one graph with the model forward call.
+                    # 1) infer cache structure by a single forward call.
+                    graph_input_ids = torch.zeros((1, 1), dtype=torch.long, device=torch.device(self.device))
+                    with torch.inference_mode():
+                        output = forward_before_compilation(
+                            input_ids=graph_input_ids,
+                            cache_params=None,
+                            use_cache=True,
+                            return_dict=True,
+                        )
+                        graph_cache_params = jax.tree.map(
+                            lambda x: torch.zeros_like(x) if isinstance(x, torch.Tensor) else x,
+                            output["cache_params"]
+                        )
+                        # 2) compile the model with the cache structure.
+                        _, fn_graph_call = compile_kwargs_with_cuda_graphs(
+                            fn=partial(self.model.forward, use_cache=True, return_dict=True),
+                            inputs={"input_ids": graph_input_ids, "cache_params": graph_cache_params},
+                            warmups=self.cuda_graphs_warmups,
+                        )
+                    # 3) Set the model forward to the graph.
+                    def new_forward(input_ids: torch.LongTensor, cache_params = None, **kwargs):
+                        return fn_graph_call(input_ids=input_ids, cache_params=cache_params)
+                else:
+                    def new_forward(input_ids: torch.LongTensor, cache_position = None, attention_mask = None, **kwargs):
+                        # Remove cache position and attention mask from forward call, which differ in sizes.
+                        del cache_position
+                        del attention_mask
+                        # Copy input_ids to avoid different stride arguments, which cause recompilation.
+                        input_ids = torch.view_copy(input_ids, input_ids.shape)
+                        # Debugging
+                        out = old_forward(input_ids=input_ids, **kwargs)
+                        return out
+                
+                self.model.forward = new_forward
+
 
     def setup_benchmark(self) -> None:
         if self.model is None:
@@ -481,6 +528,8 @@ class HFModelBenchmark(ModelBenchmarkInterface):
         
         # Allow caching compiling of all generation steps.
         if self.use_torch_compile_model:
+            LOGGER.info("Free up cache for torch compile.")
+            torch.compiler.reset()
             torch._dynamo.config.cache_size_limit = self.generation_length * 2
 
         pf_shape = (
@@ -540,6 +589,8 @@ class HFModelBenchmark(ModelBenchmarkInterface):
             self.benchmark_fn = lambda: graph.replay()
         else:
             self.benchmark_fn = benchmark_fn
+        
+        LOGGER.debug("Setup benchmark done.")
 
 
     def available_kernels(self) -> list[str]:

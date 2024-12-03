@@ -70,7 +70,8 @@ kernel_specs:
     weight_dtype: {weight_dtype}
     use_torch_compile_model: {use_torch_compile_model}
     additional_params:
-      use_cuda_graphs_generate: True
+      use_cuda_graphs_model: True
+      use_cuda_graphs_generate: False
       inference_state_dtype: bfloat16
       embedding_dim: 4096
       num_heads: 8

@@ -298,7 +298,7 @@ def _time_to_first_token_benchmark(
     cfg_yaml = f"""
 vary_type: grid
 vary_params:
-  prefill_length: [128, 512] # , 1024, 2048, 4096, 8192, 16384]
+  prefill_length: [128, 512, 1024, 2048] # , 1024, 2048, 4096, 8192, 16384]
 fixed_params:
   batch_size: {batch_size}
   generation_length: {generation_length}
@@ -310,29 +310,11 @@ fixed_params:
 x_axis_param: "prefill_length"
 
 kernel_specs:
-  - model_name: "mlstm_simple"
-    weight_dtype: {weight_dtype}
-    use_torch_compile_model: {use_torch_compile_model}
-    additional_params:
-      use_torch_compile_generate: False
-      use_cuda_graphs_generate: True
-      inference_state_dtype: bfloat16
-      embedding_dim: 4096
-      num_heads: 8
-      num_blocks: 32 #3 #32
-      vocab_size: 50304
-
-      chunkwise_kernel: chunkwise--triton_xl_chunk
-      sequence_kernel: native_sequence__triton_step_fused
-      step_kernel: triton_fused
-
-      chunk_size: 128
-      autocast_kernel_dtype: bfloat16
-
-  # - model_name: "xlstm"
+  # - model_name: "mlstm_simple"
   #   weight_dtype: {weight_dtype}
   #   use_torch_compile_model: {use_torch_compile_model}
   #   additional_params:
+  #     use_torch_compile_generate: False
   #     use_cuda_graphs_generate: True
   #     inference_state_dtype: bfloat16
   #     embedding_dim: 4096
@@ -347,11 +329,29 @@ kernel_specs:
   #     chunk_size: 128
   #     autocast_kernel_dtype: bfloat16
 
-  # - model_name: "llama2"
-  #   weight_dtype: {weight_dtype}
-  #   use_torch_compile_model: {use_torch_compile_model}
-  #   additional_params:
-  #     use_cuda_graphs_generate: True
+  - model_name: "xlstm"
+    weight_dtype: {weight_dtype}
+    use_torch_compile_model: {use_torch_compile_model}
+    additional_params:
+      use_cuda_graphs_generate: True
+      inference_state_dtype: bfloat16
+      embedding_dim: 4096
+      num_heads: 8
+      num_blocks: 32 #3 #32
+      vocab_size: 50304
+
+      chunkwise_kernel: chunkwise--triton_xl_chunk
+      sequence_kernel: native_sequence__triton_step_fused
+      step_kernel: triton_fused
+
+      chunk_size: 128
+      autocast_kernel_dtype: bfloat16
+
+  - model_name: "llama2"
+    weight_dtype: {weight_dtype}
+    use_torch_compile_model: {use_torch_compile_model}
+    additional_params:
+      use_cuda_graphs_generate: True
 
   - model_name: "llama3"
     weight_dtype: {weight_dtype}
@@ -569,7 +569,7 @@ def run_multiple_benchmarks(
         )
     elif benchmark_type == "ttft":
         batch_sizes = [1]  # [1, 4, 8]
-        generation_lengths = [100]  # [1, 10, 100]
+        generation_lengths = [10]  # [1, 10, 100]
         for batch_size in batch_sizes:
             for generation_length in generation_lengths:
                 _time_to_first_token_benchmark(
