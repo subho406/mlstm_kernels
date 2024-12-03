@@ -468,7 +468,7 @@ class HFModelBenchmark(ModelBenchmarkInterface):
             self.model.forward = torch.compile(
                 forward_before_compilation, dynamic=False, fullgraph=False, mode="default"
             )
-            if self.model_name in ["xlstm", "faclon_mamba"] and not self.use_cuda_graphs_model:
+            if self.model_name in ["xlstm", "falcon_mamba"] and not self.use_cuda_graphs_model:
                 
                 old_forward = self.model.forward
                 def new_forward(input_ids: torch.LongTensor, attention_mask = None, **kwargs):
