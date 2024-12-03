@@ -7,7 +7,11 @@ from typing import Any
 
 import torch
 
-from ..cuda_graphs import compile_with_cuda_graphs
+from ..cuda_graphs import (
+    compile_kwargs_with_cuda_graphs,
+    compile_with_cuda_graphs,
+    tree_map,
+)
 from ..param_handling import ModelSpec
 from .interface import BenchmarkFnContextManagerCfgType, ModelBenchmarkInterface
 
@@ -147,34 +151,26 @@ class mLSTMSimpleModelBenchmark(ModelBenchmarkInterface):
                     state=state,
                 )
         else:
-            import jax
             LOGGER.info("Setting up model with CUDA graphs on forward function.")
-            input_tokens = self.generated_tokens.new_empty((self.batch_size, 1))
-            # Infer state shape.
-            _, state = self.model(x=input_tokens, state=None)
-            input_state = jax.tree.map(lambda x: torch.empty_like(x), state)
-            s = torch.cuda.Stream()
-            s.wait_stream(torch.cuda.current_stream())
-            with torch.cuda.stream(s):
-                for _ in range(self.cuda_graph_warmups):
-                    logits, output_state = self.model(x=input_tokens, state=input_state)
-                s.synchronize()
-                if torch.distributed.is_initialized():
-                    torch.distributed.barrier()
-            torch.cuda.current_stream().wait_stream(s)
+            with benchmark_fn_context_manager():
+                input_tokens = self.generated_tokens.new_empty((self.batch_size, 1))
+                # Infer state shape.
+                _, state = self.model(x=input_tokens, state=None)
+                input_state = tree_map(lambda x: torch.empty_like(x), state)
+                _, fn_replay = compile_kwargs_with_cuda_graphs(
+                    self.model,
+                    {
+                        "x": input_tokens,
+                        "state": input_state,
+                    },
+                    warmups=self.cuda_graph_warmups,
+                )
 
-            graph = torch.cuda.CUDAGraph()
-            with torch.cuda.graph(graph):
-                logits, output_state = self.model(x=input_tokens, state=input_state)
-            
             def llm_forward(tokens, state):
-                input_tokens.copy_(tokens)
                 if state is None:
-                    jax.tree.map(lambda x: x.zero_(), input_state)
-                else:
-                    jax.tree.map(lambda x, y: x.copy_(y), input_state, state)
-                graph.replay()
-                return logits, output_state
+                    tree_map(lambda x: x.zero_() if isinstance(x, torch.Tensor) else None, input_state)
+                    state = tree_map(lambda _: None, input_state)
+                return fn_replay(x=tokens, state=state)
             
 
         def benchmark_fn():

@@ -11,7 +11,11 @@ import torch._dynamo.cache_size
 import transformers
 from transformers import GenerationConfig
 
-from ..cuda_graphs import compile_kwargs_with_cuda_graphs, compile_with_cuda_graphs
+from ..cuda_graphs import (
+    compile_kwargs_with_cuda_graphs,
+    compile_with_cuda_graphs,
+    tree_map,
+)
 from ..param_handling import ModelSpec
 from .interface import BenchmarkFnContextManagerCfgType, ModelBenchmarkInterface
 
@@ -480,7 +484,7 @@ class HFModelBenchmark(ModelBenchmarkInterface):
                             use_cache=True,
                             return_dict=True,
                         )
-                        graph_cache_params = jax.tree.map(
+                        graph_cache_params = tree_map(
                             lambda x: torch.zeros_like(x) if isinstance(x, torch.Tensor) else x,
                             output["cache_params"]
                         )
