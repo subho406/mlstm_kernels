@@ -63,6 +63,8 @@ kernel_specs:
 #       sequence_kernel: native_sequence__triton_step_fused
 #       step_kernel: triton_fused
 
+#       weight_mode: "fused"
+
 #       chunk_size: 128
 #       autocast_kernel_dtype: bfloat16
 
@@ -77,6 +79,7 @@ kernel_specs:
 #       num_heads: 8
 #       num_blocks: 32 #3 #32
 #       vocab_size: 50304
+#       weight_mode: "fused" # or "single"
 
 #       chunkwise_kernel: chunkwise--triton_xl_chunk
 #       sequence_kernel: native_sequence__triton_step_fused
@@ -93,9 +96,15 @@ kernel_specs:
 
   - model_name: "falcon_mamba"
     weight_dtype: {weight_dtype}
-    use_torch_compile_model: True 
+    use_torch_compile_model: True
     additional_params:
-        use_cuda_graphs_model: True
+        use_cuda_graphs_model: False
+
+#   - model_name: "codestral"
+#     weight_dtype: {weight_dtype}
+#     use_torch_compile_model: True
+#     additional_params:
+#         use_cuda_graphs_model: True
 
 #   - model_name: "zamba2"
 #     weight_dtype: {weight_dtype}
@@ -121,8 +130,12 @@ def run_multiple_benchmarks(
     output_dir: str = "./outputs_kernel_benchmarks_profiler",
     output_folder_suffix: str | None = None,
 ):
-    output_folder = setup_output_folder(output_dir, name_suffix=output_folder_suffix, log_level=logging.DEBUG)
-    logging.getLogger("matplotlib").setLevel(logging.WARNING)  # Suppress matplotlib debug logging.
+    output_folder = setup_output_folder(
+        output_dir, name_suffix=output_folder_suffix, log_level=logging.DEBUG
+    )
+    logging.getLogger("matplotlib").setLevel(
+        logging.WARNING
+    )  # Suppress matplotlib debug logging.
     trace_folder = output_folder / "tensorboard"
     trace_folder.mkdir(parents=True, exist_ok=False)
 

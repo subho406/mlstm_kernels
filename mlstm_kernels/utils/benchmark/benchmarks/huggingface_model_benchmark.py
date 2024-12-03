@@ -327,6 +327,8 @@ class HFModelBenchmark(ModelBenchmarkInterface):
     inference_state_dtype: str = "float32"
     autocast_kernel_dtype: str = "bfloat16"
 
+    weight_mode: str = "fused"
+
     # benchmark
     amp_enabled: bool = True
     amp_dtype: str = "bfloat16"
@@ -422,6 +424,7 @@ class HFModelBenchmark(ModelBenchmarkInterface):
             model_config.mode = self.mode
             model_config.inference_state_dtype = self.inference_state_dtype
             model_config.autocast_kernel_dtype = self.autocast_kernel_dtype
+            model_config.weight_mode = self.weight_mode
 
         return model_config
 
@@ -464,14 +467,23 @@ class HFModelBenchmark(ModelBenchmarkInterface):
 
         forward_before_compilation = self.model.forward
         if self.use_torch_compile_model:
-            torch._logging.set_logs(dynamo = logging.INFO)
+            LOGGER.info("Compiling model with torch compile.")
+            torch._logging.set_logs(dynamo=logging.INFO)
             self.model.forward = torch.compile(
-                forward_before_compilation, dynamic=False, fullgraph=False, mode="default"
+                forward_before_compilation,
+                dynamic=False,
+                fullgraph=False,
+                mode="default",
             )
-            if self.model_name in ["xlstm", "falcon_mamba"] and not self.use_cuda_graphs_model:
-                
+            if (
+                self.model_name in ["xlstm", "falcon_mamba"]
+                and not self.use_cuda_graphs_model
+            ):
                 old_forward = self.model.forward
-                def new_forward(input_ids: torch.LongTensor, attention_mask = None, **kwargs):
+
+                def new_forward(
+                    input_ids: torch.LongTensor, attention_mask=None, **kwargs
+                ):
                     # Remove attention mask from forward call, which differ in sizes.
                     del attention_mask
                     # Copy input_ids to avoid different stride arguments, which cause recompilation.
@@ -479,23 +491,33 @@ class HFModelBenchmark(ModelBenchmarkInterface):
                     # Debugging
                     out = old_forward(input_ids=input_ids, **kwargs)
                     return out
-                
+
                 self.model.forward = new_forward
-        
+
         if self.use_cuda_graphs_model:
-            assert self.model_name in ["xlstm", "falcon_mamba"], (
-                "CUDA graphs are only supported for the xlstm and falcon_mamba models."
-            )
+            LOGGER.info("Setting up model with CUDA graphs.")
+            assert self.model_name in [
+                "xlstm",
+                "falcon_mamba",
+            ], "CUDA graphs are only supported for the xlstm and falcon_mamba models."
             # Set up one graph with the model forward call.
             # 1) infer cache structure by a single forward call.
-            graph_input_ids = torch.zeros((1, 1), dtype=torch.long, device=torch.device(self.device))
+            graph_input_ids = torch.zeros(
+                (1, 1), dtype=torch.long, device=torch.device(self.device)
+            )
             # 1.1) set cache position fixed, as different per model.
             if self.model_name == "xlstm":
                 cache_position = None
             elif self.model_name == "falcon_mamba":
-                cache_position = torch.arange(0, self.hf_model_config.conv_kernel, device=torch.device(self.device))
+                cache_position = torch.arange(
+                    0,
+                    self.hf_model_config.conv_kernel,
+                    device=torch.device(self.device),
+                )
             else:
-                raise ValueError(f"Model {self.model_name} not supported for CUDA graphs.")
+                raise ValueError(
+                    f"Model {self.model_name} not supported for CUDA graphs."
+                )
             with torch.inference_mode():
                 output = forward_before_compilation(
                     input_ids=graph_input_ids,
@@ -505,18 +527,26 @@ class HFModelBenchmark(ModelBenchmarkInterface):
                 )
                 graph_cache_params = tree_map(
                     lambda x: torch.zeros_like(x) if isinstance(x, torch.Tensor) else x,
-                    output["cache_params"]
+                    output["cache_params"],
                 )
                 # 2) compile the model with the cache structure.
                 _, fn_graph_call = compile_kwargs_with_cuda_graphs(
-                    fn=partial(self.model.forward, cache_position=cache_position, use_cache=True, return_dict=True),
-                    inputs={"input_ids": graph_input_ids, "cache_params": graph_cache_params},
+                    fn=partial(
+                        self.model.forward,
+                        cache_position=cache_position,
+                        use_cache=True,
+                        return_dict=True,
+                    ),
+                    inputs={
+                        "input_ids": graph_input_ids,
+                        "cache_params": graph_cache_params,
+                    },
                     warmups=self.cuda_graphs_warmups,
                 )
-            # 3) Set the model forward to the graph.
-            def new_forward(input_ids: torch.LongTensor, cache_params = None, **kwargs):
-                return fn_graph_call(input_ids=input_ids, cache_params=cache_params)
 
+            # 3) Set the model forward to the graph.
+            def new_forward(input_ids: torch.LongTensor, cache_params=None, **kwargs):
+                return fn_graph_call(input_ids=input_ids, cache_params=cache_params)
 
     def setup_benchmark(self) -> None:
         if self.model is None:
@@ -536,7 +566,7 @@ class HFModelBenchmark(ModelBenchmarkInterface):
             ).to(device=torch.device(self.device), dtype=torch.long)
         else:
             self.prefill_tokens = None
-        
+
         # Allow caching compiling of all generation steps.
         if self.use_torch_compile_model:
             LOGGER.info("Free up cache for torch compile.")
@@ -564,11 +594,17 @@ class HFModelBenchmark(ModelBenchmarkInterface):
         # CUDA graphs do not allow for CPU tensors to be forwarded to GPU within the graph; needs to be pushed
         # to the GPU before the graph is created.
         pad_token_id = None
-        bos_token_id = torch.tensor(1, dtype=torch.long, device=torch.device(self.device))
-        eos_token_id = torch.tensor(2, dtype=torch.long, device=torch.device(self.device))
+        bos_token_id = torch.tensor(
+            1, dtype=torch.long, device=torch.device(self.device)
+        )
+        eos_token_id = torch.tensor(
+            2, dtype=torch.long, device=torch.device(self.device)
+        )
 
         def benchmark_fn():
-            with torch.nn.attention.sdpa_kernel(torch.nn.attention.SDPBackend.CUDNN_ATTENTION):
+            with torch.nn.attention.sdpa_kernel(
+                torch.nn.attention.SDPBackend.CUDNN_ATTENTION
+            ):
                 with benchmark_fn_context_manager():
                     outputs = self.model.generate(
                         inputs=self.prefill_tokens,
@@ -587,22 +623,20 @@ class HFModelBenchmark(ModelBenchmarkInterface):
                 == (self.batch_size, self.prefill_length + self.generation_length)
             ), f"Unexpected output shape: {outputs.shape}, expected: {(self.batch_size, self.prefill_length + self.generation_length)}"
 
-
         if self.use_cuda_graphs_generate:
             # NOTE: This requires that we forced is_torchdynamo_compiling() to be True.
             # TODO: Currently done manually in the transformer library. Check if possible by forcing torch functions
             # to be True for torchdynamo.
-            assert transformers.utils.is_torchdynamo_compiling(), (
-                "TorchDynamo must be set to compile Huggingface Models with CUDA graphs."
-            )
+            assert (
+                transformers.utils.is_torchdynamo_compiling()
+            ), "TorchDynamo must be set to compile Huggingface Models with CUDA graphs."
             LOGGER.info("Setting up benchmark with CUDA graphs on benchmark function.")
             graph = compile_with_cuda_graphs(benchmark_fn, self.cuda_graphs_warmups)
             self.benchmark_fn = lambda: graph.replay()
         else:
             self.benchmark_fn = benchmark_fn
-        
-        LOGGER.debug("Setup benchmark done.")
 
+        LOGGER.debug("Setup benchmark done.")
 
     def available_kernels(self) -> list[str]:
         hf_models = list(self.get_hf_model_registry().keys())

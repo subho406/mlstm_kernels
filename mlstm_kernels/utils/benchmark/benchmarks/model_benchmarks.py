@@ -3,7 +3,7 @@ import logging
 import typing
 from dataclasses import dataclass
 from pprint import pprint
-from typing import Any
+from typing import Any, Literal
 
 import torch
 
@@ -42,6 +42,8 @@ class mLSTMSimpleModelBenchmark(ModelBenchmarkInterface):
     inference_state_dtype: str = "float32"
     autocast_kernel_dtype: str = "bfloat16"
 
+    weight_mode: Literal["single", "fused"] = "fused"
+
     # benchmark
     # amp does not work with torch compile
     amp_enabled: bool = False
@@ -78,6 +80,7 @@ class mLSTMSimpleModelBenchmark(ModelBenchmarkInterface):
             inference_state_dtype=self.inference_state_dtype,
             autocast_kernel_dtype=self.autocast_kernel_dtype,
             return_last_states=True,
+            weight_mode=self.weight_mode,
         )
 
         self.model = mLSTM(mlstm_config).to(
@@ -132,7 +135,6 @@ class mLSTMSimpleModelBenchmark(ModelBenchmarkInterface):
         elif self.benchmark_fn_context_manager == "inference_mode":
             benchmark_fn_context_manager = torch.inference_mode
 
-
         self.generate_fn = generate_tokens
         if self.use_torch_compile_generate:
             self.generate_fn = torch.compile(
@@ -145,6 +147,7 @@ class mLSTMSimpleModelBenchmark(ModelBenchmarkInterface):
 
         # setup generation function
         if not self.use_cuda_graphs_model:
+
             def llm_forward(tokens, state):
                 return self.model(
                     x=tokens,
@@ -168,10 +171,12 @@ class mLSTMSimpleModelBenchmark(ModelBenchmarkInterface):
 
             def llm_forward(tokens, state):
                 if state is None:
-                    tree_map(lambda x: x.zero_() if isinstance(x, torch.Tensor) else None, input_state)
+                    tree_map(
+                        lambda x: x.zero_() if isinstance(x, torch.Tensor) else None,
+                        input_state,
+                    )
                     state = tree_map(lambda _: None, input_state)
                 return fn_replay(x=tokens, state=state)
-            
 
         def benchmark_fn():
             with torch.autocast(
@@ -195,7 +200,9 @@ class mLSTMSimpleModelBenchmark(ModelBenchmarkInterface):
 
         if self.use_cuda_graphs_generate:
             LOGGER.info("Setting up benchmark with CUDA graphs on benchmark function.")
-            graph = compile_with_cuda_graphs(benchmark_fn, warmups=self.cuda_graph_warmups)
+            graph = compile_with_cuda_graphs(
+                benchmark_fn, warmups=self.cuda_graph_warmups
+            )
             self.benchmark_fn = lambda: graph.replay()
         else:
             self.benchmark_fn = benchmark_fn
