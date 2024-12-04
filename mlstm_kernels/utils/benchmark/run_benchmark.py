@@ -1,5 +1,6 @@
 import gc
 import logging
+import pprint
 from dataclasses import asdict
 from pathlib import Path
 from typing import Literal
@@ -86,6 +87,7 @@ def run_model_benchmarks(
         LOGGER.info(f"Model ({k+1}/{len(kernel_specs)}): {kernel_spec.to_string()}")
         if not setup_model_on_every_param_combination:
             benchmark = benchmark_creator(kernel_spec, kernel_spec.additional_params)
+            LOGGER.info(f"Created benchmark: \n{pprint.pformat(benchmark)}")
             benchmark.setup_model()
 
         for i, param_dict in enumerate(param_dicts):
