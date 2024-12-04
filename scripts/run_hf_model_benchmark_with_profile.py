@@ -93,7 +93,7 @@ kernel_specs:
 
   - model_name: "falcon_mamba"
     weight_dtype: {weight_dtype}
-    use_torch_compile_model: True 
+    use_torch_compile_model: False 
     additional_params:
         use_cuda_graphs_model: True
 

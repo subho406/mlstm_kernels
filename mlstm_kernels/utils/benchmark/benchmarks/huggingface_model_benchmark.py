@@ -516,6 +516,8 @@ class HFModelBenchmark(ModelBenchmarkInterface):
             # 3) Set the model forward to the graph.
             def new_forward(input_ids: torch.LongTensor, cache_params = None, **kwargs):
                 return fn_graph_call(input_ids=input_ids, cache_params=cache_params)
+            
+            self.model.forward = new_forward
 
 
     def setup_benchmark(self) -> None:
