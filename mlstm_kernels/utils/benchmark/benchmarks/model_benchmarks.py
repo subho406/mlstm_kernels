@@ -121,6 +121,12 @@ class mLSTMSimpleModelBenchmark(ModelBenchmarkInterface):
             f"Prefill tokens shape: {pf_shape}, Generating {self.generation_length} tokens."
         )
 
+        # Allow caching compiling of all generation steps.
+        if self.use_torch_compile_model:
+            LOGGER.info("Free up cache for torch compile.")
+            torch.compiler.reset()
+            torch._dynamo.config.cache_size_limit = self.generation_length * 2
+
         assert self.benchmark_fn_context_manager in typing.get_args(
             BenchmarkFnContextManagerCfgType
         ), (
@@ -142,7 +148,7 @@ class mLSTMSimpleModelBenchmark(ModelBenchmarkInterface):
             )
 
         self.generated_tokens = torch.empty(
-            (self.batch_size, self.generation_length + 1), dtype=torch.long
+            (self.batch_size, self.generation_length), dtype=torch.long
         ).to(device=torch.device(self.device))
 
         # setup generation function
@@ -192,10 +198,9 @@ class mLSTMSimpleModelBenchmark(ModelBenchmarkInterface):
                         device=self.device,
                     )
                     if generated_tokens is not None:
-                        # +1 since in generate there is an beginning of sequence token added always
                         assert (
                             tuple(generated_tokens.shape)
-                            == (self.batch_size, self.generation_length + 1)
+                            == (self.batch_size, self.generation_length)
                         ), f"Generated tokens shape: {tuple(generated_tokens.shape)}, expected {(self.batch_size, self.generation_length+1)}"
 
         if self.use_cuda_graphs_generate:

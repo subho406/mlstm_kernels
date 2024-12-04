@@ -503,7 +503,7 @@ class HFModelBenchmark(ModelBenchmarkInterface):
             # Set up one graph with the model forward call.
             # 1) infer cache structure by a single forward call.
             graph_input_ids = torch.zeros(
-                (1, 1), dtype=torch.long, device=torch.device(self.device)
+                (self.batch_size, 1), dtype=torch.long, device=torch.device(self.device)
             )
             # 1.1) set cache position fixed, as different per model.
             if self.model_name == "xlstm":
@@ -631,14 +631,13 @@ class HFModelBenchmark(ModelBenchmarkInterface):
             ), f"Unexpected output shape: {outputs.shape}, expected: {(self.batch_size, self.prefill_length + self.generation_length)}"
 
         if self.use_cuda_graphs_generate:
-            LOGGER.info("Setting up benchmark with CUDA graphs on generate function.")
+            LOGGER.info("Setting up benchmark with CUDA graphs on benchmark function.")
             # NOTE: This requires that we forced is_torchdynamo_compiling() to be True.
             # TODO: Currently done manually in the transformer library. Check if possible by forcing torch functions
             # to be True for torchdynamo.
             assert (
                 transformers.utils.is_torchdynamo_compiling()
             ), "TorchDynamo must be set to compile Huggingface Models with CUDA graphs."
-            LOGGER.info("Setting up benchmark with CUDA graphs on benchmark function.")
             graph = compile_with_cuda_graphs(benchmark_fn, self.cuda_graphs_warmups)
             self.benchmark_fn = lambda: graph.replay()
         else:
