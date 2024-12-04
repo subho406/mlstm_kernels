@@ -247,170 +247,8 @@ def _time_to_first_token_benchmark(
     use_torch_compile_model: bool = True,
     weight_dtype: str = "bfloat16",
 ):
-    cfg_yaml = f"""
-vary_type: grid
-vary_params:
-  prefill_length: [128, 512, 1024, 2048] # , 1024, 2048, 4096, 8192, 16384]
-fixed_params:
-  batch_size: {batch_size}
-  generation_length: {generation_length}
-
-  rep: 4
-  warmup: 2 #1
-  benchmark_fn_context_manager: "inference_mode"
-
-x_axis_param: "prefill_length"
-
-kernel_specs:
-  # - model_name: "mlstm_simple"
-  #   weight_dtype: {weight_dtype}
-  #   use_torch_compile_model: {use_torch_compile_model}
-  #   additional_params:
-  #     use_torch_compile_generate: False
-  #     use_cuda_graphs_generate: True
-  #     inference_state_dtype: bfloat16
-  #     embedding_dim: 4096
-  #     num_heads: 8
-  #     num_blocks: 32 #3 #32
-  #     vocab_size: 50304
-
-  #     chunkwise_kernel: chunkwise--triton_xl_chunk
-  #     sequence_kernel: native_sequence__triton_step_fused
-  #     step_kernel: triton_fused
-
-  #     chunk_size: 128
-  #     autocast_kernel_dtype: bfloat16
-
-  - model_name: "xlstm"
-    weight_dtype: {weight_dtype}
-    use_torch_compile_model: {use_torch_compile_model}
-    additional_params:
-      use_cuda_graphs_generate: True
-      inference_state_dtype: bfloat16
-      embedding_dim: 4096
-      num_heads: 8
-      num_blocks: 32 #3 #32
-      vocab_size: 50304
-
-      chunkwise_kernel: chunkwise--triton_xl_chunk
-      sequence_kernel: native_sequence__triton_step_fused
-      step_kernel: triton_fused
-
-      chunk_size: 128
-      autocast_kernel_dtype: bfloat16
-
-  - model_name: "llama2"
-    weight_dtype: {weight_dtype}
-    use_torch_compile_model: {use_torch_compile_model}
-    additional_params:
-      use_cuda_graphs_generate: True
-
-  - model_name: "llama3"
-    weight_dtype: {weight_dtype}
-    use_torch_compile_model: {use_torch_compile_model}
-    additional_params:
-      use_cuda_graphs_generate: True
-
-  # - model_name: "ministral8b"
-  #   weight_dtype: {weight_dtype}
-  #   use_torch_compile_model: {use_torch_compile_model}
-
-  # - model_name: "codestral_mamba"
-  #   weight_dtype: {weight_dtype}
-  #   use_torch_compile_model: {use_torch_compile_model}
-
-  # - model_name: "falcon_mamba"
-  #   weight_dtype: {weight_dtype}
-  #   use_torch_compile_model: {use_torch_compile_model}
-
-  # - model_name: "zamba2"
-  #   weight_dtype: {weight_dtype}
-  #   use_torch_compile_model: {use_torch_compile_model}
-
-############## NO TORCH COMPILE ####################
-  # - model_name: "mlstm_simple"
-  #   weight_dtype: {weight_dtype}
-  #   use_torch_compile_model: False #{use_torch_compile_model}
-  #   additional_params:
-  #     use_torch_compile_generate: False
-  #     inference_state_dtype: bfloat16
-  #     embedding_dim: 4096
-  #     num_heads: 8
-  #     num_blocks: 32 #3 #32
-  #     vocab_size: 50304
-
-  #     chunkwise_kernel: chunkwise--triton_xl_chunk
-  #     sequence_kernel: native_sequence__triton_step_fused
-  #     step_kernel: triton_fused
-
-  #     chunk_size: 128
-  #     autocast_kernel_dtype: bfloat16
-
-  # - model_name: "xlstm"
-  #   weight_dtype: {weight_dtype}
-  #   use_torch_compile_model: False #{use_torch_compile_model}
-  #   additional_params:
-  #     inference_state_dtype: bfloat16
-  #     embedding_dim: 4096
-  #     num_heads: 8
-  #     num_blocks: 32 #3 #32
-  #     vocab_size: 50304
-
-  #     chunkwise_kernel: chunkwise--triton_xl_chunk
-  #     sequence_kernel: native_sequence__triton_step_fused
-  #     step_kernel: triton_fused
-
-  #     chunk_size: 128
-  #     autocast_kernel_dtype: bfloat16
-
-  # - model_name: "llama2"
-  #   weight_dtype: {weight_dtype}
-  #   use_torch_compile_model: False #{use_torch_compile_model}
-
-  # - model_name: "llama3"
-  #   weight_dtype: {weight_dtype}
-  #   use_torch_compile_model: False #{use_torch_compile_model}
-
-  # - model_name: "ministral8b"
-  #   weight_dtype: {weight_dtype}
-  #   use_torch_compile_model: False #{use_torch_compile_model}
-
-  # - model_name: "codestral_mamba"
-  #   weight_dtype: {weight_dtype}
-  #   use_torch_compile_model: False #{use_torch_compile_model}
-
-  # - model_name: "falcon_mamba"
-  #   weight_dtype: {weight_dtype}
-  #   use_torch_compile_model: False #{use_torch_compile_model}
-
-  # - model_name: "zamba2"
-  #   weight_dtype: {weight_dtype}
-  #   use_torch_compile_model: False #{use_torch_compile_model}
-
-
-benchmark_name: "hf_7B_generation_time__pfl{prefill_length}_bs{batch_size}_tc{use_torch_compile_model}_weightdtype{weight_dtype}"
-"""
-    cfg = from_dict(
-        data_class=BenchmarkConfig,
-        data=OmegaConf.to_container(OmegaConf.create(cfg_yaml)),
-    )
-    LOGGER.info(f"Running benchmark with config:\n{pprint.pformat(cfg)}")
-    run_and_record_benchmarks(
-        cfg,
-        create_hf_model_benchmark,
-        output_folder,
-        benchmark_type="model",
-        setup_model_on_every_param_combination=False,
-    )
-
-
-def _time_to_first_token_benchmark(
-    output_folder: Path,
-    batch_size: int = 8,
-    generation_length: int = 1,
-    use_torch_compile_model: bool = True,
-    weight_dtype: str = "bfloat16",
-):
+    cuda_graph_model = False
+    cuda_graph_generate = True
     cfg_yaml = f"""
 vary_type: grid
 vary_params:
@@ -419,42 +257,72 @@ fixed_params:
   batch_size: {batch_size}
   generation_length: {generation_length}
 
-  rep: 5
-  warmup: 2 #1
+  rep: 4
+  warmup: 1 #1
   benchmark_fn_context_manager: "inference_mode"
 
 x_axis_param: "prefill_length"
 
 kernel_specs:
-  # - model_name: "mlstm_simple"
-  #   weight_dtype: {weight_dtype}
-  #   use_torch_compile_model: {use_torch_compile_model}
-  #   additional_params:
-  #     use_torch_compile_generate: False
-  #     use_cuda_graphs_generate: True
-  #     inference_state_dtype: bfloat16
-  #     embedding_dim: 4096
-  #     num_heads: 8
-  #     num_blocks: 32 #3 #32
-  #     vocab_size: 50304
-
-  #     chunkwise_kernel: chunkwise--triton_xl_chunk
-  #     sequence_kernel: native_sequence__triton_step_fused
-  #     step_kernel: triton_fused
-
-  #     chunk_size: 128
-  #     autocast_kernel_dtype: bfloat16
-
-  - model_name: "xlstm"
+  - model_name: "mlstm_simple"
     weight_dtype: {weight_dtype}
     use_torch_compile_model: {use_torch_compile_model}
     additional_params:
-      use_cuda_graphs_generate: True
+      use_torch_compile_generate: False
+
+      use_cuda_graphs_generate: True #{cuda_graph_generate}
+      use_cuda_graphs_model: {cuda_graph_model}
+
       inference_state_dtype: bfloat16
       embedding_dim: 4096
       num_heads: 8
       num_blocks: 32 #3 #32
       vocab_size: 50304
+      weight_mode: "fused"
+
+      chunkwise_kernel: chunkwise--triton_xl_chunk
+      sequence_kernel: native_sequence__triton_step_fused
+      step_kernel: triton_fused
+
+      chunk_size: 128
+      autocast_kernel_dtype: bfloat16
+
+  - model_name: "mlstm_simple"
+    weight_dtype: {weight_dtype}
+    use_torch_compile_model: {use_torch_compile_model}
+    additional_params:
+      use_torch_compile_generate: False
+
+      use_cuda_graphs_generate: True #{cuda_graph_generate}
+      use_cuda_graphs_model: {cuda_graph_model}
+
+      inference_state_dtype: bfloat16
+      embedding_dim: 4096
+      num_heads: 8
+      num_blocks: 32 #3 #32
+      vocab_size: 50304
+      weight_mode: "single" #! CHANGE HERE
+
+      chunkwise_kernel: chunkwise--triton_xl_chunk
+      sequence_kernel: native_sequence__triton_step_fused
+      step_kernel: triton_fused
+
+      chunk_size: 128
+      autocast_kernel_dtype: bfloat16
+
+  - model_name: "xlstm"
+    weight_dtype: {weight_dtype}
+    use_torch_compile_model: {use_torch_compile_model}
+    additional_params:
+      use_cuda_graphs_generate: {cuda_graph_generate}
+      use_cuda_graphs_model: {cuda_graph_model}
+
+      inference_state_dtype: bfloat16
+      embedding_dim: 4096
+      num_heads: 8
+      num_blocks: 32 #3 #32
+      vocab_size: 50304
+      weight_mode: "fused"
 
       chunkwise_kernel: chunkwise--triton_xl_chunk
       sequence_kernel: native_sequence__triton_step_fused
@@ -467,29 +335,43 @@ kernel_specs:
     weight_dtype: {weight_dtype}
     use_torch_compile_model: {use_torch_compile_model}
     additional_params:
-      use_cuda_graphs_generate: True
+      use_cuda_graphs_generate: {cuda_graph_generate}
+      use_cuda_graphs_model: {cuda_graph_model}
 
   - model_name: "llama3"
     weight_dtype: {weight_dtype}
     use_torch_compile_model: {use_torch_compile_model}
     additional_params:
-      use_cuda_graphs_generate: True
+      use_cuda_graphs_generate: {cuda_graph_generate}
+      use_cuda_graphs_model: {cuda_graph_model}
 
   # - model_name: "ministral8b"
   #   weight_dtype: {weight_dtype}
   #   use_torch_compile_model: {use_torch_compile_model}
+  #   additional_params:
+  #     use_cuda_graphs_generate: {cuda_graph_generate}
+  #     use_cuda_graphs_model: {cuda_graph_model}
 
   # - model_name: "codestral_mamba"
   #   weight_dtype: {weight_dtype}
   #   use_torch_compile_model: {use_torch_compile_model}
+  #   additional_params:
+  #     use_cuda_graphs_generate: {cuda_graph_generate}
+  #     use_cuda_graphs_model: {cuda_graph_model}
 
-  - model_name: "falcon_mamba"
-    weight_dtype: {weight_dtype}
-    use_torch_compile_model: {use_torch_compile_model}
+  # - model_name: "falcon_mamba"
+  #   weight_dtype: {weight_dtype}
+  #   use_torch_compile_model: False #{use_torch_compile_model}
+  #   additional_params:
+  #     use_cuda_graphs_generate: {cuda_graph_generate}
+  #     use_cuda_graphs_model: {cuda_graph_model}
 
   # - model_name: "zamba2"
   #   weight_dtype: {weight_dtype}
   #   use_torch_compile_model: {use_torch_compile_model}
+  #   additional_params:
+  #     use_cuda_graphs_generate: {cuda_graph_generate}
+  #     use_cuda_graphs_model: {cuda_graph_model}
 
 ############## NO TORCH COMPILE ####################
   # - model_name: "mlstm_simple"
@@ -754,3 +636,4 @@ if __name__ == "__main__":
 
 # Run commands:
 # PYTHONPATH=. python scripts/run_hf_model_benchmark.py --benchmark ttft --folder_suffix timetofirsttoken_final_v2
+# PYTHONPATH=. python scripts/run_hf_model_benchmark.py --benchmark ttft --folder_suffix ttft_with_cudagraph_generate_v0
