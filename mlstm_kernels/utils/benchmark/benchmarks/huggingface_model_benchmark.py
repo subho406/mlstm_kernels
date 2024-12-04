@@ -548,6 +548,8 @@ class HFModelBenchmark(ModelBenchmarkInterface):
             def new_forward(input_ids: torch.LongTensor, cache_params=None, **kwargs):
                 return fn_graph_call(input_ids=input_ids, cache_params=cache_params)
 
+            self.model.forward = new_forward
+
         # if self.use_torch_compile_generate:
         #     self.model.generate = torch.compile(
         #         self.model.generate, dynamic=False, fullgraph=False, mode="default"
