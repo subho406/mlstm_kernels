@@ -629,6 +629,7 @@ class HFModelBenchmark(ModelBenchmarkInterface):
             ), f"Unexpected output shape: {outputs.shape}, expected: {(self.batch_size, self.prefill_length + self.generation_length)}"
 
         if self.use_cuda_graphs_generate:
+            LOGGER.info("Setting up benchmark with CUDA graphs on generate function.")
             # NOTE: This requires that we forced is_torchdynamo_compiling() to be True.
             # TODO: Currently done manually in the transformer library. Check if possible by forcing torch functions
             # to be True for torchdynamo.
