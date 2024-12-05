@@ -23,12 +23,12 @@ xlstm_colors = {
 
 model_labels = {
     "mlstm_simple": "mLSTM simple",
-    "xlstm": "xLSTM",
-    "llama2": "Llama 2",
-    "llama3": "Llama 3",
+    "xlstm": "xLSTM 7B",
+    "llama2": "Llama 2 7B",
+    "llama3": "Llama 3 8B",
     "ministral8b": "Ministral8B",
-    "codestral_mamba": "Mamba 2",
-    "falcon_mamba": "Mamba 1",
+    "codestral_mamba": "CodestralMamba (Mamba 2) 7B",
+    "falcon_mamba": "FalconMamba (Mamba 1) 7B",
     "zamba2": "Zamba2",
 }
 
