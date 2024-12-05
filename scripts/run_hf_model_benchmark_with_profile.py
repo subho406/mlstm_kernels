@@ -26,10 +26,10 @@ WARMUP_STEPS = 5
 
 def _benchmark_to_profile(output_folder: Path, profiler=None):
     batch_size = 1
-    prefill_length = 0
+    prefill_length = 8192
     weight_dtype = "bfloat16"
     use_torch_compile_model = True
-    generation_length = 10
+    generation_length = 1
 
     cfg_yaml = f"""
 vary_type: grid
@@ -46,34 +46,38 @@ fixed_params:
 x_axis_param: "generation_length"
 
 kernel_specs:
-#   - model_name: "mlstm_simple"
-#     weight_dtype: {weight_dtype}
-#     use_torch_compile_model: {use_torch_compile_model}
-#     additional_params:
-#       use_torch_compile_generate: False
-#       use_cuda_graphs_model: True
-#       use_cuda_graphs_generate: False
-#       inference_state_dtype: bfloat16
-#       embedding_dim: 4096
-#       num_heads: 8
-#       num_blocks: 32
-#       vocab_size: 50304
+  - model_name: "mlstm_simple"
+    weight_dtype: {weight_dtype}
+    use_torch_compile_model: {use_torch_compile_model}
+    additional_params:
+      use_torch_compile_generate: False
 
-#       chunkwise_kernel: chunkwise--triton_xl_chunk
-#       sequence_kernel: native_sequence__triton_step_fused
-#       step_kernel: triton_fused
+      use_cuda_graphs_model: False
+      use_cuda_graphs_generate: True
 
-#       weight_mode: "fused"
 
-#       chunk_size: 128
-#       autocast_kernel_dtype: bfloat16
+      inference_state_dtype: bfloat16
+      embedding_dim: 4096
+      num_heads: 8
+      num_blocks: 32
+      vocab_size: 50304
+
+      chunkwise_kernel: chunkwise--triton_xl_chunk
+      sequence_kernel: native_sequence__triton_step_fused
+      step_kernel: triton_fused
+
+      weight_mode: "fused"
+
+      chunk_size: 128
+      autocast_kernel_dtype: bfloat16
 
 #   - model_name: "xlstm"
 #     weight_dtype: {weight_dtype}
-#     use_torch_compile_model: {use_torch_compile_model}
+#     use_torch_compile_model: True #{use_torch_compile_model}
 #     additional_params:
-#       use_cuda_graphs_model: True
-#       use_cuda_graphs_generate: False
+#       use_cuda_graphs_model: False
+#       use_cuda_graphs_generate: True
+
 #       inference_state_dtype: bfloat16
 #       embedding_dim: 4096
 #       num_heads: 8
@@ -99,16 +103,29 @@ kernel_specs:
 #     use_torch_compile_model: False
 #     additional_params:
 #       use_cuda_graphs_model: False
+#       use_cuda_graphs_generate: True
 
-  - model_name: "codestral_mamba"
-    weight_dtype: {weight_dtype}
-    use_torch_compile_model: False
-    additional_params:
-      use_cuda_graphs_model: False
+#   - model_name: "codestral_mamba"
+#     weight_dtype: {weight_dtype}
+#     use_torch_compile_model: False
+#     additional_params:
+#       use_cuda_graphs_model: False
+#       use_cuda_graphs_generate: True
+
+#   - model_name: "ministral8b"
+#     weight_dtype: {weight_dtype}
+#     use_torch_compile_model: False #{use_torch_compile_model}
+#     additional_params:
+#       use_cuda_graphs_model: False
+#       use_cuda_graphs_generate: False
+
 
 #   - model_name: "zamba2"
 #     weight_dtype: {weight_dtype}
-#     use_torch_compile_model: {use_torch_compile_model}
+#     use_torch_compile_model: True #{use_torch_compile_model}
+#     additional_params:
+#         use_cuda_graphs_model: False
+#         use_cuda_graphs_generate: False
 
 benchmark_name: "Look_at_trace"
 """
