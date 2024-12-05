@@ -1,5 +1,6 @@
 import contextlib
 import gc
+import inspect
 import logging
 import typing
 from dataclasses import dataclass
@@ -9,7 +10,7 @@ from typing import Any
 import torch
 import torch._dynamo.cache_size
 import transformers
-from transformers import GenerationConfig
+from transformers import GenerationConfig, StaticCache
 
 from ..cuda_graphs import (
     compile_kwargs_with_cuda_graphs,
@@ -482,7 +483,7 @@ class HFModelBenchmark(ModelBenchmarkInterface):
                 old_forward = self.model.forward
 
                 def new_forward(
-                    input_ids: torch.LongTensor, attention_mask=None, **kwargs
+                    input_ids: torch.LongTensor, attention_mask: torch.Tensor | None = None, **kwargs
                 ):
                     # Remove attention mask from forward call, which differ in sizes.
                     del attention_mask
@@ -491,7 +492,8 @@ class HFModelBenchmark(ModelBenchmarkInterface):
                     # Debugging
                     out = old_forward(input_ids=input_ids, **kwargs)
                     return out
-
+                
+                new_forward.__signature__ = inspect.signature(old_forward)
                 self.model.forward = new_forward
 
         if self.use_cuda_graphs_model:
@@ -548,6 +550,7 @@ class HFModelBenchmark(ModelBenchmarkInterface):
             def new_forward(input_ids: torch.LongTensor, cache_params=None, **kwargs):
                 return fn_graph_call(input_ids=input_ids, cache_params=cache_params)
 
+            new_forward.__signature__ = inspect.signature(self.model.forward)
             self.model.forward = new_forward
 
         # if self.use_torch_compile_generate:
@@ -613,6 +616,15 @@ class HFModelBenchmark(ModelBenchmarkInterface):
                 torch.nn.attention.SDPBackend.CUDNN_ATTENTION
             ):
                 with benchmark_fn_context_manager():
+                    generate_kwargs = {}
+                    if self.model_name in ["llama2", "llama3"]:
+                        generate_kwargs["past_key_values"] = StaticCache(
+                            config=self.hf_model_config,
+                            batch_size=self.batch_size,
+                            max_cache_len=self.prefill_length + self.generation_length - 1,
+                            device=torch.device(self.device),
+                            dtype=self.model.dtype,
+                        )
                     outputs = self.model.generate(
                         inputs=self.prefill_tokens,
                         generation_config=GenerationConfig(
@@ -624,6 +636,7 @@ class HFModelBenchmark(ModelBenchmarkInterface):
                             eos_token_id=eos_token_id,
                         ),
                         use_cache=True,
+                        **generate_kwargs,
                     )
             assert (
                 outputs.shape
