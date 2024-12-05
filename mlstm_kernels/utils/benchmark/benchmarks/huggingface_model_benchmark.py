@@ -483,7 +483,9 @@ class HFModelBenchmark(ModelBenchmarkInterface):
                 old_forward = self.model.forward
 
                 def new_forward(
-                    input_ids: torch.LongTensor, attention_mask: torch.Tensor | None = None, **kwargs
+                    input_ids: torch.LongTensor,
+                    attention_mask: torch.Tensor | None = None,
+                    **kwargs,
                 ):
                     # Remove attention mask from forward call, which differ in sizes.
                     del attention_mask
@@ -492,16 +494,20 @@ class HFModelBenchmark(ModelBenchmarkInterface):
                     # Debugging
                     out = old_forward(input_ids=input_ids, **kwargs)
                     return out
-                
+
                 new_forward.__signature__ = inspect.signature(old_forward)
                 self.model.forward = new_forward
 
         if self.use_cuda_graphs_model:
             LOGGER.info("Setting up model with CUDA graphs.")
-            assert self.model_name in [
-                "xlstm",
-                "falcon_mamba",
-            ], "CUDA graphs are only supported for the xlstm and falcon_mamba models."
+            assert (
+                self.model_name
+                in [
+                    "xlstm",
+                    "falcon_mamba",
+                    "codestral_mamba",
+                ]
+            ), "CUDA graphs are only supported for the xlstm, falcon_mamba and codestral_mamba models."
             # Set up one graph with the model forward call.
             # 1) infer cache structure by a single forward call.
             graph_input_ids = torch.zeros(
@@ -510,7 +516,7 @@ class HFModelBenchmark(ModelBenchmarkInterface):
             # 1.1) set cache position fixed, as different per model.
             if self.model_name == "xlstm":
                 cache_position = None
-            elif self.model_name == "falcon_mamba":
+            elif self.model_name in ["falcon_mamba", "codestral_mamba"]:
                 cache_position = torch.arange(
                     0,
                     self.hf_model_config.conv_kernel,
@@ -621,7 +627,9 @@ class HFModelBenchmark(ModelBenchmarkInterface):
                         generate_kwargs["past_key_values"] = StaticCache(
                             config=self.hf_model_config,
                             batch_size=self.batch_size,
-                            max_cache_len=self.prefill_length + self.generation_length - 1,
+                            max_cache_len=self.prefill_length
+                            + self.generation_length
+                            - 1,
                             device=torch.device(self.device),
                             dtype=self.model.dtype,
                         )

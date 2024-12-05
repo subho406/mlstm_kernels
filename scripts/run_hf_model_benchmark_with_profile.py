@@ -92,11 +92,11 @@ kernel_specs:
 #       chunk_size: 128
 #       autocast_kernel_dtype: bfloat16
 
-  - model_name: "llama2"
-    weight_dtype: {weight_dtype}
-    use_torch_compile_model: {use_torch_compile_model}
-    additional_params:
-      use_cuda_graphs_generate: True
+#   - model_name: "llama2"
+#     weight_dtype: {weight_dtype}
+#     use_torch_compile_model: {use_torch_compile_model}
+#     additional_params:
+#       use_cuda_graphs_generate: True
 
 #   - model_name: "llama3"
 #     weight_dtype: {weight_dtype}
@@ -116,8 +116,8 @@ kernel_specs:
 #     weight_dtype: {weight_dtype}
 #     use_torch_compile_model: False
 #     additional_params:
-#       use_cuda_graphs_model: False
-#       use_cuda_graphs_generate: True
+#       use_cuda_graphs_model: True
+#       use_cuda_graphs_generate: False
 
 #   - model_name: "ministral8b"
 #     weight_dtype: {weight_dtype}

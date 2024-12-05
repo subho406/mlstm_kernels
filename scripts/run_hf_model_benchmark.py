@@ -185,26 +185,26 @@ kernel_specs:
   #     chunk_size: 128
   #     autocast_kernel_dtype: bfloat16
 
-  - model_name: "xlstm"
-    weight_dtype: {weight_dtype}
-    use_torch_compile_model: {use_torch_compile_model}
-    additional_params:
-      use_cuda_graphs_generate: False
-      use_cuda_graphs_model: True
+  # - model_name: "xlstm"
+  #   weight_dtype: {weight_dtype}
+  #   use_torch_compile_model: {use_torch_compile_model}
+  #   additional_params:
+  #     use_cuda_graphs_generate: False
+  #     use_cuda_graphs_model: True
 
-      inference_state_dtype: bfloat16
-      embedding_dim: 4096
-      num_heads: 8
-      num_blocks: 32 #3 #32
-      vocab_size: 50304
-      weight_mode: "fused"
+  #     inference_state_dtype: bfloat16
+  #     embedding_dim: 4096
+  #     num_heads: 8
+  #     num_blocks: 32 #3 #32
+  #     vocab_size: 50304
+  #     weight_mode: "fused"
 
-      chunkwise_kernel: chunkwise--triton_xl_chunk
-      sequence_kernel: native_sequence__triton_step_fused
-      step_kernel: triton_fused
+  #     chunkwise_kernel: chunkwise--triton_xl_chunk
+  #     sequence_kernel: native_sequence__triton_step_fused
+  #     step_kernel: triton_fused
 
-      chunk_size: 128
-      autocast_kernel_dtype: bfloat16
+  #     chunk_size: 128
+  #     autocast_kernel_dtype: bfloat16
 
   # - model_name: "mlstm_simple"
   #   weight_dtype: {weight_dtype}
@@ -228,48 +228,27 @@ kernel_specs:
   #     chunk_size: 128
   #     autocast_kernel_dtype: bfloat16
 
-  # - model_name: "xlstm"
-  #   weight_dtype: {weight_dtype}
-  #   use_torch_compile_model: {use_torch_compile_model}
-  #   additional_params:
-  #     use_cuda_graphs_generate: False
-  #     use_cuda_graphs_model: False
-
-  #     inference_state_dtype: bfloat16
-  #     embedding_dim: 4096
-  #     num_heads: 8
-  #     num_blocks: 32 #3 #32
-  #     vocab_size: 50304
-  #     weight_mode: "fused"
-
-  #     chunkwise_kernel: chunkwise--triton_xl_chunk
-  #     sequence_kernel: native_sequence__triton_step_fused
-  #     step_kernel: triton_fused
-
-  #     chunk_size: 128
-  #     autocast_kernel_dtype: bfloat16
-
   # - model_name: "llama2"
   #   weight_dtype: {weight_dtype}
-  #   use_torch_compile_model: False #{use_torch_compile_model}
+  #   use_torch_compile_model: True #{use_torch_compile_model}
   #   additional_params:
   #     use_cuda_graphs_generate: False
   #     use_cuda_graphs_model: False
 
   # - model_name: "llama3"
   #   weight_dtype: {weight_dtype}
-  #   use_torch_compile_model: False #{use_torch_compile_model}
+  #   use_torch_compile_model: True #{use_torch_compile_model}
   #   additional_params:
   #     use_cuda_graphs_generate: False
   #     use_cuda_graphs_model: False
 
 
-  # - model_name: "codestral_mamba"
-  #   weight_dtype: {weight_dtype}
-  #   use_torch_compile_model: False #{use_torch_compile_model}
-  #   additional_params:
-  #     use_cuda_graphs_generate: False
-  #     use_cuda_graphs_model: False
+  - model_name: "codestral_mamba"
+    weight_dtype: {weight_dtype}
+    use_torch_compile_model: False #{use_torch_compile_model}
+    additional_params:
+      use_cuda_graphs_generate: False
+      use_cuda_graphs_model: True
 
   # - model_name: "falcon_mamba"
   #   weight_dtype: {weight_dtype}
@@ -277,21 +256,6 @@ kernel_specs:
   #   additional_params:
   #     use_cuda_graphs_generate: False
   #     use_cuda_graphs_model: True
-
-  # - model_name: "codestral_mamba"
-  #   weight_dtype: {weight_dtype}
-  #   use_torch_compile_model: False #{use_torch_compile_model}
-  #   additional_params:
-  #     use_cuda_graphs_generate: False
-  #     use_cuda_graphs_model: True
-
-  # - model_name: "falcon_mamba"
-  #   weight_dtype: {weight_dtype}
-  #   use_torch_compile_model: False #{use_torch_compile_model}
-  #   additional_params:
-  #     use_cuda_graphs_generate: False
-  #     use_cuda_graphs_model: True
-
 
 # Note: no NO_TORCH_COMPILE for generation time benchmark since runtime is so long
 
@@ -442,19 +406,19 @@ kernel_specs:
       use_cuda_graphs_generate: True #{cuda_graph_generate}
       use_cuda_graphs_model: False #{cuda_graph_model}
 
-  - model_name: "llama2"
-    weight_dtype: {weight_dtype}
-    use_torch_compile_model: {use_torch_compile_model}
-    additional_params:
-      use_cuda_graphs_generate: False #{cuda_graph_generate}
-      use_cuda_graphs_model: False #{cuda_graph_model}
+  # - model_name: "llama2"
+  #   weight_dtype: {weight_dtype}
+  #   use_torch_compile_model: {use_torch_compile_model}
+  #   additional_params:
+  #     use_cuda_graphs_generate: False #{cuda_graph_generate}
+  #     use_cuda_graphs_model: False #{cuda_graph_model}
 
-  - model_name: "llama3"
-    weight_dtype: {weight_dtype}
-    use_torch_compile_model: {use_torch_compile_model}
-    additional_params:
-      use_cuda_graphs_generate: False #{cuda_graph_generate}
-      use_cuda_graphs_model: False #{cuda_graph_model}
+  # - model_name: "llama3"
+  #   weight_dtype: {weight_dtype}
+  #   use_torch_compile_model: {use_torch_compile_model}
+  #   additional_params:
+  #     use_cuda_graphs_generate: False #{cuda_graph_generate}
+  #     use_cuda_graphs_model: False #{cuda_graph_model}
 
   # # # - model_name: "ministral8b"
   # # #   weight_dtype: {weight_dtype}
@@ -707,7 +671,7 @@ def run_multiple_benchmarks(
                     weight_dtype="bfloat16",
                 )
     elif benchmark_type == "gen_time":
-        batch_sizes = [1, 8]
+        batch_sizes = [1]
         prefill_lengths = [0]
         for batch_size in batch_sizes:
             for prefill_length in prefill_lengths:
