@@ -45,5 +45,47 @@
             }
         },
 
+        {
+            "name": "model_benchmark_with_profile",
+            "type": "debugpy",
+            "request": "launch",
+            "stopOnEntry": false,
+            "python": "${command:python.interpreterPath}",
+            "program": "${workspaceFolder}/scripts/run_hf_model_benchmark_with_profile.py",
+            "cwd": "${workspaceFolder}",
+            "console": "integratedTerminal",
+            "justMyCode": false,
+            "args": [
+                // "-cn",
+                // "${workspaceFolder}/scripts/run_kernel_benchmark.py",
+            ],
+            "env": {
+                "CUDA_VISIBLE_DEVICES": "0",
+                "LOGLEVEL": "DEBUG",
+                "PYTHONPATH": "${workspaceFolder}"
+            }
+        },
+
+        {
+            "name": "hf_model_benchmark_debug",
+            "type": "debugpy",
+            "request": "launch",
+            "stopOnEntry": false,
+            "python": "${command:python.interpreterPath}",
+            "program": "${workspaceFolder}/scripts/run_hf_model_benchmark_debug.py",
+            "cwd": "${workspaceFolder}",
+            "console": "integratedTerminal",
+            "justMyCode": false,
+            "args": [
+                // "-cn",
+                // "${workspaceFolder}/scripts/run_kernel_benchmark.py",
+            ],
+            "env": {
+                "CUDA_VISIBLE_DEVICES": "0",
+                "LOGLEVEL": "DEBUG",
+                "PYTHONPATH": "${workspaceFolder}"
+            }
+        },
+
     ]
 }

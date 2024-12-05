@@ -1,6 +1,8 @@
 import copy
 from typing import Any
+from collections.abc import Callable
 
+import matplotlib as mpl
 import matplotlib.pyplot as plt
 import pandas as pd
 
@@ -18,7 +20,9 @@ def plot_benchmark_result_table(
     style_dict_colname_mapping_exact: bool = True,
     linestyle_mapping: dict[str, Any] = None,
     additional_exclude_col_regex: str = None,
+    filename: str = None,
     y_label: str = "Time [ms]",
+    x_label: str = None,
     ax=None,
 ):
     if ax is None:
@@ -57,8 +61,56 @@ def plot_benchmark_result_table(
                 x_axis_vals, y_axis_val_df[col].values, label=col, **plot_kwargs_col
             )
 
-    ax.set_xlabel(x_axis_param)
+    ax.spines["top"].set_visible(False)
+    ax.spines["right"].set_visible(False)
+    xlabel = x_axis_param if x_label is None else x_label
+    ax.set_xlabel(xlabel)
     ax.set_ylabel(y_label)
     ax.legend(**legend_args)
     ax.grid(alpha=grid_alpha)
+
+    def savefig(file_ending):
+        f.savefig(
+            f"plot_{filename}.{file_ending}",
+            dpi=300,
+            bbox_inches="tight",
+        )
+
+    if filename is not None:
+        for file_ending in ["png", "pdf", "svg"]:
+            savefig(file_ending)
+
     return f
+
+
+def select_columns(df, selected_columns, keep_col_regex: str):
+    keep_col = df.filter(regex=keep_col_regex)
+    selected_df = df[selected_columns.values()]
+    selected_df.columns = selected_columns.keys()
+    selected_df = pd.concat([keep_col, selected_df], axis=1)
+    return selected_df
+
+
+FONTSIZE = 12
+SMALL_OFFSET = 1
+FONTSIZE_SMALL = FONTSIZE - SMALL_OFFSET
+FONTSIZE_TICKS = 11
+
+fontsize_delta = 0
+
+
+def rc_context_wrapper(func: Callable, **kwargs):
+    with mpl.rc_context(
+        rc={
+            "text.usetex": False,
+            "font.size": FONTSIZE + fontsize_delta,
+            "axes.labelsize": FONTSIZE + fontsize_delta,
+            "legend.fontsize": FONTSIZE_SMALL + fontsize_delta,
+            "xtick.labelsize": FONTSIZE_TICKS + fontsize_delta,
+            "ytick.labelsize": FONTSIZE_TICKS + fontsize_delta,
+            "axes.titlesize": FONTSIZE + fontsize_delta,
+            "lines.markersize": 6.0,  # * default: 6.0
+            "lines.linewidth": 2.0,  # * default: 1.5
+        }
+    ):
+        return func(**kwargs)
