@@ -1,6 +1,7 @@
 import copy
-from typing import Any
 from collections.abc import Callable
+from pathlib import Path
+from typing import Any
 
 import matplotlib as mpl
 import matplotlib.pyplot as plt
@@ -23,6 +24,7 @@ def plot_benchmark_result_table(
     filename: str = None,
     y_label: str = "Time [ms]",
     x_label: str = None,
+    add_legend: bool = True,
     ax=None,
 ):
     if ax is None:
@@ -66,12 +68,16 @@ def plot_benchmark_result_table(
     xlabel = x_axis_param if x_label is None else x_label
     ax.set_xlabel(xlabel)
     ax.set_ylabel(y_label)
-    ax.legend(**legend_args)
+    if add_legend:
+        ax.legend(**legend_args)
     ax.grid(alpha=grid_alpha)
 
     def savefig(file_ending):
+        dir = Path(f"./plots/")
+        dir.mkdir(parents=True, exist_ok=True)
+        file = Path(f"./plots/plot_{filename}.{file_ending}")
         f.savefig(
-            f"plot_{filename}.{file_ending}",
+            file,
             dpi=300,
             bbox_inches="tight",
         )

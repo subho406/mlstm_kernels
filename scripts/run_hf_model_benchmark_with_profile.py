@@ -26,10 +26,10 @@ WARMUP_STEPS = 5
 
 def _benchmark_to_profile(output_folder: Path, profiler=None):
     batch_size = 1
-    prefill_length = 128
+    prefill_length = 0
     weight_dtype = "bfloat16"
     use_torch_compile_model = True
-    generation_length = 1
+    generation_length = 10
 
     cfg_yaml = f"""
 vary_type: grid
@@ -48,12 +48,12 @@ x_axis_param: "generation_length"
 kernel_specs:
 #   - model_name: "mlstm_simple"
 #     weight_dtype: {weight_dtype}
-#     use_torch_compile_model: {use_torch_compile_model}
+#     use_torch_compile_model: True #{use_torch_compile_model}
 #     additional_params:
 #       use_torch_compile_generate: False
 
-#       use_cuda_graphs_model: False
-#       use_cuda_graphs_generate: True
+#       use_cuda_graphs_model: True
+#       use_cuda_graphs_generate: False
 
 
 #       inference_state_dtype: bfloat16
@@ -75,8 +75,8 @@ kernel_specs:
 #     weight_dtype: {weight_dtype}
 #     use_torch_compile_model: True #{use_torch_compile_model}
 #     additional_params:
-#       use_cuda_graphs_model: False
-#       use_cuda_graphs_generate: True
+#       use_cuda_graphs_model: True
+#       use_cuda_graphs_generate: False
 
 #       inference_state_dtype: bfloat16
 #       embedding_dim: 4096
@@ -100,16 +100,17 @@ kernel_specs:
 
 #   - model_name: "llama3"
 #     weight_dtype: {weight_dtype}
-#     use_torch_compile_model: {use_torch_compile_model}
+#     use_torch_compile_model: False #{use_torch_compile_model}
 #     additional_params:
-#       use_cuda_graphs_generate: True
+#       use_cuda_graphs_generate: False
+#       use_cuda_graphs_model: True
 
-#   - model_name: "falcon_mamba"
-#     weight_dtype: {weight_dtype}
-#     use_torch_compile_model: False
-#     additional_params:
-#       use_cuda_graphs_model: False
-#       use_cuda_graphs_generate: True
+  - model_name: "falcon_mamba"
+    weight_dtype: {weight_dtype}
+    use_torch_compile_model: False
+    additional_params:
+      use_cuda_graphs_model: True
+      use_cuda_graphs_generate: False
 
 #   - model_name: "codestral_mamba"
 #     weight_dtype: {weight_dtype}
