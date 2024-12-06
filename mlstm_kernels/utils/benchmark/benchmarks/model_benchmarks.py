@@ -204,11 +204,25 @@ class mLSTMSimpleModelBenchmark(ModelBenchmarkInterface):
                         ), f"Generated tokens shape: {tuple(generated_tokens.shape)}, expected {(self.batch_size, self.generation_length+1)}"
 
         if self.use_cuda_graphs_generate:
-            LOGGER.info("Setting up benchmark with CUDA graphs on benchmark function.")
-            graph = compile_with_cuda_graphs(
-                benchmark_fn, warmups=self.cuda_graph_warmups
-            )
-            self.benchmark_fn = lambda: graph.replay()
+            try:
+                LOGGER.info(
+                    "Setting up benchmark with CUDA graphs on benchmark function."
+                )
+                graph = compile_with_cuda_graphs(
+                    benchmark_fn, warmups=self.cuda_graph_warmups
+                )
+                self.benchmark_fn = lambda: graph.replay()
+            except torch.OutOfMemoryError as e:
+                error = e
+                LOGGER.warning(
+                    f"Encountered OOM error while setting up cuda graph for benchmark fn: {e}"
+                )
+
+                def bench_error_fn():
+                    # We raise the error in the benchmark, to make sure it is caught and reported.
+                    raise error
+
+                self.benchmark_fn = bench_error_fn
         else:
             self.benchmark_fn = benchmark_fn
 
