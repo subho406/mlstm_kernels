@@ -29,7 +29,7 @@ def _time_to_first_token_benchmark(
     cfg_yaml = f"""
 vary_type: grid
 vary_params:
-  prefill_length: [0, 2048] #[0, 128, 512, 2048]
+  prefill_length: [1024] #[0, 128, 512, 2048]
 fixed_params:
 #   prefill_length: {prefill_length}
   batch_size: {batch_size}
@@ -43,48 +43,48 @@ fixed_params:
 x_axis_param: "prefill_length"
 
 kernel_specs:
-#   - model_name: "xlstm"
-#     weight_dtype: {weight_dtype}
-#     use_torch_compile_model: True #{use_torch_compile_model}
-#     additional_params:
-#       use_cuda_graphs_model: False
-#       use_cuda_graphs_generate: True
+  - model_name: "xlstm"
+    weight_dtype: {weight_dtype}
+    use_torch_compile_model: True #{use_torch_compile_model}
+    additional_params:
+      use_cuda_graphs_model: False
+      use_cuda_graphs_generate: True
 
-#       inference_state_dtype: bfloat16
-#       embedding_dim: 4096
-#       num_heads: 8
-#       num_blocks: 32 #3 #32
-#       vocab_size: 50304
-#       weight_mode: "fused" # or "single"
+      inference_state_dtype: bfloat16
+      embedding_dim: 4096
+      num_heads: 8
+      num_blocks: 32 #3 #32
+      vocab_size: 50304
+      weight_mode: "fused" # or "single"
 
-#       chunkwise_kernel: chunkwise--triton_xl_chunk
-#       sequence_kernel: native_sequence__triton_step_fused
-#       step_kernel: triton_fused
+      chunkwise_kernel: chunkwise--triton_xl_chunk
+      sequence_kernel: native_sequence__triton_step_fused
+      step_kernel: triton_fused
 
-#       chunk_size: 128
-#       autocast_kernel_dtype: bfloat16
+      chunk_size: 128
+      autocast_kernel_dtype: bfloat16
 
 
-#   - model_name: "mlstm_simple"
-#     weight_dtype: {weight_dtype}
-#     use_torch_compile_model: True #{use_torch_compile_model}
-#     additional_params:
-#       use_cuda_graphs_model: False
-#       use_cuda_graphs_generate: True
+  - model_name: "mlstm_simple"
+    weight_dtype: {weight_dtype}
+    use_torch_compile_model: True #{use_torch_compile_model}
+    additional_params:
+      use_cuda_graphs_model: False
+      use_cuda_graphs_generate: True
 
-#       inference_state_dtype: bfloat16
-#       embedding_dim: 4096
-#       num_heads: 8
-#       num_blocks: 32 #3 #32
-#       vocab_size: 50304
-#       weight_mode: "fused" # or "single"
+      inference_state_dtype: bfloat16
+      embedding_dim: 4096
+      num_heads: 8
+      num_blocks: 32 #3 #32
+      vocab_size: 50304
+      weight_mode: "fused" # or "single"
 
-#       chunkwise_kernel: chunkwise--triton_xl_chunk
-#       sequence_kernel: native_sequence__triton_step_fused
-#       step_kernel: triton_fused
+      chunkwise_kernel: chunkwise--triton_xl_chunk
+      sequence_kernel: native_sequence__triton_step_fused
+      step_kernel: triton_fused
 
-#       chunk_size: 128
-#       autocast_kernel_dtype: bfloat16
+      chunk_size: 128
+      autocast_kernel_dtype: bfloat16
 
   # - model_name: "ministral8b"
   #   weight_dtype: {weight_dtype}
@@ -139,12 +139,12 @@ kernel_specs:
     weight_dtype: {weight_dtype}
     use_torch_compile_model: False #{use_torch_compile_model}
     additional_params:
-      num_blocks: 2
       use_torch_compile_generate: False
       use_cuda_graphs_generate: False
       use_cuda_graphs_model: False
 
-      apply_overrides_to_hf_model: True
+    #   num_blocks: 2
+    #   apply_overrides_to_hf_model: True
 
 
 #   - model_name: "falcon_mamba"
