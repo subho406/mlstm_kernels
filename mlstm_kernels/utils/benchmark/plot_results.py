@@ -9,6 +9,20 @@ import numpy as np
 import pandas as pd
 
 
+def savefig(fig, filename: str):
+    dir = Path("./plots/")
+    dir.mkdir(parents=True, exist_ok=True)
+
+    if filename is not None:
+        for file_ending in ["png", "pdf", "svg"]:
+            file = Path(f"./plots/plot_{filename}.{file_ending}")
+            fig.savefig(
+                file,
+                dpi=300,
+                bbox_inches="tight",
+            )
+
+
 def plot_benchmark_result_table(
     result_df: pd.DataFrame,
     x_axis_param: str,
@@ -74,7 +88,7 @@ def plot_benchmark_result_table(
     ax.grid(alpha=grid_alpha)
 
     def savefig(file_ending):
-        dir = Path(f"./plots/")
+        dir = Path("./plots/")
         dir.mkdir(parents=True, exist_ok=True)
         file = Path(f"./plots/plot_{filename}.{file_ending}")
         f.savefig(
@@ -163,6 +177,7 @@ def create_runtime_bar_plot(
     figsize=(2 * 12 * 1 / 2.54, 2 * 8 * 1 / 2.54),
     grid_alpha: float = 0.2,
     yticks: list[float] = None,
+    y_label: str = None,
     ax=None,
 ):
     group_names = create_group_names_from_cols(
@@ -219,7 +234,9 @@ def create_runtime_bar_plot(
         )
         multiplier += 1
 
-    ax.set_ylabel("Time (ms)")
+    if y_label is None:
+        y_label = "Time [ms]"
+    ax.set_ylabel(y_label)
     ax.spines.right.set_visible(False)
     ax.spines.top.set_visible(False)
     ax.set_xticks(x + width, group_names)
