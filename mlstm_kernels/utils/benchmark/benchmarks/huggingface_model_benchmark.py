@@ -265,6 +265,7 @@ class HFModelBenchmark(ModelBenchmarkInterface):
             def new_forward(input_ids: torch.LongTensor, cache_params=None, **kwargs):
                 return fn_graph_call(input_ids=input_ids, cache_params=cache_params)
 
+            # Set signature to the original forward signature for HF checks.
             new_forward.__signature__ = inspect.signature(self.model.forward)
             self.model.forward = new_forward
 
@@ -272,9 +273,6 @@ class HFModelBenchmark(ModelBenchmarkInterface):
             LOGGER.warning(
                 "torch.compile() in Huggingface generate() is not supported. Not compiling generate()."
             )
-            # self.model.generate = torch.compile(
-            #     self.model.generate, dynamic=False, fullgraph=False, mode="default"
-            # )
 
     def setup_benchmark(self) -> None:
         if self.model is None:
@@ -378,7 +376,6 @@ class HFModelBenchmark(ModelBenchmarkInterface):
         if self.use_torch_compile_model:
             LOGGER.info("Free up cache for torch compile.")
             torch.compiler.reset()
-            torch._dynamo.config.cache_size_limit = self.generation_length * 2
 
         pf_shape = (
             self.prefill_tokens.shape if self.prefill_tokens is not None else None
@@ -404,6 +401,7 @@ class HFModelBenchmark(ModelBenchmarkInterface):
                 torch.nn.attention.SDPBackend.CUDNN_ATTENTION
             ):
                 with benchmark_fn_context_manager():
+                    # Use static cache for Transformer models for compile support.
                     generate_kwargs = {}
                     if self.model_name in ["llama2", "llama3"]:
                         generate_kwargs["past_key_values"] = StaticCache(
@@ -436,10 +434,6 @@ class HFModelBenchmark(ModelBenchmarkInterface):
         if self.use_cuda_graphs_generate:
             LOGGER.info("Setting up benchmark with CUDA graphs on benchmark function.")
             try:
-                # NOTE: This requires that we forced is_torchdynamo_compiling() to be True.
-                # TODO: Currently done manually in the transformer library. Check if possible by forcing torch functions
-                # to be True for torchdynamo.
-                assert transformers.utils.is_torchdynamo_compiling(), "TorchDynamo must be set to compile Huggingface Models with CUDA graphs."
                 graph = compile_with_cuda_graphs(benchmark_fn, self.cuda_graphs_warmups)
                 self.benchmark_fn = lambda: graph.replay()
             except (torch.OutOfMemoryError, AssertionError, RuntimeError) as e:

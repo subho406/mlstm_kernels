@@ -48,6 +48,7 @@ def compile_kwargs_with_cuda_graphs(fn: Callable[[Any], Any], inputs: dict, warm
     Returns:
         The compiled CUDA graph. Can be executed with `graph.replay()`.
     """
+    # Warmup.
     s = torch.cuda.Stream()
     s.wait_stream(torch.cuda.current_stream())
     with torch.cuda.stream(s):
@@ -59,12 +60,14 @@ def compile_kwargs_with_cuda_graphs(fn: Callable[[Any], Any], inputs: dict, warm
             torch.distributed.barrier()
     torch.cuda.current_stream().wait_stream(s)
 
+    # Trace the CUDA graph.
     LOGGER.debug("Tracing CUDA Graph for benchmark function.")
     graph = torch.cuda.CUDAGraph()
     with torch.cuda.graph(graph):
         outputs = fn(**inputs)
     LOGGER.debug("CUDA Graph traced.")
 
+    # Create a replay function, using the input/output buffers.
     def fn_replay(**new_inputs):
         tree_map(
             lambda x, y: x.copy_(y) if isinstance(x, torch.Tensor) and isinstance(y, torch.Tensor) else None,

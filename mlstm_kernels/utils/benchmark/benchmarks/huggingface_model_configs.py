@@ -125,9 +125,6 @@ llama_3_1_config = {
     "transformers_version": "4.43.0.dev0",
     "use_cache": True,
     "vocab_size": 128256,
-    # TODO: Currently errors are thrown with flash attention due to access to attention mask - check if this can be
-    # resolved.
-    # "attn_implementation": "flash_attention_2",
 }
 
 falcon_mamba_config = {
