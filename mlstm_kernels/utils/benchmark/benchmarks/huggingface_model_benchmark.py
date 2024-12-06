@@ -559,10 +559,13 @@ class HFModelBenchmark(ModelBenchmarkInterface):
             new_forward.__signature__ = inspect.signature(self.model.forward)
             self.model.forward = new_forward
 
-        # if self.use_torch_compile_generate:
-        #     self.model.generate = torch.compile(
-        #         self.model.generate, dynamic=False, fullgraph=False, mode="default"
-        #     )
+        if self.use_torch_compile_generate:
+            LOGGER.warning(
+                "torch.compile() in Huggingface generate() is not supported. Not compiling generate()."
+            )
+            # self.model.generate = torch.compile(
+            #     self.model.generate, dynamic=False, fullgraph=False, mode="default"
+            # )
 
     def setup_benchmark(self) -> None:
         if self.model is None:
