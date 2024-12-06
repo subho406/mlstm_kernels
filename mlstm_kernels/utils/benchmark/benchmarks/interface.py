@@ -72,7 +72,7 @@ class BenchmarkInterface(ABC):
                 device=self.device,
                 profiler=profiler,
             )
-        except (Exception, torch.OutOfMemoryError) as e:
+        except (Exception, torch.OutOfMemoryError, RuntimeError) as e:
             LOGGER.warning(f"Error: {e}")
             LOGGER.warning(traceback.format_exc())
             runtime = RuntimeResult(runtime=float("nan"), peak_memory_allocated=-1)

@@ -173,6 +173,7 @@ def run_and_record_benchmarks(
         benchmark_config=benchmark_config,
         benchmark_creator=benchmark_creator,
         additional_param_name_short=True,
+        output_folder=benchmark_folder,
         **kwargs,
     )
 

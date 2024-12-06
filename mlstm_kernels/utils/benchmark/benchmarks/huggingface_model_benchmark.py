@@ -1,11 +1,10 @@
 import contextlib
-import gc
 import inspect
 import logging
 import typing
 from dataclasses import dataclass
 from functools import partial
-from typing import Any
+from typing import Any, Literal
 
 import torch
 import torch._dynamo.cache_size
@@ -21,6 +20,8 @@ from ..param_handling import ModelSpec
 from .interface import BenchmarkFnContextManagerCfgType, ModelBenchmarkInterface
 
 LOGGER = logging.getLogger(__name__)
+
+BenchmarkType = Literal["generate", "forward"]
 
 
 @dataclass
@@ -61,6 +62,8 @@ class HFModelBenchmark(ModelBenchmarkInterface):
     cuda_graphs_warmups: int = 3
 
     apply_overrides_to_hf_model: bool = False
+
+    benchmark_type: BenchmarkType = "generate"
 
     batch_size: int = 1
     prefill_length: int = 128
@@ -203,7 +206,8 @@ class HFModelBenchmark(ModelBenchmarkInterface):
                 self.model.forward = new_forward
 
         if self.use_cuda_graphs_model:
-            # TODO: As it is set up here we cannot change the batch size after model setup.
+            # TODO: As it is set up here we cannot change the batch size after model setup, because
+            # the graph is generated with a fixed batch size.
             LOGGER.info("Setting up model with CUDA graphs.")
             assert (
                 self.model_name
@@ -276,6 +280,85 @@ class HFModelBenchmark(ModelBenchmarkInterface):
         if self.model is None:
             self.setup_model()
 
+        if self.benchmark_type == "generate":
+            self._setup_generate_benchmark()
+        elif self.benchmark_type == "forward":
+            self._setup_forward_benchmark()
+        else:
+            raise ValueError(f"Unknown benchmark type: {self.benchmark_type}")
+
+        LOGGER.debug("Setup benchmark done.")
+
+    def _get_benchmark_fn_context_manager(self):
+        assert self.benchmark_fn_context_manager in typing.get_args(
+            BenchmarkFnContextManagerCfgType
+        ), f"Invalid benchmark_fn_context_manager: {self.benchmark_fn_context_manager}"
+
+        if self.benchmark_fn_context_manager == "none":
+            benchmark_fn_context_manager = contextlib.nullcontext
+        elif self.benchmark_fn_context_manager == "no_grad":
+            benchmark_fn_context_manager = torch.no_grad
+        elif self.benchmark_fn_context_manager == "inference_mode":
+            benchmark_fn_context_manager = torch.inference_mode
+
+        return benchmark_fn_context_manager
+
+    def _setup_forward_benchmark(self):
+        assert (
+            self.generation_length == 0
+        ), "Generation length must be 0 for forward pass benchmark."
+        assert (
+            self.prefill_length > 0
+        ), "Prefill length must be greater than 0 for forward pass benchmark."
+
+        self.prefill_tokens = torch.randint(
+            low=0,
+            high=self.hf_model_config.vocab_size,
+            size=(self.batch_size, self.prefill_length),
+            device=torch.device(self.device),
+            dtype=torch.long,
+        )
+        # Allow caching compiling of all generation steps.
+        if self.use_torch_compile_model:
+            LOGGER.info("Free up cache for torch compile.")
+            torch.compiler.reset()
+
+        benchmark_fn_context_manager = self._get_benchmark_fn_context_manager()
+
+        LOGGER.info(f"Prefill tokens shape: {self.prefill_tokens.shape}.")
+
+        def benchmark_fn():
+            with torch.nn.attention.sdpa_kernel(
+                torch.nn.attention.SDPBackend.CUDNN_ATTENTION
+            ):
+                with benchmark_fn_context_manager():
+                    outputs = self.model.forward(input_ids=self.prefill_tokens)
+                    assert (
+                        outputs is not None
+                    ), "Forward pass did not return any output."
+
+        if self.use_cuda_graphs_generate:
+            LOGGER.info("Setting up benchmark with CUDA graphs on benchmark function.")
+            try:
+                graph = compile_with_cuda_graphs(benchmark_fn, self.cuda_graphs_warmups)
+                self.benchmark_fn = lambda: graph.replay()
+            except (torch.OutOfMemoryError, AssertionError, RuntimeError) as e:
+                # We want to catch all errors that might occur if batch size is too large.
+                # These include IllegalMemory access, Assertion errors for block sizes, etc.
+                error = e
+                LOGGER.warning(
+                    f"Encountered Error while setting up cuda graph for benchmark fn: {e}"
+                )
+
+                def bench_error_fn():
+                    # We raise the error in the benchmark, to make sure it is caught and reported.
+                    raise error
+
+                self.benchmark_fn = bench_error_fn
+        else:
+            self.benchmark_fn = benchmark_fn
+
+    def _setup_generate_benchmark(self):
         # we need to input a first token to pass the batch size to huggingface
         # generate()
         if self.prefill_length == 0:
@@ -304,16 +387,7 @@ class HFModelBenchmark(ModelBenchmarkInterface):
             f"Prefill tokens shape: {pf_shape}, Generating {self.generation_length} tokens."
         )
 
-        assert self.benchmark_fn_context_manager in typing.get_args(
-            BenchmarkFnContextManagerCfgType
-        ), f"Invalid benchmark_fn_context_manager: {self.benchmark_fn_context_manager}"
-
-        if self.benchmark_fn_context_manager == "none":
-            benchmark_fn_context_manager = contextlib.nullcontext
-        elif self.benchmark_fn_context_manager == "no_grad":
-            benchmark_fn_context_manager = torch.no_grad
-        elif self.benchmark_fn_context_manager == "inference_mode":
-            benchmark_fn_context_manager = torch.inference_mode
+        benchmark_fn_context_manager = self._get_benchmark_fn_context_manager()
 
         # CUDA graphs do not allow for CPU tensors to be forwarded to GPU within the graph; needs to be pushed
         # to the GPU before the graph is created.
@@ -383,8 +457,6 @@ class HFModelBenchmark(ModelBenchmarkInterface):
                 self.benchmark_fn = bench_error_fn
         else:
             self.benchmark_fn = benchmark_fn
-
-        LOGGER.debug("Setup benchmark done.")
 
     def available_kernels(self) -> list[str]:
         hf_models = list(self.get_hf_model_registry().keys())
