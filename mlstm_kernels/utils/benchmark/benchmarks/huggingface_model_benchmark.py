@@ -8,7 +8,6 @@ from typing import Any, Literal
 
 import torch
 import torch._dynamo.cache_size
-import transformers
 from transformers import GenerationConfig, StaticCache
 
 from ..cuda_graphs import (
