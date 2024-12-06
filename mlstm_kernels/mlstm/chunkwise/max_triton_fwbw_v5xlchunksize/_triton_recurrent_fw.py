@@ -8,7 +8,7 @@ import torch
 import triton
 import triton.language as tl
 
-from ....kernel_utils import is_power_of_2, torch2triton_dtype
+from ....torch.utils import is_power_of_2, torch2triton_dtype
 
 
 # TODO use the strides in the pointers for generic use case (even if they are 1 normally)

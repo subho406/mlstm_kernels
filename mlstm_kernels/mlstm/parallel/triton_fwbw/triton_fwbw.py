@@ -5,7 +5,7 @@ from collections.abc import Callable
 import torch
 from torch.amp import custom_bwd, custom_fwd
 
-from ....kernel_utils import contiguous
+from ....torch.utils import contiguous
 from ._triton_bw import mlstm_bw
 from ._triton_fw import mlstm_fw
 

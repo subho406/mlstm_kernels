@@ -9,7 +9,7 @@ import torch
 import triton
 import triton.language as tl
 
-from ....kernel_utils import is_power_of_2, torch2triton_dtype
+from ....torch.utils import is_power_of_2, torch2triton_dtype
 
 
 @triton.jit

@@ -7,7 +7,7 @@ import torch.nn.functional as F
 import triton
 import triton.language as tl
 
-from ...kernel_utils import contiguous_noctx
+from ...torch.utils import contiguous_noctx
 
 """
 Triton.

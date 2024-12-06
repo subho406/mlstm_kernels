@@ -5,7 +5,7 @@ from collections.abc import Callable
 import torch
 from torch.amp import custom_bwd, custom_fwd
 
-from ....kernel_utils import contiguous
+from ....torch.utils import contiguous
 from ._triton_combine_recurrent_parallel import mlstm_chunkwise_bw, mlstm_chunkwise_fw
 
 # Triton.

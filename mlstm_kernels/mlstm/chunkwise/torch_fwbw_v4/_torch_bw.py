@@ -8,7 +8,7 @@ import torch.nn.functional as F
 from einops import rearrange
 from torch.amp import custom_bwd, custom_fwd
 
-from ....kernel_utils import contiguous
+from ....torch.utils import contiguous
 from ._torch_fw import _mlstm_chunkwise__recurrent_fw_C
 
 # PyTorch.

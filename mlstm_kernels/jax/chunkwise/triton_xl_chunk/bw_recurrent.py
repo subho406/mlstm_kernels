@@ -3,11 +3,12 @@ import jax.numpy as jnp
 import jax_triton as jt
 import triton
 
-from ....kernel_utils import is_power_of_2
-from ....triton.chunkwise.xl_chunk.bw_kernel_recurrent import mlstm_chunkwise__recurrent_bw_dC_kernel
+from ....triton.chunkwise.xl_chunk.bw_kernel_recurrent import (
+    mlstm_chunkwise__recurrent_bw_dC_kernel,
+)
+from ....utils.kernels import is_power_of_2
 from ...stride_utils import get_stride
 from ...utils import jax2triton_dtype
-
 
 
 def mlstm_chunkwise__recurrent_bw_dC(

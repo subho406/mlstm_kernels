@@ -7,7 +7,7 @@ import torch
 import torch.nn.functional as F
 from torch.amp import custom_bwd, custom_fwd
 
-from ...kernel_utils import contiguous
+from ...torch.utils import contiguous
 
 # PyTorch
 # mLSTM forward and backward pass. Parallel formulation with stabilized Forget gate matrix.

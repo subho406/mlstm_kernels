@@ -13,7 +13,7 @@ import torch
 import torch.nn.functional as F
 from torch.amp import custom_bwd, custom_fwd
 
-from ...kernel_utils import contiguous
+from ...torch.utils import contiguous
 
 
 def _mlstm_fw(

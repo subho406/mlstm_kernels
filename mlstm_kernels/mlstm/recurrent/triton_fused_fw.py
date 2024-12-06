@@ -22,7 +22,7 @@ import torch.nn.functional as F
 import triton
 import triton.language as tl
 
-from ...kernel_utils import contiguous_noctx, is_power_of_2, torch2triton_dtype
+from ...torch.utils import contiguous_noctx, is_power_of_2, torch2triton_dtype
 from .sequence_loop import recurrent_sequence_fw
 
 

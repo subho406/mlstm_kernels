@@ -6,7 +6,7 @@ It should allow arbitrary large chunk sizes and head dimensions.
 
 import torch
 
-from ....kernel_utils import contiguous_noctx
+from ....torch.utils import contiguous_noctx
 from ._torch_chunkwise_gates import compute_chunkwise_log_gates_vecB_vecA, compute_gate_grads
 from ._triton_parallel_bw_dK import mlstm_chunkwise__parallel_bw_dK
 from ._triton_parallel_bw_dQ import mlstm_chunkwise__parallel_bw_dQ

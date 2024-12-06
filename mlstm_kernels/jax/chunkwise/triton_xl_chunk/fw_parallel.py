@@ -3,8 +3,10 @@ import jax.numpy as jnp
 import jax_triton as jt
 import triton
 
-from ....kernel_utils import is_power_of_2
-from ....triton.chunkwise.xl_chunk.fw_kernel_parallel import mlstm_chunkwise__parallel_fw_Hintra_kernel
+from ....triton.chunkwise.xl_chunk.fw_kernel_parallel import (
+    mlstm_chunkwise__parallel_fw_Hintra_kernel,
+)
+from ....utils.kernels import is_power_of_2
 from ...stride_utils import get_stride
 from ...utils import jax2triton_dtype
 from .chunkwise_gates import compute_chunkwise_log_gates_vecB_vecA

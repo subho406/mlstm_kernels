@@ -8,7 +8,7 @@ import triton
 import triton.language as tl
 from einops import rearrange
 
-from ....kernel_utils import contiguous_noctx, is_power_of_2, torch2triton_dtype
+from ....torch.utils import contiguous_noctx, is_power_of_2, torch2triton_dtype
 from ._triton_fw import _mlstm_chunkwise__recurrent_fw_C
 
 # Triton.
