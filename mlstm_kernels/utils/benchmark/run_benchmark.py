@@ -23,6 +23,7 @@ def run_benchmarks(
     additional_param_name_short: bool = True,
     runtime_prefix: str = "R--",
     memory_prefix: str = "M--",
+    output_folder: Path = None,
 ) -> pd.DataFrame:
     """Runs the different kernel configurations and summarizes the results in a DataFrame.
 
@@ -58,6 +59,9 @@ def run_benchmarks(
             gc.collect()
             torch.cuda.empty_cache()
         results.append(result_dict)
+        if output_folder is not None:
+            result_df = pd.DataFrame(results)
+            result_df.to_csv(output_folder / "results.csv")
 
     return pd.DataFrame(results)
 
@@ -71,6 +75,7 @@ def run_model_benchmarks(
     memory_prefix: str = "M--",
     setup_model_on_every_param_combination: bool = False,
     profiler=None,
+    output_folder: Path = None,
 ) -> pd.DataFrame:
     """Runs the different model configurations and summarizes the results in a DataFrame.
     This differs from the kernel benchmark in that way that the two loops are switched.
@@ -123,6 +128,9 @@ def run_model_benchmarks(
                 del benchmark
             gc.collect()
             torch.cuda.empty_cache()
+            if output_folder is not None:
+                result_df = pd.DataFrame(results)
+                result_df.to_csv(output_folder / "results.csv")
 
         del benchmark
         gc.collect()
