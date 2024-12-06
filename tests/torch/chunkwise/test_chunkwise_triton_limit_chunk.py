@@ -1,10 +1,14 @@
 import logging
 
-from mlstm_kernels.torch.chunkwise.triton_limit_chunk import mlstm_chunkwise__limit_chunk
-from mlstm_kernels.torch.parallel.native_stablef import mlstm_parallel__native_stablef_custbw
-
 import pytest
 import torch
+
+from mlstm_kernels.torch.chunkwise.triton_limit_chunk import (
+    mlstm_chunkwise__limit_chunk,
+)
+from mlstm_kernels.torch.parallel.native_stablef import (
+    mlstm_parallel__native_stablef_custbw,
+)
 
 from ...conftest import final_combinations
 
@@ -15,7 +19,7 @@ TEST_FOLDER_NAME_PREFIX = "chunkwise-triton_limit_chunk"
 
 @pytest.mark.skipif(not torch.cuda.is_available(), reason="No GPU available.")
 @pytest.mark.parametrize(["S", "B", "NH", "DHQK", "DHHV"], final_combinations)
-def test_triton_chunkwise_limit_chunk_vs_native_parrallel_stablef_fp32(
+def test_triton_chunkwise_limit_chunk_vs_native_parallel_stablef_fp32(
     test_session_folder, test_output_folder, mlstm_parallel_interface_test, S, B, NH, DHQK, DHHV
 ):
     print(f"S{S}B{B}NH{NH}DHQK{DHQK}DHHV{DHHV}")
