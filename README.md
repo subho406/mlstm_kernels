@@ -1,6 +1,6 @@
 # mLSTM Kernels
 
-In this repository we collect clean implementations of the different mLSTM formulations.
+In this repository we collect implementations of the different mLSTM formulations.
 
 ## External kernel interface with names
 
