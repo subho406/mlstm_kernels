@@ -1,5 +1,6 @@
 import gc
 import logging
+import pprint
 from dataclasses import asdict
 from pathlib import Path
 from typing import Literal
@@ -22,6 +23,7 @@ def run_benchmarks(
     additional_param_name_short: bool = True,
     runtime_prefix: str = "R--",
     memory_prefix: str = "M--",
+    output_folder: Path = None,
 ) -> pd.DataFrame:
     """Runs the different kernel configurations and summarizes the results in a DataFrame.
 
@@ -57,6 +59,9 @@ def run_benchmarks(
             gc.collect()
             torch.cuda.empty_cache()
         results.append(result_dict)
+        if output_folder is not None:
+            result_df = pd.DataFrame(results)
+            result_df.to_csv(output_folder / "results.csv")
 
     return pd.DataFrame(results)
 
@@ -70,6 +75,7 @@ def run_model_benchmarks(
     memory_prefix: str = "M--",
     setup_model_on_every_param_combination: bool = False,
     profiler=None,
+    output_folder: Path = None,
 ) -> pd.DataFrame:
     """Runs the different model configurations and summarizes the results in a DataFrame.
     This differs from the kernel benchmark in that way that the two loops are switched.
@@ -84,9 +90,9 @@ def run_model_benchmarks(
     ]
     for k, kernel_spec in enumerate(kernel_specs):
         LOGGER.info(f"Model ({k+1}/{len(kernel_specs)}): {kernel_spec.to_string()}")
-
         if not setup_model_on_every_param_combination:
             benchmark = benchmark_creator(kernel_spec, kernel_spec.additional_params)
+            LOGGER.info(f"Created benchmark: \n{pprint.pformat(benchmark)}")
             benchmark.setup_model()
 
         for i, param_dict in enumerate(param_dicts):
@@ -122,6 +128,13 @@ def run_model_benchmarks(
                 del benchmark
             gc.collect()
             torch.cuda.empty_cache()
+            if output_folder is not None:
+                result_df = pd.DataFrame(results)
+                result_df.to_csv(output_folder / "results.csv")
+
+        del benchmark
+        gc.collect()
+        torch.cuda.empty_cache()
 
     LOGGER.info("Finished all benchmarks.")
     return pd.DataFrame(results)
@@ -160,6 +173,7 @@ def run_and_record_benchmarks(
         benchmark_config=benchmark_config,
         benchmark_creator=benchmark_creator,
         additional_param_name_short=True,
+        output_folder=benchmark_folder,
         **kwargs,
     )
 

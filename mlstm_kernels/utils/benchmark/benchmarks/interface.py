@@ -72,7 +72,7 @@ class BenchmarkInterface(ABC):
                 device=self.device,
                 profiler=profiler,
             )
-        except Exception as e:
+        except (Exception, torch.OutOfMemoryError, RuntimeError) as e:
             LOGGER.warning(f"Error: {e}")
             LOGGER.warning(traceback.format_exc())
             runtime = RuntimeResult(runtime=float("nan"), peak_memory_allocated=-1)
@@ -138,7 +138,9 @@ class KernelBenchmarkInterface(BenchmarkInterface):
         inputs = self._get_input_tensors()
 
         inputs = [
-            x.to(device=self.device, dtype=torch_dtype).requires_grad_(self.fwbw) if isinstance(x, torch.Tensor) else x
+            x.to(device=self.device, dtype=torch_dtype).requires_grad_(self.fwbw)
+            if isinstance(x, torch.Tensor)
+            else x
             for x in inputs
         ]
         self.kernel_inputs = inputs
