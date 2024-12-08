@@ -1,4 +1,4 @@
-name: xlstmpt240cu124
+name: xlstmpt251cu124
 channels:
   - pytorch
   - nvidia
