@@ -4,7 +4,7 @@ from functools import partial
 import torch
 
 from .native_step import mlstm_recurrent_step__native_fw
-from .triton_step import mlstm_recurrent_step__triton_fw
+from .triton_step_alternate import mlstm_recurrent_step__triton_fw
 from .triton_step_fused import mlstm_recurrent_step__triton_fused_fw
 
 
@@ -157,7 +157,7 @@ def mlstm_recurrent_sequence__native_fw(
         return ret_tuple[0]
 
 
-def mlstm_recurrent_sequence__triton_step_fw(
+def mlstm_recurrent_sequence__triton_alternate_step_fw(
     q: torch.Tensor,
     k: torch.Tensor,
     v: torch.Tensor,

@@ -3,7 +3,7 @@
 import torch
 import triton
 
-from ...triton.recurrent.fw_step import (
+from ...triton.recurrent.fw_step_alternate import (
     recurrent_step_fw_kernel_C,
     recurrent_step_fw_kernel_H,
 )
@@ -12,7 +12,7 @@ from ..utils import contiguous_noctx
 # NOTE: This kernel fails in the tests. Therefore, it should not be used.
 
 @contiguous_noctx
-def mlstm_recurrent_step__triton_fw(
+def mlstm_recurrent_step__triton_alternate_fw(
     matC_old: torch.Tensor,  # (B, NH, DHQK, DHV)
     vecN_old: torch.Tensor,  # (B, NH, DHQK)
     scaM_old: torch.Tensor,  # (B, NH, 1)
@@ -175,7 +175,7 @@ def mlstm_recurrent_step__triton_fw(
     return vecH, (matC_new, vecN_new, scaM_new)
 
 
-def mlstm_recurrent_step__triton(
+def mlstm_recurrent_step__triton_alternate(
     q: torch.Tensor,  # (B, NH, DHQK)
     k: torch.Tensor,  # (B, NH, DHQK)
     v: torch.Tensor,  # (B, NH, DHV)
@@ -190,7 +190,7 @@ def mlstm_recurrent_step__triton(
     torch.Tensor, tuple[torch.Tensor, torch.Tensor, torch.Tensor]
 ]:  # vecH, (matC_state_new (B, NH, DHQK, DHV), vecN_state_new (B, NH, DHQK), vecM_state_new (B, NH, 1))
     """This is a single step of the mLSTM operation in recurrent form."""
-    return mlstm_recurrent_step__triton_fw(
+    return mlstm_recurrent_step__triton_alternate_fw(
         matC_old=c,
         vecN_old=n,
         scaM_old=m,
