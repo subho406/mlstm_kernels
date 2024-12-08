@@ -7,7 +7,7 @@ from ..utils import contiguous_noctx, torch2triton_dtype
 
 
 @contiguous_noctx
-def mlstm_recurrent_step__triton_fused_fw(
+def mlstm_recurrent_step__triton_fw(
     matC_old: torch.Tensor,  # (B, NH, DHQK, DHHV)
     vecN_old: torch.Tensor,  # (B, NH, DHQK)
     scaM_old: torch.Tensor,  # (B, NH, 1)
@@ -132,7 +132,7 @@ def mlstm_recurrent_step__triton_fused_fw(
     return vecH, (matC_new, vecN_new, scaM_new)
 
 
-def mlstm_recurrent_step__triton_fused(
+def mlstm_recurrent_step__triton(
     q: torch.Tensor,  # (B, NH, DHQK)
     k: torch.Tensor,  # (B, NH, DHQK)
     v: torch.Tensor,  # (B, NH, DHV)
@@ -148,7 +148,7 @@ def mlstm_recurrent_step__triton_fused(
     torch.Tensor, tuple[torch.Tensor, torch.Tensor, torch.Tensor]
 ]:  # vecH, (matC_state_new (B, NH, DHQK, DHV), vecN_state_new (B, NH, DHQK), vecM_state_new (B, NH, 1))
     """This is a single step of the mLSTM operation in recurrent form."""
-    return mlstm_recurrent_step__triton_fused_fw(
+    return mlstm_recurrent_step__triton_fw(
         matC_old=c,
         vecN_old=n,
         scaM_old=m,

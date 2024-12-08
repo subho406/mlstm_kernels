@@ -14,7 +14,7 @@ from mlstm_kernels.torch.parallel.native_stablef import (
 )
 from mlstm_kernels.torch.recurrent import (
     mlstm_recurrent_step__native,
-    mlstm_recurrent_step__triton_fused,
+    mlstm_recurrent_step__triton,
 )
 from mlstm_kernels.torch.recurrent.native_sequence import (
     mlstm_recurrent_sequence__native_fw,
@@ -141,7 +141,7 @@ def test_wrap_chunkwise__arbitrary_sequence_length_single_step_cpu(
             mlstm_recurrent_sequence__native_fw,
             mlstm_chunkwise__limit_chunk,
             mlstm_recurrent_sequence__triton_step_fused_fw,
-            mlstm_recurrent_step__triton_fused,
+            mlstm_recurrent_step__triton,
         ],
     ],
 )
@@ -195,7 +195,7 @@ def test_wrap_chunkwise__arbitrary_sequence_length_limit_chunk(
             mlstm_recurrent_step__native,
             mlstm_chunkwise__native_autograd,
             mlstm_recurrent_sequence__native_fw,
-            mlstm_recurrent_step__triton_fused,
+            mlstm_recurrent_step__triton,
         ],
     ],
 )
@@ -251,7 +251,7 @@ def test_wrap_chunkwise__arbitrary_sequence_length_single_step_fused_step(
             mlstm_recurrent_sequence__native_fw,
             mlstm_chunkwise__xl_chunk,
             mlstm_recurrent_sequence__triton_step_fused_fw,
-            mlstm_recurrent_step__triton_fused,
+            mlstm_recurrent_step__triton,
         ],
     ],
 )
