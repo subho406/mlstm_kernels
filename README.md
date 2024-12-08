@@ -93,9 +93,9 @@ Each test will log the outputs to a new folder with the timestamp as name in the
 
 Example:
 Each test starts with the line
-`Test chunkwise-triton target=max_triton_v3 vs. baseline=parallel_stable_ag with S=4096, B=1, NH=1, DHQK=16, DHHV=16, DTYPE=torch.float32`.
+`Test chunkwise-triton_xl_chunk target=triton_chunkwise_xl_chunk vs. baseline=native_parallel_stablef_custbw with S=256, B=1, NH=2, DHQK=64, DHHV=128, DTYPE=torch.float32`.
 
-This test tests the chunkwise triton kernel `max_triton_v3` against the `parallel_stable_ag` baseline and runs the `max_triton_v3` in dtype float32. It will compare the errors against the baseline in the same dtype (i.e. float32 here) and in float64.
+This test tests the chunkwise triton kernel `triton_chunkwise_xl_chunk` against the `native_parallel_stablef_custbw` baseline and runs the `triton_chunkwise_xl_chunk` in dtype float32. It will compare the errors against the baseline in the same dtype (i.e. float32 here) and in float64 if specified.
 
 ## Profiling Kernels with Nsight Systems & Nsight Compute
 
@@ -106,7 +106,7 @@ Documentation: <https://docs.nvidia.com/nsight-systems/UserGuide/#cli-profiling>
 Command:
 
 ```bash
-PYTHONPATH=. nsys profile -t cuda,osrt,nvtx,cudnn,cublas -w true -o ./nvidia_nsight/nsys_mlstm_v5xlchunksize python scripts/run_mlstm_max_triton_v5xlchunksize.py
+PYTHONPATH=. nsys profile -t cuda,osrt,nvtx,cudnn,cublas -w true -o ./nvidia_nsight/nsys_mlstm_xlchunksize python scripts/run_training_kernel_benchmarks_with_profile.py
 ```
 
 ### Nsight Compute
@@ -116,7 +116,7 @@ Documentation: <https://docs.nvidia.com/nsight-compute/NsightComputeCli/index.ht
 Command:
 
 ```bash
-PYTHONPATH=. ncu -o kernel_prof -f -c 1 -k _mlstm_chunkwise__parallel_fw_Hintra_kernel --set=full python ./scripts/run_mlstm_max_triton_v5xlchunksize_fwbw.p
+PYTHONPATH=. ncu -o kernel_prof -f -c 1 -k mlstm_chunkwise__parallel_fw_Hintra_kernel --set=full python ./scripts/run_training_kernel_benchmarks_with_profile.py
 ```
 
 ## Running kernel benchmarks with baselines
