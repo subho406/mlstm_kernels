@@ -1,8 +1,76 @@
 # mLSTM Kernels
 
-In this repository we collect implementations of the different mLSTM formulations.
+This library provides fast and efficient mLSTM kernels for the parallel, recurrent and chunkwise form. We provide PyTorch and JAX wrappers for our kernels.
 
-## External kernel interface with names
+Paper coming soon ...
+
+## Kernel Overview
+
+This library contains three different types of kernels:
+
+- `parallel`: Parallel kernels that process a sequence in parallel (like Attention).
+- `chunkwise`: Chunkwise kernels, that process chunks of the sequence in parallel.
+- `recurrent`: Recurrent step kernels for inference.
+
+## Benchmark
+
+Runtime comparison of mLSTM chunkwise kernel (triton) [`triton_limit_chunk`] and (triton XL) [`triton_xl_chunk`] against other baselines:
+
+![xLSTM Figure](./res/plot_sequence_length_consttok_nh8_hd512_line.svg)
+
+**Left**: Forward pass  
+**Right**: Forward and backward pass
+
+
+
+## Usage PyTorch
+
+### Available Kernels
+
+You can view all available kernels for the mLSTM by calling
+
+```python
+from mlstm_kernels.torch import (
+    get_available_mlstm_kernels,
+    get_available_mlstm_sequence_kernels,
+    get_available_mlstm_step_kernels,
+)
+
+print(get_available_mlstm_kernels())
+print(get_available_mlstm_sequence_kernels())
+print(get_available_mlstm_step_kernels())
+```
+
+and then use one of 
+
+```python
+from mlstm_kernels.torch import (
+    get_mlstm_kernel,
+    get_mlstm_sequence_kernel,
+    get_mlstm_step_kernel,
+)
+```
+to access the specific kernel function.
+
+### Direct Import
+
+You can directly import the specific kernel for example the chunkwise `triton_limit_chunk` kernel via:
+
+```python
+from mlstm_kernels.torch.chunkwise import mlstm_chunkwise__limit_chunk
+```
+
+### Backend Module
+
+For PyTorch we provide a backend module for an easy integration into existing architectures. 
+
+```python
+from mlstm_kernels.torch.backend_module import mLSTMBackendConfig, mLSTMBackend
+```
+
+### Training Kernel Interface 
+
+This is the interface used for the chunkwise and parallel kernels.
 
 ```python
 def mlstm_interface(
@@ -26,10 +94,13 @@ def mlstm_interface(
         torch.Tensor: matH outputs (no n and m values, no last states)
         tuple[torch.Tensor, tuple[torch.Tensor, torch.Tensor, torch.Tensor]]: matH, (matC_last, vecN_last, scaM_last)
     """
-
     pass
 
 ```
+
+### Step Kernel interface
+
+This is the interface for the mlstm step kernels.
 
 ```python
 def mlstm_step_interface(
@@ -49,33 +120,11 @@ def mlstm_step_interface(
     pass
 ```
 
-## Kernel variants
+## Usage JAX
 
-The mLSTM repo contains the following kernel variants:
+The JAX module `mlstm_kernels.jax` mirrors the PyTorch module `mlstm_kernels.torch` and can be used in the same way. 
 
-- `chunkwise`: chunkwise kernels like flash linear attention (sub-quadratic)
-- `parallel`: parallel kernels like flash attention (quadratic)
-- `recurrent`: recurrent kernels (mostly for inference) (linear)
-
-Not all variants support all features of the interface. Only the chunkwise and recurrent support passing the initial states and returning the last states.
-
-### Kernel naming
-
-#### External names of kernel functions in chunkwise, parallel and recurrent modules
-
-- Python function: `mlstm_[recurrent|parallel|chunkwise]_[specifier]_[triton|torch]_[[autograd|ownbw]]`
-- Registry name (within module): `[specifier]_[triton|torch]_[[autograd|ownbw]]`
-
-### Available Kernels
-
-You can view all available kernels for the mLSTM by calling
-
-```python
-from mlstm_kernels.mlstm import get_available_mlstm_kernels
-
-get_available_mlstm_kernels()
-```
-
+We will also provide a backend module for Flax soon. 
 
 ## Running the unit tests
 
@@ -97,47 +146,23 @@ Each test starts with the line
 
 This test tests the chunkwise triton kernel `triton_chunkwise_xl_chunk` against the `native_parallel_stablef_custbw` baseline and runs the `triton_chunkwise_xl_chunk` in dtype float32. It will compare the errors against the baseline in the same dtype (i.e. float32 here) and in float64 if specified.
 
-## Profiling Kernels with Nsight Systems & Nsight Compute
+## Citation
 
-### Nsight Systems
+Our paper is currently under preparation. We will announce it soon.
+In the meantime if you use this codebase, or otherwise find our work valuable, please use this citations:
 
-Documentation: <https://docs.nvidia.com/nsight-systems/UserGuide/#cli-profiling>
-
-Command:
-
-```bash
-PYTHONPATH=. nsys profile -t cuda,osrt,nvtx,cudnn,cublas -w true -o ./nvidia_nsight/nsys_mlstm_xlchunksize python scripts/run_training_kernel_benchmarks_with_profile.py
 ```
-
-### Nsight Compute
-
-Documentation: <https://docs.nvidia.com/nsight-compute/NsightComputeCli/index.html>
-
-Command:
-
-```bash
-PYTHONPATH=. ncu -o kernel_prof -f -c 1 -k mlstm_chunkwise__parallel_fw_Hintra_kernel --set=full python ./scripts/run_training_kernel_benchmarks_with_profile.py
-```
-
-## Running kernel benchmarks with baselines
-
-To run the benchmarks including all baselines, you have to install:
-```bash
-pip install mamba_ssm causal_conv1d fla
-```
-For `FlashAttention3`, you have to clone the original repo `https://github.com/Dao-AILab/flash-attention`:
-```bash
-# clone FlashAttention
-cd ..
-git clone https://github.com/Dao-AILab/flash-attention
-# Apply CONDA ENV patch
-git apply ../mlstm_kernels/flash_attention.patch
-# Install flash attention 3
-cd hopper
-PYTHONPATH=. python3 setup.py install
-cd ..
-# Install regular flash attention 2
-python3 install -e .
-# Go back to this repo
-cd ../mlstm_kernels
+@article{beck:25unlocking,
+      title={Unlocking the power of recurrence for efficient xLSTM kernels}, 
+      author={Maximilian Beck and Korbinian Pöppel and Sepp Hochreiter},
+      booktitle = {Under preparation},
+      year={2025},
+}
+@software{beck:24mlstmkernels,
+  title  = {FLA: A Triton-Based Library for Hardware-Efficient Implementations of Linear Attention Mechanism},
+  author = {Maximilian Beck and Korbinian Pöppel and Phillip Lippe},
+  url    = {https://github.com/NXAI/mlstm_kernels},
+  month  = dec,
+  year   = {2024}
+}
 ```
