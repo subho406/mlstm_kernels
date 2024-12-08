@@ -9,8 +9,7 @@ PyTorch
 mLSTM forward and backward pass. Parallel formulation.
 Implemented in a tiled fashion as template for kernels.
 
-TODO adapt to notation of torch_fwbw.py
-TODO add numerical test notebook.
+Experimental code. Not meant for real usage.
 """
 
 

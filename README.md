@@ -1,6 +1,6 @@
 # mLSTM Kernels
 
-In this repository we collect clean implementations of the different mLSTM formulations.
+In this repository we collect implementations of the different mLSTM formulations.
 
 ## External kernel interface with names
 
@@ -46,6 +46,7 @@ def mlstm_step_interface(
 ) -> tuple[
     torch.Tensor, tuple[torch.Tensor, torch.Tensor, torch.Tensor]
 ]:  # vecH, (matC_state_new (B, NH, DHQK, DHHV), vecN_state_new (B, NH, DHQK), vecM_state_new (B, NH, 1))
+    pass
 ```
 
 ## Kernel variants
@@ -75,28 +76,6 @@ from mlstm_kernels.mlstm import get_available_mlstm_kernels
 get_available_mlstm_kernels()
 ```
 
-Currently available kernels are:
-
-```
-['recurrent_step--step_torch_autograd',
- 'recurrent_step--step_triton',
- 'recurrent_step--step_fused_triton',
- 'recurrent_sequence--sequence_torch_autograd',
- 'recurrent_sequence--sequence_triton',
- 'chunkwise--torch_autograd',
- 'chunkwise--torch_ownbw',
- 'chunkwise--max_triton',
- 'chunkwise--max_triton_v1',
- 'chunkwise--max_triton_v2',
- 'chunkwise--max_triton_v3',
- 'chunkwise--triton',
- 'chunkwise--stable_triton',
- 'parallel--torch_autograd',
- 'parallel--torch_ownbw',
- 'parallel--stable_torch_autograd',
- 'parallel--stable_torch_ownbw',
- 'parallel--triton']
-```
 
 ## Running the unit tests
 
@@ -104,7 +83,9 @@ The unit tests cross-check the different kernel implementations on numerical dev
 You can run all of them with the following command:
 
 ```bash
-pytest -s tests/test_mlstm/
+pytest -s tests/torch
+# make sure you are in a JAX GPU environment
+pytest -s tests/jax
 ```
 
 The `-s` disables the log capturing so you see the results directly on the command line.
@@ -112,20 +93,9 @@ Each test will log the outputs to a new folder with the timestamp as name in the
 
 Example:
 Each test starts with the line
-`Test chunkwise-triton target=max_triton_v3 vs. baseline=parallel_stable_ag with S=4096, B=1, NH=1, DHQK=16, DHHV=16, DTYPE=torch.float32`.
+`Test chunkwise-triton_xl_chunk target=triton_chunkwise_xl_chunk vs. baseline=native_parallel_stablef_custbw with S=256, B=1, NH=2, DHQK=64, DHHV=128, DTYPE=torch.float32`.
 
-This test tests the chunkwise triton kernel `max_triton_v3` against the `parallel_stable_ag` baseline and runs the `max_triton_v3` in dtype float32. It will compare the errors against the baseline in the same dtype (i.e. float32 here) and in float64.
-
-### Unit Test structure
-
-Our ground truth kernels are the parallel torch mLSTM implementations:
-
-- `'parallel--stable_torch_autograd'`: No subtraction when the forget gate matrix is computed. This is numerically more stable.
-- `'parallel--torch_autograd'`: Forget gate matrix is computed with subtraction.
-
-We then compare all our chunkwise kernels and recurrent kernels with these baselines.
-
-We use the recurrent kernels to check for numerical correctness of the initial state and the last state.
+This test tests the chunkwise triton kernel `triton_chunkwise_xl_chunk` against the `native_parallel_stablef_custbw` baseline and runs the `triton_chunkwise_xl_chunk` in dtype float32. It will compare the errors against the baseline in the same dtype (i.e. float32 here) and in float64 if specified.
 
 ## Profiling Kernels with Nsight Systems & Nsight Compute
 
@@ -136,7 +106,7 @@ Documentation: <https://docs.nvidia.com/nsight-systems/UserGuide/#cli-profiling>
 Command:
 
 ```bash
-PYTHONPATH=. nsys profile -t cuda,osrt,nvtx,cudnn,cublas -w true -o ./nvidia_nsight/nsys_mlstm_v5xlchunksize python scripts/run_mlstm_max_triton_v5xlchunksize.py
+PYTHONPATH=. nsys profile -t cuda,osrt,nvtx,cudnn,cublas -w true -o ./nvidia_nsight/nsys_mlstm_xlchunksize python scripts/run_training_kernel_benchmarks_with_profile.py
 ```
 
 ### Nsight Compute
@@ -146,7 +116,7 @@ Documentation: <https://docs.nvidia.com/nsight-compute/NsightComputeCli/index.ht
 Command:
 
 ```bash
-PYTHONPATH=. ncu -o kernel_prof -f -c 1 -k _mlstm_chunkwise__parallel_fw_Hintra_kernel --set=full python ./scripts/run_mlstm_max_triton_v5xlchunksize_fwbw.p
+PYTHONPATH=. ncu -o kernel_prof -f -c 1 -k mlstm_chunkwise__parallel_fw_Hintra_kernel --set=full python ./scripts/run_training_kernel_benchmarks_with_profile.py
 ```
 
 ## Running kernel benchmarks with baselines

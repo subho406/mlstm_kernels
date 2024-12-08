@@ -4,10 +4,7 @@ outputs
 data/*
 outputs_kernel_benchmarks*
 tests_outputs
-# .vscode/*
-# !.vscode/cpp_properties.json
-# !.vscode/settings.json
-# !.vscode/launch.json
+.vscode
 outputs_tests
 configs
 configs/*
@@ -15,6 +12,7 @@ resources/*.p
 tests_outputs
 *.png
 *.csv
+notebooks/*/plots/
 
 **/build/**
 

@@ -12,7 +12,7 @@ from einops import rearrange
 from packaging import version
 from torch.amp import custom_bwd, custom_fwd
 
-from ....kernel_utils import contiguous
+from ....torch.utils import contiguous
 from .chunk_util import bwd_decay_global_cumsum, fwd_decay_cumsum, prepare_qg_kg
 
 inv_ln2: tl.constexpr = 1.44269504

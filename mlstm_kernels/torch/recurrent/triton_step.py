@@ -9,6 +9,7 @@ from ...triton.recurrent.fw_step import (
 )
 from ..utils import contiguous_noctx
 
+# NOTE: This kernel fails in the tests. Therefore, it should not be used.
 
 @contiguous_noctx
 def mlstm_recurrent_step__triton_fw(

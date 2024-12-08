@@ -6,7 +6,7 @@ import torch
 import triton
 import triton.language as tl
 
-from ....kernel_utils import contiguous
+from ....torch.utils import contiguous
 from ..fla_utils import chunk_reversed_cumsum_fwd
 
 

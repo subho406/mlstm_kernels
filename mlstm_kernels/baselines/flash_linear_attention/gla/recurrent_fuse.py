@@ -7,7 +7,7 @@ import triton
 import triton.language as tl
 from torch.amp import custom_bwd, custom_fwd
 
-from ....kernel_utils import contiguous
+from ....torch.utils import contiguous
 
 # on-the-fly computation without materializing hidden statets into HBMs
 
