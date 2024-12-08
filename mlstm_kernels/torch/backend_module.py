@@ -27,9 +27,9 @@ ChunkwiseKernelType = Literal[
     "parallel--triton_limit_headdim",
 ]
 SequenceKernelType = Literal[
-    "native_sequence__native", "native_sequence__triton_step_fused"
+    "native_sequence__native", "native_sequence__triton"
 ]
-StepKernelType = Literal["native", "triton_fused"]
+StepKernelType = Literal["native", "triton"]
 
 DtypeType = Literal["float32", "bfloat16", "float16"]
 
