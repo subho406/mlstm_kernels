@@ -12,6 +12,7 @@ resources/*.p
 tests_outputs
 *.png
 *.csv
+notebooks/*/plots/
 
 **/build/**
 
