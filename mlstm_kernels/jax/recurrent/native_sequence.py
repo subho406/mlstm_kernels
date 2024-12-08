@@ -4,7 +4,7 @@ import jax
 import jax.numpy as jnp
 
 from .native_step import mlstm_recurrent_step__native_fw
-from .triton_step_fused import mlstm_recurrent_step__triton_fused_fw
+from .triton_step import mlstm_recurrent_step__triton_fw
 
 
 def _mlstm_recurrent_sequence_loop_fw(
@@ -230,7 +230,7 @@ def mlstm_recurrent_sequence__triton_step_fused_fw(
     """    
 
     ret_tuple = _mlstm_recurrent_sequence_loop_fw(
-        mlstm_step_fn=mlstm_recurrent_step__triton_fused_fw,
+        mlstm_step_fn=mlstm_recurrent_step__triton_fw,
         matQ=q,
         matK=k,
         matV=v,

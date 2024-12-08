@@ -10,7 +10,7 @@ from ..stride_utils import get_stride
 from ..utils import jax2triton_dtype
 
 
-def mlstm_recurrent_step__triton_fused_fw(
+def mlstm_recurrent_step__triton_fw(
     matC_state: jax.Array,  # (B, NH, DHQK, DHV)
     vecN_state: jax.Array,  # (B, NH, DHQK)
     scaM_state: jax.Array,  # (B, NH, 1)
@@ -108,7 +108,7 @@ def mlstm_recurrent_step__triton_fused_fw(
     return vecH, (matC_new, vecN_new, scaM_new)
 
 
-def mlstm_recurrent_step__triton_fused(
+def mlstm_recurrent_step__triton(
     q: jax.Array,  # (B, NH, DHQK)
     k: jax.Array,  # (B, NH, DHQK)
     v: jax.Array,  # (B, NH, DHV)
@@ -124,7 +124,7 @@ def mlstm_recurrent_step__triton_fused(
     jax.Array, tuple[jax.Array, jax.Array, jax.Array]
 ]:  # vecH, (matC_state_new (B, NH, DHQK, DHV), vecN_state_new (B, NH, DHQK), vecM_state_new (B, NH, 1))
     """This is a single step of the mLSTM operation in recurrent form."""
-    return mlstm_recurrent_step__triton_fused_fw(
+    return mlstm_recurrent_step__triton_fw(
         matC_old=c,
         vecN_old=n,
         scaM_old=m,

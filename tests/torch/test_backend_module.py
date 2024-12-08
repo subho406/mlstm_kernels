@@ -209,14 +209,14 @@ def test_backend_module_train_with_padding(
     "sequence_kernel",
     [
         "native_sequence__native",
-        "native_sequence__triton_step_fused",
+        "native_sequence__triton",
     ],
 )
 @pytest.mark.parametrize(
     "step_kernel",
     [
         "native",
-        "triton_fused",
+        "triton",
     ],
 )
 @pytest.mark.parametrize("dtype", ["bfloat16", "float32","float16"])
