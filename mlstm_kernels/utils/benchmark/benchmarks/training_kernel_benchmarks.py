@@ -68,62 +68,35 @@ class mLSTMBenchmark(KernelBenchmarkInterface):
 @dataclass
 class FlashAttentionBenchmark(mLSTMBenchmark):
     def _get_input_tensors(self) -> tuple[torch.Tensor, ...]:
-        if self.kernel_name == "torch_cudnn":
-            q = torch.randn(
-                (
-                    self.batch_size,
-                    self.sequence_length,
-                    self.num_heads,
-                    self.head_dim_qk,
-                ),
-                dtype=torch.float32,
-            )
-            k = torch.randn(
-                (
-                    self.batch_size,
-                    self.sequence_length,
-                    self.num_heads,
-                    self.head_dim_qk,
-                ),
-                dtype=torch.float32,
-            )
-            v = torch.randn(
-                (
-                    self.batch_size,
-                    self.sequence_length,
-                    self.num_heads,
-                    self.head_dim_v,
-                ),
-                dtype=torch.float32,
-            )
-        else:
-            q = torch.randn(
-                (
-                    self.batch_size,
-                    self.num_heads,
-                    self.sequence_length,
-                    self.head_dim_qk,
-                ),
-                dtype=torch.float32,
-            )
-            k = torch.randn(
-                (
-                    self.batch_size,
-                    self.num_heads,
-                    self.sequence_length,
-                    self.head_dim_qk,
-                ),
-                dtype=torch.float32,
-            )
-            v = torch.randn(
-                (
-                    self.batch_size,
-                    self.num_heads,
-                    self.sequence_length,
-                    self.head_dim_v,
-                ),
-                dtype=torch.float32,
-            )
+        # possibly sequence_length and num_heads is transposed for PyTorch
+        # versions < 2.5
+        q = torch.randn(
+            (
+                self.batch_size,
+                self.num_heads,
+                self.sequence_length,
+                self.head_dim_qk,
+            ),
+            dtype=torch.float32,
+        )
+        k = torch.randn(
+            (
+                self.batch_size,
+                self.num_heads,
+                self.sequence_length,
+                self.head_dim_qk,
+            ),
+            dtype=torch.float32,
+        )
+        v = torch.randn(
+            (
+                self.batch_size,
+                self.num_heads,
+                self.sequence_length,
+                self.head_dim_v,
+            ),
+            dtype=torch.float32,
+        )
         return q, k, v
 
     def _get_kernel_fn(self) -> Callable[[tuple[torch.Tensor, ...]], torch.Tensor]:
@@ -505,15 +478,15 @@ class FlashAttention3Benchmark(mLSTMBenchmark):
     
     def _get_input_tensors(self) -> tuple[torch.Tensor, ...]:
         q = torch.randn(
-            (self.batch_size, self.num_heads, self.sequence_length, self.head_dim_qk),
+            (self.batch_size, self.sequence_length, self.num_heads, self.head_dim_qk),
             dtype=torch.float32,
         )
         k = torch.randn(
-            (self.batch_size, self.num_heads, self.sequence_length, self.head_dim_qk),
+            (self.batch_size, self.sequence_length, self.num_heads, self.head_dim_qk),
             dtype=torch.float32,
         )
         v = torch.randn(
-            (self.batch_size, self.num_heads, self.sequence_length, self.head_dim_v),
+            (self.batch_size, self.sequence_length, self.num_heads, self.head_dim_v),
             dtype=torch.float32,
         )
         return q, k, v
