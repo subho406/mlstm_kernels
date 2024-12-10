@@ -1,0 +1,25 @@
+[
+    {
+        "include": [
+            "**/*.py"
+        ],
+        "exclude": [
+            "mlstm_kernels/baselines/flash_attention/flash_attention_triton.py",
+            "mlstm_kernels/baselines/flash_attention/triton_tutorial.py",
+            "mlstm_kernels/baselines/flash_linear_attention/gla/__init__.py",
+            "mlstm_kernels/baselines/flash_linear_attention/fla_utils.py",
+            "mlstm_kernels/baselines/flash_linear_attention/gla/chunk_fuse.py",
+            "mlstm_kernels/baselines/flash_linear_attention/gla/chunk.py",
+            "mlstm_kernels/baselines/flash_linear_attention/gla/recurrent_fuse.py",
+            "mlstm_kernels/baselines/flash_linear_attention/simple_gla/__init__.py",
+            "mlstm_kernels/baselines/flash_linear_attention/simple_gla/chunk.py",
+            "**/*.md"
+        ],
+        "license": "./.github/license-check/header.txt"
+    },
+    {
+        "include": [
+            "node_modules/**"
+        ]
+    }
+]

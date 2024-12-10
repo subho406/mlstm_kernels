@@ -1,3 +1,6 @@
+#  Copyright (c) NXAI GmbH.
+#  This software may be used and distributed according to the terms of the NXAI Community License Agreement.
+
 import logging
 
 from mlstm_kernels.jax.chunkwise.triton_limit_chunk import mlstm_chunkwise__limit_chunk

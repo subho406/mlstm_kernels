@@ -1,3 +1,6 @@
+#  Copyright (c) NXAI GmbH.
+#  This software may be used and distributed according to the terms of the NXAI Community License Agreement.
+
 from mlstm_kernels.utils.test.fixtures import test_session_folder  # noqa
 from mlstm_kernels.utils.test.fixtures import test_output_folder  # noqa
 

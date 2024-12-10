@@ -1,3 +1,6 @@
+#  Copyright (c) NXAI GmbH.
+#  This software may be used and distributed according to the terms of the NXAI Community License Agreement.
+
 kernel_colors = {
     "torch_flashattn": "#165b89",
     "torch_cudnn": "#439ebd",

@@ -1,3 +1,6 @@
+#  Copyright (c) NXAI GmbH.
+#  This software may be used and distributed according to the terms of the NXAI Community License Agreement.
+
 # Maximilian Beck
 """This file contains the parallel part of the backward pass of the mLSTM chunkwise formulation,
 i.e. the "intra-chunk" contribution that computes the deltaV gradients.

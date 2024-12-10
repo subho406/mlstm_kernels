@@ -153,10 +153,10 @@ In the meantime if you use this codebase, or otherwise find our work valuable, p
 
 ```
 @article{beck:25unlocking,
-      title={Unlocking the Power of Recurrence for Efficient xLSTM Kernels}, 
-      author={Maximilian Beck and Korbinian Pöppel and Sepp Hochreiter},
-      booktitle = {Under preparation},
-      year={2025},
+  title={Unlocking the Power of Recurrence for Efficient xLSTM Kernels}, 
+  author={Maximilian Beck and Korbinian Pöppel and Sepp Hochreiter},
+  booktitle = {Under preparation},
+  year={2025},
 }
 @software{beck:24mlstmkernels,
   title  = {mLSTM Kernels: A Library for Efficient mLSTM Kernels},

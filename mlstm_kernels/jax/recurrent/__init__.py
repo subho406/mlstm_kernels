@@ -1,3 +1,6 @@
+#  Copyright (c) NXAI GmbH.
+#  This software may be used and distributed according to the terms of the NXAI Community License Agreement.
+
 from .native_sequence import (
     mlstm_recurrent_sequence__native_fw,
     mlstm_recurrent_sequence__triton_step_fused_fw,

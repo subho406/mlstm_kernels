@@ -1,3 +1,6 @@
+#  Copyright (c) NXAI GmbH.
+#  This software may be used and distributed according to the terms of the NXAI Community License Agreement.
+
 # Maximilian Beck
 """This file contains the recurrent part of the backward pass of the mLSTM chunkwise formulation.
 It is adapted such that it allows to write out the deltaC states and optionally the deltaN states

@@ -1,3 +1,6 @@
+#  Copyright (c) NXAI GmbH.
+#  This software may be used and distributed according to the terms of the NXAI Community License Agreement.
+
 def count_flops_transformer_block_fw(S: int, d: int, Nh: int, ff_ratio: float = 4.0) -> tuple[int, int, int]:
     """DeepMind method for forwad pass FLOPs counting of decoder-only Transformer
     See Chinchilla paper or this blog post:
