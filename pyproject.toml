@@ -11,7 +11,7 @@ authors = [
   { name="Phillip Lippe", email="phillip.lippe@gmail.com" },
   { name="Sebastian Boeck", email="sebastian.boeck@nx-ai.com" },
 ]
-description = "Kernels for the mLSTM."
+description = "A library providing fast and efficient mLSTM kernels for the xLSTM."
 readme = "README.md"
 license = {file="LICENSE"}
 requires-python = ">=3.11"
