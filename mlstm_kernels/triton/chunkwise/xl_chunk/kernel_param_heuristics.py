@@ -1,3 +1,4 @@
+# Maximilian Beck
 import logging
 from dataclasses import dataclass
 
