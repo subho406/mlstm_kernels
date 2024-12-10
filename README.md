@@ -2,7 +2,7 @@
 
 This library provides fast and efficient mLSTM kernels for the parallel, recurrent and chunkwise form. We provide PyTorch and JAX wrappers for our kernels.
 
-Paper coming soon ...
+Paper coming soon! Stay tuned ... 
 
 ## Kernel Overview
 
