@@ -64,9 +64,9 @@ class mLSTMSimpleModelBenchmark(ModelBenchmarkInterface):
     generation_length: int = 1
 
     def setup_model(self) -> None:
-        from mlstm_simple.model import mLSTM, mLSTMConfig
+        from xlstm.xlstm_large.model import xLSTMLarge, xLSTMLargeConfig
 
-        mlstm_config = mLSTMConfig(
+        mlstm_config = xLSTMLargeConfig(
             embedding_dim=self.embedding_dim,
             num_heads=self.num_heads,
             num_blocks=self.num_blocks,
@@ -86,7 +86,7 @@ class mLSTMSimpleModelBenchmark(ModelBenchmarkInterface):
             weight_mode=self.weight_mode,
         )
 
-        self.model = mLSTM(mlstm_config).to(
+        self.model = xLSTMLarge(mlstm_config).to(
             dtype=getattr(torch, self.weight_dtype), device=torch.device(self.device)
         )
 
@@ -108,7 +108,7 @@ class mLSTMSimpleModelBenchmark(ModelBenchmarkInterface):
         if self.model is None:
             self.setup_model()
 
-        from mlstm_simple.generate import generate_tokens
+        from xlstm.xlstm_large.generate import generate_tokens
 
         # setup prefill inputs
         if self.prefill_length > 0:
@@ -230,7 +230,7 @@ class mLSTMSimpleModelBenchmark(ModelBenchmarkInterface):
             self.benchmark_fn = benchmark_fn
 
     def available_kernels(self) -> list[str]:
-        return ["mlstm_simple"]
+        return ["xlstm.xlstm_large"]
 
 
 def create_mlstm_model_benchmark(
