@@ -2,7 +2,7 @@
 
 This library provides fast and efficient mLSTM kernels for the parallel, recurrent and chunkwise form. We provide PyTorch and JAX wrappers for our kernels.
 
-Paper coming soon! Stay tuned ... 
+Paper coming soon! Stay tuned 📺🎧⏳✨
 
 ## Kernel Overview
 
@@ -153,13 +153,13 @@ In the meantime if you use this codebase, or otherwise find our work valuable, p
 
 ```
 @article{beck:25unlocking,
-      title={Unlocking the power of recurrence for efficient xLSTM kernels}, 
+      title={Unlocking the Power of Recurrence for Efficient xLSTM Kernels}, 
       author={Maximilian Beck and Korbinian Pöppel and Sepp Hochreiter},
       booktitle = {Under preparation},
       year={2025},
 }
 @software{beck:24mlstmkernels,
-  title  = {FLA: A Triton-Based Library for Hardware-Efficient Implementations of Linear Attention Mechanism},
+  title  = {mLSTM Kernels: A Library for Efficient mLSTM Kernels},
   author = {Maximilian Beck and Korbinian Pöppel and Phillip Lippe},
   url    = {https://github.com/NXAI/mlstm_kernels},
   month  = dec,
