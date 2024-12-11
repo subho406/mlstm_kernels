@@ -6,9 +6,8 @@ import jax.numpy as jnp
 import jax_triton as jt
 import triton
 
-from mlstm_kernels.triton.recurrent.fw_step_fused import recurrent_step_fw_kernel
-from mlstm_kernels.utils.kernels import is_power_of_2
-
+from ...triton.recurrent.fw_step_fused import recurrent_step_fw_kernel
+from ...utils.kernels import is_power_of_2
 from ..stride_utils import get_stride
 from ..utils import jax2triton_dtype
 
