@@ -20,7 +20,17 @@ classifiers = [
     "Operating System :: OS Independent",
 ]
 keywords = ["mLSTM", "xLSTM", "LSTM", "Transformer", "Machine Learning", "Deep Learning", "State Space Models"]
-
+dependencies = [
+    "dacite",
+    "einops",
+    "ipykernel",
+    "matplotlib",
+    "numpy",
+    "omegaconf",
+    "rich",
+    "torch",
+    "tqdm",
+]
 
 # [tool.setuptools]
 # include_package_data = true
