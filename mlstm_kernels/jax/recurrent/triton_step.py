@@ -127,9 +127,9 @@ def mlstm_recurrent_step__triton(
 ]:  # vecH, (matC_state_new (B, NH, DHQK, DHV), vecN_state_new (B, NH, DHQK), vecM_state_new (B, NH, 1))
     """This is a single step of the mLSTM operation in recurrent form."""
     return mlstm_recurrent_step__triton_fw(
-        matC_old=c,
-        vecN_old=n,
-        scaM_old=m,
+        matC_state=c,
+        vecN_state=n,
+        scaM_state=m,
         vecQ=q,
         vecK=k,
         vecV=v,
