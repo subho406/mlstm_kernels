@@ -4,21 +4,22 @@
 import torch
 import triton
 
-from ....triton.chunkwise.xl_chunk import mlstm_chunkwise__recurrent_bw_dC_kernel
+from ....triton.chunkwise.xl_chunk_siging import (
+    mlstm_siging_chunkwise__recurrent_bw_dC_kernel,
+)
 from ....triton.heuristics import get_head_dim_block_size
 from ....utils.kernels import is_power_of_2
 from ...utils import torch2triton_dtype
 
 
-def mlstm_chunkwise__recurrent_bw_dC(
+def mlstm_siging_chunkwise__recurrent_bw_dC(
     matQ: torch.Tensor,  # (B, NH, S, DHQK)
     vecF: torch.Tensor,  # (B, NH, NC * L) = (B, NH, S)
-    scaM_inter: torch.Tensor,  # (B, NH, NC+1)
-    vecM_combine: torch.Tensor,  # (B, NH, S)
     matDeltaH: torch.Tensor,  # (B, NH, S, DHHV)
     vecN_out: torch.Tensor,  # (B, NH, S)
     matDeltaC_last: torch.Tensor = None,  # (B, NH, DHQK, DHHV)
     qk_scale: float = None,
+    normalize: bool = True,
     chunk_size: int = 64,
     save_states_every_nth_chunk: int = 1,
     num_warps: int | None = None,
@@ -67,11 +68,9 @@ def mlstm_chunkwise__recurrent_bw_dC(
         num_warps = 4 if siz_b_DHQK == 64 else 2
 
     grid = (num_b_DHQK, num_b_DHHV, B * NH)
-    mlstm_chunkwise__recurrent_bw_dC_kernel[grid](
+    mlstm_siging_chunkwise__recurrent_bw_dC_kernel[grid](
         matQ=matQ,
         vecF=vecF,
-        scaM_inter=scaM_inter,
-        vecM_combine=vecM_combine,
         matDeltaH=matDeltaH,
         vecN_out=vecN_out,
         matDeltaC_last=matDeltaC_last,
@@ -81,10 +80,6 @@ def mlstm_chunkwise__recurrent_bw_dC(
         str_matQ_S=matQ.stride(2),
         str_matQ_DHQK=matQ.stride(3),
         str_vecF_B_NH=vecF.stride(1),
-        str_scaM_inter_B_NH=scaM_inter.stride(1),
-        str_scaM_inter_NC=scaM_inter.stride(2),
-        str_vecM_combine_B_NH=vecM_combine.stride(1),
-        str_vecM_combine_S=vecM_combine.stride(2),
         str_matDeltaH_B_NH=matDeltaH.stride(1),
         str_matDeltaH_S=matDeltaH.stride(2),
         str_matDeltaH_DHHV=matDeltaH.stride(3),
@@ -107,6 +102,7 @@ def mlstm_chunkwise__recurrent_bw_dC(
         siz_b_DHHV=siz_b_DHHV,
         save_states_every_nth_chunk=save_states_every_nth_chunk,
         USE_LAST_STATE=USE_LAST_STATE,
+        NORMALIZE=normalize,
         DTYPE=torch2triton_dtype(_dtype),
         EPS=eps,
         num_stages=num_stages,

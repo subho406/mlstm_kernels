@@ -3,7 +3,7 @@
 
 # Maximilian Beck
 """In this file we compute the chunkwise or cumulative gates (i.e. vecA and vecB)
-for the forward and backward pass of the mLSTM.
+for the forward and backward pass of the mLSTM with sigmoid input gate.
 We use the stable formulations, i.e. we avoid subtraction of forget gates.
 """
 
@@ -29,10 +29,12 @@ def compute_chunkwise_log_gates_vecB_vecA(
     vecF_logsig_chunked = rearrange(vecF_logsig, "b nh (nc l) -> b nh nc l", nc=NC, l=L)
     vecB = vecF_logsig_chunked.cumsum(dim=-1)
 
+    vecI_logsig = logsigmoid(vecI.to(dtype=torch.float32))
+
     # compute vecA
-    vecI_chunked = rearrange(vecI, "b nh (nc l) -> b nh nc l", nc=NC, l=L)
+    vecI_logsig_chunked = rearrange(vecI_logsig, "b nh (nc l) -> b nh nc l", nc=NC, l=L)
     # unstable vecA computation:
-    # vecA = (vecB[..., -1, None] - vecB) + vecI  # (B, NH, NC, L)
+    # vecA = (vecB[..., -1, None] - vecB) + vecI_logsig_chunked  # (B, NH, NC, L)
     # stable vecA computation:
     vecA = (
         torch.cat(
@@ -42,7 +44,7 @@ def compute_chunkwise_log_gates_vecB_vecA(
             ],
             dim=-1,
         )
-        + vecI_chunked
+        + vecI_logsig_chunked
     )  # (B, NH, NC, L)
     return vecB, vecA
 
@@ -64,12 +66,18 @@ def compute_chunkwise_log_gates_vecB(
 
     return vecB
 
-# Note: we separate this into a extra function for torch.compile. 
+
+# Note: we separate this into a extra function for torch.compile.
 # torch.compile will compile this into a single kernel with ca. 0.2 ms runtime (compared to 2.5 ms non-fused kernels)
 # for a 1.3B sized model with ctx8192.
 @torch.compile
 def compute_gate_grads_vecDeltaI_vecDeltaF(
-    matQ: torch.Tensor, matK: torch.Tensor, matDeltaQ: torch.Tensor, matDeltaK: torch.Tensor, vecF: torch.Tensor
+    matQ: torch.Tensor,
+    matK: torch.Tensor,
+    matDeltaQ: torch.Tensor,
+    matDeltaK: torch.Tensor,
+    vecF: torch.Tensor,
+    vecI: torch.Tensor,
 ) -> tuple[torch.Tensor, torch.Tensor]:
     #! postprocessing: compute deltaF and deltaI gradients
     ## ? postprocessing
@@ -86,5 +94,6 @@ def compute_gate_grads_vecDeltaI_vecDeltaF(
     # compute deltaI
     # both are equivalent:
     # vecDeltaI = (matV * matDeltaV).sum(-1)
-    vecDeltaI = (matK * matDeltaK).sum(-1)
+    vecDeltaIbar = (matK * matDeltaK).sum(-1)
+    vecDeltaI = vecDeltaIbar * torch.sigmoid(-vecI)
     return vecDeltaI, vecDeltaF

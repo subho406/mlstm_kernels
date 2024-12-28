@@ -151,7 +151,6 @@ def _mlstm_siging_chunkwise_fwbw_generator(
                 vecDeltaF,
                 matDeltaC_initial,
                 vecDeltaN_initial,
-                scaDeltaM_initial,
             ) = mlstm_siging_chunkwise_bw(
                 matQ=matQ,
                 matK=matK,

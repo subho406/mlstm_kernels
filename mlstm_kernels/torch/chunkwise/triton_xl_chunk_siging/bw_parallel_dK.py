@@ -4,13 +4,15 @@
 import torch
 import triton
 
-from ....triton.chunkwise.xl_chunk import mlstm_chunkwise__parallel_bw_dK_kernel
+from ....triton.chunkwise.xl_chunk_siging import (
+    mlstm_siging_chunkwise__parallel_bw_dK_kernel,
+)
 from ....triton.heuristics import get_head_dim_block_size
 from ....utils.kernels import is_power_of_2
 from ...utils import torch2triton_dtype
 
 
-def mlstm_chunkwise__parallel_bw_dK(
+def mlstm_siging_chunkwise__parallel_bw_dK(
     ## Forward arguments
     matQ: torch.Tensor,  # (B, NH, S, DHQK)
     matK: torch.Tensor,  # (B, NH, S, DHQK)
@@ -21,13 +23,12 @@ def mlstm_chunkwise__parallel_bw_dK(
     ## Backward arguments
     matCstate_all: torch.Tensor,  # (B, NH, (NC+1) * DHQK, DHHV)
     vecNstate_all: torch.Tensor,  # (B, NH, (NC+1) * DHQK)
-    scaMstate_all: torch.Tensor,  # (B, NH, (NC+1))
     vecN_out: torch.Tensor,  # (B, NH, S) # vecN_combine
-    vecM_out: torch.Tensor,  # (B, NH, S) # vecM_combine
     matDeltaH_out: torch.Tensor,  # (B, NH, S, DHHV)
     matDeltaC_states: torch.Tensor,  # (B, NH, (NC+1) * DHQK, DHHV)
     ## Other arguments
     qk_scale: float = None,
+    normalize: bool = True,
     chunk_size: int = 64,
     siz_b_LQ: int = 32,
     siz_b_LKV: int = 32,
@@ -74,7 +75,7 @@ def mlstm_chunkwise__parallel_bw_dK(
     matDeltaK = torch.empty(B, NH, S, DHQK, device=matQ.device, dtype=output_dtype)
     grid = (num_b_DHQK, num_b_LKV, NC * B * NH)
 
-    mlstm_chunkwise__parallel_bw_dK_kernel[grid](
+    mlstm_siging_chunkwise__parallel_bw_dK_kernel[grid](
         matQ=matQ,
         matK=matK,
         matV=matV,
@@ -83,9 +84,7 @@ def mlstm_chunkwise__parallel_bw_dK(
         vecA=vecA,
         matCstate_all=matCstate_all,
         vecNstate_all=vecNstate_all,
-        scaMstate_all=scaMstate_all,
         vecN_out=vecN_out,
-        vecM_out=vecM_out,
         matDeltaH_out=matDeltaH_out,
         matDeltaC_states=matDeltaC_states,
         matDeltaK=matDeltaK,
@@ -102,9 +101,8 @@ def mlstm_chunkwise__parallel_bw_dK(
         str_matCstate_NCDHQK=matCstate_all.stride(2),
         str_matCstate_DHHV=matCstate_all.stride(3),
         str_vecNstate_B_NH=vecNstate_all.stride(1),
-        str_scaMstate_B_NH=scaMstate_all.stride(1),
-        str_vecMN_B_NH=vecN_out.stride(1),
-        str_vecMN_S=vecN_out.stride(2),
+        str_vecN_B_NH=vecN_out.stride(1),
+        str_vecN_S=vecN_out.stride(2),
         B=B,
         NH=NH,
         S=S,
@@ -116,6 +114,7 @@ def mlstm_chunkwise__parallel_bw_dK(
         siz_b_LKV=siz_b_LKV,
         siz_b_DHQK=siz_b_DHQK,
         siz_b_DHHV=siz_b_DHHV,
+        NORMALIZE=normalize,
         DTYPE=torch2triton_dtype(matQ.dtype),
         OUTPUT_DTYPE=torch2triton_dtype(output_dtype),
         EPS=eps,

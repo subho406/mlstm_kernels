@@ -14,7 +14,7 @@ import triton.language as tl
 
 
 @triton.jit
-def mlstm_chunkwise__parallel_bw_dK_kernel(
+def mlstm_siging_chunkwise__parallel_bw_dK_kernel(
     ## input tensor pointers
     matQ,  # (B, NH, S, DHQK)
     matK,  # (B, NH, S, DHQK)
@@ -24,9 +24,7 @@ def mlstm_chunkwise__parallel_bw_dK_kernel(
     vecA,  # (B, NH, NC, L)
     matCstate_all,  # (B, NH, (NC+1) * DHQK, DHHV)
     vecNstate_all,  # (B, NH, (NC+1) * DHQK)
-    scaMstate_all,  # (B, NH, (NC+1))
     vecN_out,  # (B, NH, S) # vecN_combine
-    vecM_out,  # (B, NH, S) # vecM_combine
     matDeltaH_out,  # (B, NH, S, DHHV)
     matDeltaC_states,  # (B, NH, (NC+1) * DHQK, DHHV)
     ## output tensor pointers
@@ -45,9 +43,8 @@ def mlstm_chunkwise__parallel_bw_dK_kernel(
     str_matCstate_NCDHQK: tl.constexpr,
     str_matCstate_DHHV: tl.constexpr,
     str_vecNstate_B_NH: tl.constexpr,
-    str_scaMstate_B_NH: tl.constexpr,
-    str_vecMN_B_NH: tl.constexpr,
-    str_vecMN_S: tl.constexpr,
+    str_vecN_B_NH: tl.constexpr,
+    str_vecN_S: tl.constexpr,
     ## dimensions
     B: tl.constexpr,
     NH: tl.constexpr,
@@ -62,6 +59,7 @@ def mlstm_chunkwise__parallel_bw_dK_kernel(
     siz_b_DHQK: tl.constexpr,
     siz_b_DHHV: tl.constexpr,
     ## other arguments
+    NORMALIZE: tl.constexpr = True,
     DTYPE: tl.constexpr = tl.float32,
     OUTPUT_DTYPE: tl.constexpr = tl.float32,
     EPS: tl.constexpr = 0.0,
@@ -85,17 +83,16 @@ def mlstm_chunkwise__parallel_bw_dK_kernel(
     # load vecI_LKV (siz_b_LKV,)
     vecI_LKV_ptr = vecI_ptr + idx_b_LKV * siz_b_LKV + tl.arange(0, siz_b_LKV)
     vecI_LKV_val = tl.load(vecI_LKV_ptr).to(tl.float32)
+    vecIlogsig_LKV_val = tl.log(tl.sigmoid(vecI_LKV_val))
 
     # ? compute vecAbar for inter chunk contribution
-    # load scaM_val (1,)
-    scaMinter_k_val = tl.load(scaMstate_all + idx_b_BNH * (NC + 1) + (idx_b_NC + 1)).to(tl.float32)
     # load vecA (siz_b_LKV,)
     vecA_ptr = (
         vecA + idx_b_BNH * str_vecABI_B_NH + idx_b_NC * str_vecABI_NC + idx_b_LKV * siz_b_LKV + tl.arange(0, siz_b_LKV)
     )
     vecA_val = tl.load(vecA_ptr).to(tl.float32)
     # compute vecAbar_val (siz_b_LKV,)
-    vecAbar_val = tl.exp(vecA_val - scaMinter_k_val)
+    vecAbar_val = tl.exp(vecA_val)
 
     # for causal masking
     b_kv_offset_start = idx_b_LKV * siz_b_LKV
@@ -165,14 +162,15 @@ def mlstm_chunkwise__parallel_bw_dK_kernel(
             )
             matDeltaH_trans_val = tl.load(matDeltaH_trans_ptr, boundary_check=(0, 1)).to(tl.float32)
 
-            # load vecN_out (siz_b_LQ,)
-            vecN_out_ptr = (
-                vecN_out + idx_b_BNH * str_vecMN_B_NH + idx_b_NC * L + idx_b_LQ * siz_b_LQ + tl.arange(0, siz_b_LQ)
-            )
-            vecN_out_val = tl.load(vecN_out_ptr).to(tl.float32)
+            if NORMALIZE:
+                # load vecN_out (siz_b_LQ,)
+                vecN_out_ptr = (
+                    vecN_out + idx_b_BNH * str_vecN_B_NH + idx_b_NC * L + idx_b_LQ * siz_b_LQ + tl.arange(0, siz_b_LQ)
+                )
+                vecN_out_val = tl.load(vecN_out_ptr).to(tl.float32)
 
-            # compute matDeltaH_intra_trans (siz_b_DHHV, siz_b_LQ)
-            matDeltaH_trans_val = matDeltaH_trans_val / (vecN_out_val[None, :] + EPS)
+                # compute matDeltaH_intra_trans (siz_b_DHHV, siz_b_LQ)
+                matDeltaH_trans_val = matDeltaH_trans_val / (vecN_out_val[None, :] + EPS)
 
             ### compute matDeltaSbar^T (siz_b_LKV, siz_b_LQ)
             matDeltaSbar_trans_acc += tl.dot(matV_val, matDeltaH_trans_val.to(DTYPE))
@@ -185,7 +183,7 @@ def mlstm_chunkwise__parallel_bw_dK_kernel(
         vecB_LQ_val = tl.load(vecB_LQ_ptr).to(tl.float32)
 
         # construct gate matrix matDtilde (siz_b_LQ, siz_b_LKV)
-        matDtilde_val = vecB_LQ_val[:, None] - vecB_LKV_val[None, :] + vecI_LKV_val[None, :]
+        matDtilde_val = vecB_LQ_val[:, None] - vecB_LKV_val[None, :] + vecIlogsig_LKV_val[None, :]
 
         b_q_offset = idx_b_LQ * siz_b_LQ
         # causal masking if on the diagonal
@@ -194,14 +192,8 @@ def mlstm_chunkwise__parallel_bw_dK_kernel(
             mask = b_q_idxes[:, None] >= b_kv_idxes[None, :]
             matDtilde_val = tl.where(mask, matDtilde_val, -float("inf"))
 
-        # load vecM_out (siz_b_LQ,)
-        vecM_out_ptr = (
-            vecM_out + idx_b_BNH * str_vecMN_B_NH + idx_b_NC * L + idx_b_LQ * siz_b_LQ + tl.arange(0, siz_b_LQ)
-        )
-        vecM_out_val = tl.load(vecM_out_ptr).to(tl.float32)
-
         # compute matD^T (siz_b_LKV, siz_b_LQ)
-        matD_trans_val = tl.trans(tl.exp(matDtilde_val - vecM_out_val[:, None]))
+        matD_trans_val = tl.trans(tl.exp(matDtilde_val))
         ### end compute matD tile
 
         # compute matDeltaS^T (siz_b_LKV, siz_b_LQ)
