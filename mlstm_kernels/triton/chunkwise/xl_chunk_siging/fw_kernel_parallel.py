@@ -217,7 +217,12 @@ def mlstm_chunkwise__parallel_fw_Hintra_kernel(
         # compute the matH_comb_out_val (siz_b_LQ, siz_b_DHHV)
         matH_comb_out_val = matH_comb_num_val / (vecN_comb_denom_val[:, None] + EPS)
     else:
+        # Note: we need to set vecN_comb_denom_val to 1.0 to make the compiler happy
+        # if vecN_comb_denom_val is not defined, it gives an error
+        # the value is not used in this case
+        vecN_comb_denom_val = 1.0
         matH_comb_out_val = matH_comb_num_val
+
 
     # store matHout (size_b_LQ, siz_b_DHHV)
     matHout_ptr = tl.make_block_ptr(

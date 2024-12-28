@@ -78,7 +78,6 @@ def mlstm_siging_chunkwise__parallel_fw_Hintra(
 
     matH_out = torch.empty(B, NH, S, DHHV, device=matQ.device, dtype=matQ.dtype)
     vecN_out = torch.empty(B, NH, S, device=matQ.device, dtype=output_dtype)
-    vecM_out = torch.empty(B, NH, S, device=matQ.device, dtype=output_dtype)
 
     vecB = compute_chunkwise_log_gates_vecB(vecF=vecF, chunk_size=chunk_size)
 
@@ -94,7 +93,6 @@ def mlstm_siging_chunkwise__parallel_fw_Hintra(
         vecB=vecB,
         matHout=matH_out,
         vecNout=vecN_out,
-        vecMout=vecM_out,
         qk_scale=qk_scale,
         str_matQK_B_NH=matQ.stride(1),
         str_matQK_S=matQ.stride(2),
@@ -131,4 +129,4 @@ def mlstm_siging_chunkwise__parallel_fw_Hintra(
         num_warps=num_warps,
     )
 
-    return matH_out, vecN_out, vecM_out
+    return matH_out, vecN_out

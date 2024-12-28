@@ -20,11 +20,11 @@ from .chunkwise_gates import (
     compute_chunkwise_log_gates_vecB_vecA,
     compute_gate_grads_vecDeltaI_vecDeltaF,
 )
-from .fw_recurrent import mlstm_chunkwise__recurrent_fw_C
+from .fw_recurrent import mlstm_siging_chunkwise__recurrent_fw_C
 
 
 @contiguous_noctx
-def mlstm_chunkwise_bw(
+def mlstm_siging_chunkwise_bw(
     ## Forward arguments
     matQ: torch.Tensor,  # (B, NH, S, DHQK)
     matK: torch.Tensor,  # (B, NH, S, DHQK)
@@ -83,7 +83,7 @@ def mlstm_chunkwise_bw(
             and (scaMstate_all is None)
         ), "Either all or none of the states must be provided."
 
-        matCstate_all, vecNstate_all, scaMstate_all = mlstm_chunkwise__recurrent_fw_C(
+        matCstate_all, vecNstate_all, scaMstate_all = mlstm_siging_chunkwise__recurrent_fw_C(
             matK=matK,
             matV=matV,
             vecF=vecF,
