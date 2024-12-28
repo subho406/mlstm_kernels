@@ -241,7 +241,7 @@ def _get_chunkwise_fwbw_kernel(autocast_kernel_dtype: torch.dtype) -> Callable:
         raise ValueError(f"Unsupported kernel dtype {autocast_kernel_dtype}.")
 
 
-def mlstm_chunkwise__xl_chunk(
+def mlstm_siging_chunkwise__xl_chunk(
     q: torch.Tensor,  # (B, NH, S, DHQK)
     k: torch.Tensor,  # (B, NH, S, DHQK)
     v: torch.Tensor,  # (B, NH, S, DHHV)

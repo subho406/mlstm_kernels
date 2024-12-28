@@ -6,7 +6,7 @@ from .ops import (
 )
 
 
-def mlstm_ingsig_parallel(
+def mlstm_siging_parallel(
     queries: torch.Tensor,
     keys: torch.Tensor,
     values: torch.Tensor,
