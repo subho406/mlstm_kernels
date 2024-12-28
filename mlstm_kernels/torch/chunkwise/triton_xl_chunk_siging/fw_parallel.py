@@ -4,14 +4,16 @@
 import torch
 import triton
 
-from ....triton.chunkwise.xl_chunk import mlstm_chunkwise__parallel_fw_Hintra_kernel
+from ....triton.chunkwise.xl_chunk_siging import (
+    mlstm_chunkwise__parallel_fw_Hintra_kernel,
+)
 from ....triton.heuristics import get_head_dim_block_size
 from ....utils.kernels import is_power_of_2
 from ...utils import torch2triton_dtype
 from .chunkwise_gates import compute_chunkwise_log_gates_vecB
 
 
-def mlstm_chunkwise__parallel_fw_Hintra(
+def mlstm_siging_chunkwise__parallel_fw_Hintra(
     matQ: torch.Tensor,  # (B, NH, S, DHQK)
     matK: torch.Tensor,  # (B, NH, S, DHQK)
     matV: torch.Tensor,  # (B, NH, S, DHHV)
@@ -20,8 +22,8 @@ def mlstm_chunkwise__parallel_fw_Hintra(
     # these are all the states at every chunk, (we only use NC states up to the last chunk, i.e. :-1)
     matC_states: torch.Tensor,  # (B, NH, (NC+1) * DHQK, DHHV)
     vecN_states: torch.Tensor,  # (B, NH, (NC+1) * DHQK)
-    scaMinter_states: torch.Tensor,  # (B, NH, (NC+1))
     qk_scale: float = None,
+    normalize: bool = True,
     chunk_size: int = 64,
     siz_b_LQ: int = 32,
     siz_b_LKV: int = 32,
@@ -32,8 +34,8 @@ def mlstm_chunkwise__parallel_fw_Hintra(
     eps: float = 1e-6,
     output_dtype: torch.dtype = torch.float32,
 ) -> tuple[
-    torch.Tensor, torch.Tensor, torch.Tensor
-]:  # matH_out (B, NH, S, DHHV), vecN_out (B, NH, S), vecM_out (B, NH, S)
+    torch.Tensor, torch.Tensor
+]:  # matH_out (B, NH, S, DHHV), vecN_out (B, NH, S)
     """This function defines the grid and block sizes for the kernel launch and calls the kernel.
     chunk parallel size:        siz_b_LQ
     chunk loop size:            siz_b_LKV
@@ -88,7 +90,6 @@ def mlstm_chunkwise__parallel_fw_Hintra(
         matV=matV,
         matC_states=matC_states,
         vecN_states=vecN_states,
-        scaMinter_states=scaMinter_states,
         vecI=vecI,
         vecB=vecB,
         matHout=matH_out,
@@ -106,12 +107,11 @@ def mlstm_chunkwise__parallel_fw_Hintra(
         str_matCstates_DHHV=matC_states.stride(3),
         str_vecNstates_B_NH=vecN_states.stride(1),
         str_vecNstates_NCDHQK=vecN_states.stride(2),
-        str_scaMinterstates_B_NH=scaMinter_states.stride(1),
         str_vecBI_B_NH=vecB.stride(1),
         str_vecBI_NC=vecB.stride(2),
         str_vecBI_L=vecB.stride(3),
-        str_vecMN_B_NH=vecN_out.stride(1),
-        str_vecMN_S=vecN_out.stride(2),
+        str_vecN_B_NH=vecN_out.stride(1),
+        str_vecN_S=vecN_out.stride(2),
         B=B,
         NH=NH,
         S=S,
@@ -123,9 +123,9 @@ def mlstm_chunkwise__parallel_fw_Hintra(
         siz_b_LKV=siz_b_LKV,
         siz_b_DHQK=siz_b_DHQK,
         siz_b_DHHV=siz_b_DHHV,
+        NORMALIZE=normalize,
         DTYPE=torch2triton_dtype(matQ.dtype),
         OUTPUT_DTYPE=torch2triton_dtype(output_dtype),
-        MINIMUM_MAX_VAL=-10.0,
         EPS=eps,
         num_stages=num_stages,
         num_warps=num_warps,
