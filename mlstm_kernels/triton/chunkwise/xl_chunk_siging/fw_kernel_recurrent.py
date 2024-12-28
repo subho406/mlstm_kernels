@@ -11,17 +11,15 @@ import triton.language as tl
 
 
 @triton.jit
-def mlstm_chunkwise__recurrent_fw_C_kernel(
+def mlstm_siging_chunkwise__recurrent_fw_C_kernel(
     matK,  # (B, NH, S, DHQK)
     matV,  # (B, NH, S, DHHV)
     vecF,  # (B, NH, NC * L) = (B, NH, S)
     vecI,  # (B, NH, NC * L) = (B, NH, S)
     matC_initial,  # (B, NH, DHQK, DHHV)
     vecN_initial,  # (B, NH, DHQK)
-    scaMinter_initial,  # (B, NH)
     matC_states,  # (B, NH, (NC + 1) * DHQK, DHHV)
     vecN_states,  # (B, NH, (NC + 1) * DHQK)
-    scaMinter_states,  # (B, NH, (NC + 1))
     str_matK_B_NH: tl.constexpr,
     str_matK_S: tl.constexpr,
     str_matK_DHQK: tl.constexpr,
@@ -34,14 +32,11 @@ def mlstm_chunkwise__recurrent_fw_C_kernel(
     str_matCstates_DHHV: tl.constexpr,
     str_vecNstates_B_NH: tl.constexpr,
     str_vecNstates_NCDHQK: tl.constexpr,
-    str_scaMinterstates_B_NH: tl.constexpr,
-    str_scaMinterstates_NC: tl.constexpr,
     str_matCinitial_B_NH: tl.constexpr,
     str_matCinitial_DHQK: tl.constexpr,
     str_matCinitial_DHHV: tl.constexpr,
     str_vecNinitial_B_NH: tl.constexpr,
     str_vecNinitial_DHQK: tl.constexpr,
-    str_scaMinterinitial_B_NH: tl.constexpr,
     B: tl.constexpr,
     NH: tl.constexpr,
     S: tl.constexpr,
@@ -52,6 +47,7 @@ def mlstm_chunkwise__recurrent_fw_C_kernel(
     siz_b_DHQK: tl.constexpr,
     siz_b_DHHV: tl.constexpr,
     save_states_every_nth_chunk: tl.constexpr,
+    normalize: tl.constexpr,
     USE_INITIAL_STATE: tl.constexpr,
     DTYPE: tl.constexpr = tl.float32,
 ):
@@ -64,9 +60,9 @@ def mlstm_chunkwise__recurrent_fw_C_kernel(
     # create running states in shared memory
     matC_k_val = tl.zeros((siz_b_DHQK, siz_b_DHHV), dtype=tl.float32)
     vecN_k_val = tl.zeros((siz_b_DHQK,), dtype=tl.float32)
-    scaMinter_k_val = 0.0  # tl.zeros((1,), dtype=tl.float32)
 
     if USE_INITIAL_STATE:
+        # load matC
         # each thread block loads a (siz_b_DHQK, siz_b_DHHV) block from matC_initial
         matCinitial_ptr = tl.make_block_ptr(
             base=matC_initial + idx_b_BNH * str_matCinitial_B_NH,
@@ -76,20 +72,18 @@ def mlstm_chunkwise__recurrent_fw_C_kernel(
             block_shape=(siz_b_DHQK, siz_b_DHHV),
             order=(1, 0),
         )
-        # each thread block loads a (siz_b_DHQK,) chunk from vecN_initial
-        vecNinitial_ptr = (
-            vecN_initial
-            + idx_b_BNH * str_vecNinitial_B_NH
-            + idx_b_DHQK * siz_b_DHQK
-            + tl.arange(0, siz_b_DHQK)
-        )
-        # each thread block loads the scaMinter_initial
-        scaMinterinitial_ptr = scaMinter_initial + idx_b_BNH * str_scaMinterinitial_B_NH
-
-        # load initial states
         matC_k_val = tl.load(matCinitial_ptr, boundary_check=(0, 1)).to(tl.float32)
-        vecN_k_val = tl.load(vecNinitial_ptr).to(tl.float32)
-        scaMinter_k_val = tl.load(scaMinterinitial_ptr).to(tl.float32)
+
+        if normalize:
+            # load vecN
+            # each thread block loads a (siz_b_DHQK,) chunk from vecN_initial
+            vecNinitial_ptr = (
+                vecN_initial
+                + idx_b_BNH * str_vecNinitial_B_NH
+                + idx_b_DHQK * siz_b_DHQK
+                + tl.arange(0, siz_b_DHQK)
+            )
+            vecN_k_val = tl.load(vecNinitial_ptr).to(tl.float32)
 
     # iterate over chunks
     for k in range(NC):
@@ -113,8 +107,8 @@ def mlstm_chunkwise__recurrent_fw_C_kernel(
         #! store only if k is a multiple of save_states_every_nth_chunk
         if k % save_states_every_nth_chunk == 0:
             idx_k_save = k // save_states_every_nth_chunk
+            # store the states from the previous iteration
             # each thread block stores a (siz_b_DHQK, siz_b_DHHV) block to matC_states_k
-            # create pointer for matCstates_k, vecNstates_k, scaMinterstates_k
             matCstates_k_ptr = tl.make_block_ptr(
                 base=matC_states
                 + idx_b_BNH * str_matCstates_B_NH
@@ -125,25 +119,19 @@ def mlstm_chunkwise__recurrent_fw_C_kernel(
                 block_shape=(siz_b_DHQK, siz_b_DHHV),
                 order=(1, 0),
             )
-            vecNstates_k_ptr = (
-                vecN_states
-                + idx_b_BNH * str_vecNstates_B_NH
-                + idx_k_save * DHQK
-                + idx_b_DHQK * siz_b_DHQK
-                + tl.arange(0, siz_b_DHQK)
-            )
-            scaMinterstates_k_ptr = (
-                scaMinter_states + idx_b_BNH * str_scaMinterstates_B_NH + idx_k_save
-            )
-
-            # store the states from the previous iteration
             tl.store(
                 matCstates_k_ptr, matC_k_val.to(dtype=tl.float32), boundary_check=(0, 1)
             )
-            if idx_b_DHHV == 0:
+
+            if normalize and (idx_b_DHHV == 0):
+                vecNstates_k_ptr = (
+                    vecN_states
+                    + idx_b_BNH * str_vecNstates_B_NH
+                    + idx_k_save * DHQK
+                    + idx_b_DHQK * siz_b_DHQK
+                    + tl.arange(0, siz_b_DHQK)
+                )
                 tl.store(vecNstates_k_ptr, vecN_k_val.to(dtype=tl.float32))
-            if (idx_b_DHQK == 0) and (idx_b_DHHV == 0):
-                tl.store(scaMinterstates_k_ptr, scaMinter_k_val.to(dtype=tl.float32))
 
         # load / compute vecA_k, scaG_k
         # last element of vecB in k-th chunk
@@ -162,8 +150,11 @@ def mlstm_chunkwise__recurrent_fw_C_kernel(
         vecI_k_val = tl.load(vecI + idx_b_BNH * str_vecFI_B_NH + k * L + idx_L).to(
             tl.float32
         )
+        vecIlogsig_k_val = tl.log(tl.sigmoid(vecI_k_val))
 
-        vecA_k_val = tl.flip(tl.cumsum(tl.flip(vecFlogsig_masked), axis=0)) + vecI_k_val
+        vecA_k_val = (
+            tl.flip(tl.cumsum(tl.flip(vecFlogsig_masked), axis=0)) + vecIlogsig_k_val
+        )
 
         vecFfirst_k_val = tl.load(vecF + idx_b_BNH * str_vecFI_B_NH + k * L + 0).to(
             tl.float32
@@ -171,17 +162,13 @@ def mlstm_chunkwise__recurrent_fw_C_kernel(
         vecFfirstlogsig_k_val = tl.log(tl.sigmoid(vecFfirst_k_val))
         scaG_k_val = tl.sum(vecFlogsig_masked, axis=0) + vecFfirstlogsig_k_val
 
-        # scaM_inter_k update
-        scaAmax_k_val, _ = tl.max(vecA_k_val)
-        scaMinter_next_val = tl.maximum(scaG_k_val + scaMinter_k_val, scaAmax_k_val)
-
         # load matK_k, matV_k
         matK_k_val = tl.load(matK_k_ptr, boundary_check=(0, 1)).to(tl.float32)
         matV_k_val = tl.load(matV_k_ptr, boundary_check=(0, 1)).to(DTYPE)
 
         # matC_k update
-        vecAbar_k_val = tl.exp(vecA_k_val - scaMinter_next_val)
-        scaGbar_k_val = tl.exp(scaG_k_val + scaMinter_k_val - scaMinter_next_val)
+        vecAbar_k_val = tl.exp(vecA_k_val)
+        scaGbar_k_val = tl.exp(scaG_k_val)
 
         # Note: no cast on here, since matK_k_val is already float32 and tl.sum wants it to be float32
         matKbar_k_val = matK_k_val * vecAbar_k_val[None, :]
@@ -191,14 +178,13 @@ def mlstm_chunkwise__recurrent_fw_C_kernel(
         )
 
         # vecN_k update
-        # tl.sum wants tl.float32 as input dtype
-        vecN_k_val = scaGbar_k_val * vecN_k_val + tl.sum(matKbar_k_val, axis=1)
-
-        # move to next iteration
-        scaMinter_k_val = scaMinter_next_val
+        if normalize:
+            # tl.sum wants tl.float32 as input dtype
+            vecN_k_val = scaGbar_k_val * vecN_k_val + tl.sum(matKbar_k_val, axis=1)
 
     k = NC
     # store the states from the last iteration
+    # TODO store this in a separate tensor
     if k % save_states_every_nth_chunk == 0:
         idx_k_save = k // save_states_every_nth_chunk
         matCstates_k_ptr = tl.make_block_ptr(
@@ -211,20 +197,16 @@ def mlstm_chunkwise__recurrent_fw_C_kernel(
             block_shape=(siz_b_DHQK, siz_b_DHHV),
             order=(1, 0),
         )
-        vecNstates_k_ptr = (
-            vecN_states
-            + idx_b_BNH * str_vecNstates_B_NH
-            + idx_k_save * DHQK
-            + idx_b_DHQK * siz_b_DHQK
-            + tl.arange(0, siz_b_DHQK)
-        )
-        scaMinterstates_k_ptr = (
-            scaMinter_states + idx_b_BNH * str_scaMinterstates_B_NH + idx_k_save
-        )
         tl.store(
             matCstates_k_ptr, matC_k_val.to(dtype=tl.float32), boundary_check=(0, 1)
         )
-        if idx_b_DHHV == 0:
+
+        if normalize and (idx_b_DHHV == 0):
+            vecNstates_k_ptr = (
+                vecN_states
+                + idx_b_BNH * str_vecNstates_B_NH
+                + idx_k_save * DHQK
+                + idx_b_DHQK * siz_b_DHQK
+                + tl.arange(0, siz_b_DHQK)
+            )
             tl.store(vecNstates_k_ptr, vecN_k_val.to(dtype=tl.float32))
-        if (idx_b_DHQK == 0) and (idx_b_DHHV == 0):
-            tl.store(scaMinterstates_k_ptr, scaMinter_k_val.to(dtype=tl.float32))
