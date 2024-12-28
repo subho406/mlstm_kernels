@@ -4,8 +4,8 @@
 import torch
 import triton
 
+from ...triton.heuristics import get_head_dim_block_size
 from ...triton.recurrent.fw_step_fused import recurrent_step_fw_kernel
-from ...utils.kernels import is_power_of_2
 from ..utils import contiguous_noctx, torch2triton_dtype
 
 # NOTE: This kernel fails in the tests. Therefore, it should not be used.
@@ -70,18 +70,8 @@ def mlstm_recurrent_step__triton_fw(
             vecN_new is not None and scaM_new is not None
         ), "Initial states must be provided together."
 
-    min_siz_b_DHQK = 64
-    min_siz_b_DHHV = 64
-
-    assert (
-        is_power_of_2(DHQK) or DHQK % min_siz_b_DHQK == 0
-    ), f"DHQK must be a power of 2 or multiple of {min_siz_b_DHQK}. Got {DHQK}."
-    assert (
-        is_power_of_2(DHHV) or DHHV % min_siz_b_DHHV == 0
-    ), f"DHHV must be a power of 2 or multiple of {min_siz_b_DHHV}. Got {DHHV}."
-
-    siz_b_DHQK = min(min_siz_b_DHQK, triton.next_power_of_2(DHQK))
-    siz_b_DHHV = min(min_siz_b_DHHV, triton.next_power_of_2(DHHV))
+    siz_b_DHQK = get_head_dim_block_size(head_dim=DHQK, min_block_size=64)
+    siz_b_DHHV = get_head_dim_block_size(head_dim=DHHV, min_block_size=64)
 
     # num_b_DHQK = triton.cdiv(DHQK, siz_b_DHQK)
     num_b_DHHV = triton.cdiv(DHHV, siz_b_DHHV)

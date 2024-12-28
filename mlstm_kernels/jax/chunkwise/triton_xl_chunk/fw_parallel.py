@@ -9,6 +9,7 @@ import triton
 from ....triton.chunkwise.xl_chunk.fw_kernel_parallel import (
     mlstm_chunkwise__parallel_fw_Hintra_kernel,
 )
+from ....triton.heuristics import get_head_dim_block_size
 from ....utils.kernels import is_power_of_2
 from ...stride_utils import get_stride
 from ...utils import jax2triton_dtype
@@ -76,10 +77,10 @@ def mlstm_chunkwise__parallel_fw_Hintra(
     if qk_scale is None:
         qk_scale = DHQK**-0.5
 
-    siz_b_DHQK = min(64, triton.next_power_of_2(DHQK)) if siz_b_DHQK is None else siz_b_DHQK
+    siz_b_DHQK = get_head_dim_block_size(head_dim=DHQK, min_block_size=64) if siz_b_DHQK is None else siz_b_DHQK
 
     if siz_b_DHHV is None:
-        siz_b_DHHV = min(128, triton.next_power_of_2(DHHV))
+        siz_b_DHHV = get_head_dim_block_size(head_dim=DHHV, min_block_size=128)
     else:
         siz_b_DHHV = siz_b_DHHV
 

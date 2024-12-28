@@ -5,6 +5,7 @@ import torch
 import triton
 
 from ....triton.chunkwise.limit_chunk import mlstm_chunkwise__parallel_bw_dQKV_kernel
+from ....triton.heuristics import get_head_dim_block_size
 from ....utils.kernels import is_power_of_2
 from ...utils import torch2triton_dtype
 
@@ -38,8 +39,12 @@ def mlstm_chunkwise__parallel_bw_dQKV(
     if qk_scale is None:
         qk_scale = DHQK**-0.5
 
-    siz_b_DHQK = min(32 if _dtype == torch.float32 else 64, triton.next_power_of_2(DHQK))
-    siz_b_DHHV = min(32 if _dtype == torch.float32 else 64, triton.next_power_of_2(DHHV))
+    siz_b_DHQK = get_head_dim_block_size(
+        head_dim=DHQK, min_block_size=32 if _dtype == torch.float32 else 64
+    )
+    siz_b_DHHV = get_head_dim_block_size(
+        head_dim=DHHV, min_block_size=32 if _dtype == torch.float32 else 64
+    )
 
     num_b_DHQK = triton.cdiv(DHQK, siz_b_DHQK)
 

@@ -5,6 +5,7 @@ import torch
 import triton
 
 from ....triton.chunkwise.limit_chunk import mlstm_chunkwise__recurrent_fw_C_kernel
+from ....triton.heuristics import get_head_dim_block_size
 from ....utils.kernels import is_power_of_2
 from ...utils import torch2triton_dtype
 
@@ -34,8 +35,8 @@ def mlstm_chunkwise__recurrent_fw_C(
 
     assert is_power_of_2(L), "Chunk size must be a power of 2."
 
-    siz_b_DHQK = min(64, triton.next_power_of_2(DHQK))
-    siz_b_DHHV = min(64, triton.next_power_of_2(DHHV))
+    siz_b_DHQK = get_head_dim_block_size(head_dim=DHQK, min_block_size=64)
+    siz_b_DHHV = get_head_dim_block_size(head_dim=DHHV, min_block_size=64)
 
     num_b_DHQK = triton.cdiv(DHQK, siz_b_DHQK)
     num_b_DHHV = triton.cdiv(DHHV, siz_b_DHHV)
