@@ -20,6 +20,7 @@ def mlstm_siging_parallel_fw(
     vecF: torch.Tensor,
     eps: float = 1e-6,
     stable_fgate: bool = True,
+    normalize: bool = True,
 ) -> torch.Tensor:
     B, NH, S, DHQK = matQ.shape
     assert matK.shape == (B, NH, S, DHQK)
@@ -56,15 +57,20 @@ def mlstm_siging_parallel_fw(
     matS = (matQ @ matK.transpose(-2, -1)) * (DHQK**-0.5)  # (B, NH, S, S)
 
     matCtilde = matS * matD  # (B, NH, S, S)
-    vecN = torch.maximum(
-        matCtilde.sum(dim=-1, keepdim=True).abs(),
-        torch.tensor([1.0], dtype=_dtype, device=_device),
-    )  # (B, NH, S, 1)
-    # (B, NH, S, S)
-    matC = matCtilde / (vecN + eps)
+    if normalize:
+        vecN = torch.maximum(
+            matCtilde.sum(dim=-1, keepdim=True).abs(),
+            torch.tensor([1.0], dtype=_dtype, device=_device),
+        )  # (B, NH, S, 1)
+        # (B, NH, S, S)
+        matC = matCtilde / (vecN + eps)
+        vecN = vecN.squeeze(-1)
+    else:
+        matC = matCtilde
+        vecN = None
+
 
     matH = matC @ matV  # (B, NH, S, DH)
 
-    vecN = vecN.squeeze(-1)
 
     return (matH, vecN)

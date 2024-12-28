@@ -14,9 +14,9 @@ def mlstm_siging_parallel_bw(
     vecI: torch.Tensor,
     vecF: torch.Tensor,
     vecN: torch.Tensor,
-    vecM: torch.Tensor,
     eps: float = 1e-6,
     stable_fgate: bool = True,
+    normalize: bool = True,
 ) -> tuple[torch.Tensor, ...]:
     B, NH, S, DHQK = matQ.shape
     assert matK.shape == (B, NH, S, DHQK)
@@ -51,7 +51,10 @@ def mlstm_siging_parallel_bw(
     matD = torch.exp(matLogD)  # (B, NH, S, S)
 
     # intermediate delta-errors
-    matDeltaC = matDeltaHtilde @ matV.transpose(-2, -1) / (vecN[:, :, :, None] + eps)
+    if normalize:
+        matDeltaC = matDeltaHtilde @ matV.transpose(-2, -1) / (vecN[:, :, :, None] + eps)
+    else:
+        matDeltaC = matDeltaHtilde @ matV.transpose(-2, -1)
 
     matS = (matQ @ matK.transpose(-2, -1)) * (DHQK**-0.5)
 
@@ -66,7 +69,11 @@ def mlstm_siging_parallel_bw(
     matDeltaK = (matP.transpose(-2, -1) @ matQ) * (DHQK**-0.5)
 
     matCtilde = matS * matD
-    matDeltaV = matCtilde.transpose(-2, -1) @ (matDeltaHtilde / (vecN[:, :, :, None] + eps))
+    
+    if normalize:
+        matDeltaV = matCtilde.transpose(-2, -1) @ (matDeltaHtilde / (vecN[:, :, :, None] + eps))
+    else:
+        matDeltaV = matCtilde.transpose(-2, -1) @ matDeltaHtilde
 
     # compute the vecDeltaFbar values with dfbar = rev_cumsum((q*dq - k*dk).sum(-1))
     vecDeltaFbar_acc = (matQ * matDeltaQ - matK * matDeltaK).sum(-1)

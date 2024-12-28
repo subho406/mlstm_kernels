@@ -19,7 +19,7 @@ from .fw import mlstm_siging_parallel_fw
 
 
 def _mlstm_siging_parallel_fwbw_generator(
-    autocast_kernel_dtype=torch.float32, stable_fgate=True
+    autocast_kernel_dtype=torch.float32, stable_fgate=True, normalize=True
 ) -> Callable:
     class _mlstm_parallel_fwbw(torch.autograd.Function):
         @staticmethod
@@ -42,6 +42,7 @@ def _mlstm_siging_parallel_fwbw_generator(
                 vecF=vecF,
                 eps=eps,
                 stable_fgate=stable_fgate,
+                normalize=normalize,
             )
             ctx.save_for_backward(matQ, matK, matV, vecI, vecF, vecN, torch.tensor(eps))
             return matH, vecN
@@ -66,6 +67,7 @@ def _mlstm_siging_parallel_fwbw_generator(
                     vecN=vecN,
                     eps=float(eps),
                     stable_fgate=stable_fgate,
+                    normalize=normalize,
                 )
             )
             return matDeltaQ, matDeltaK, matDeltaV, vecDeltaI, vecDeltaF, None
@@ -74,19 +76,19 @@ def _mlstm_siging_parallel_fwbw_generator(
 
 
 def _get_parallel_fwbw_kernel(
-    autocast_kernel_dtype: torch.dtype, stable_fgate: bool
+    autocast_kernel_dtype: torch.dtype, stable_fgate: bool, normalize: bool
 ) -> Callable:
     if autocast_kernel_dtype == torch.float32:
         return _mlstm_siging_parallel_fwbw_generator(
-            autocast_kernel_dtype=torch.float32, stable_fgate=stable_fgate
+            autocast_kernel_dtype=torch.float32, stable_fgate=stable_fgate, normalize=normalize
         )
     elif autocast_kernel_dtype == torch.float16:
         return _mlstm_siging_parallel_fwbw_generator(
-            autocast_kernel_dtype=torch.float16, stable_fgate=stable_fgate
+            autocast_kernel_dtype=torch.float16, stable_fgate=stable_fgate, normalize=normalize
         )
     elif autocast_kernel_dtype == torch.bfloat16:
         return _mlstm_siging_parallel_fwbw_generator(
-            autocast_kernel_dtype=torch.bfloat16, stable_fgate=stable_fgate
+            autocast_kernel_dtype=torch.bfloat16, stable_fgate=stable_fgate, normalize=normalize
         )
     else:
         raise ValueError(f"Unsupported autocast_kernel_dtype: {autocast_kernel_dtype}")
@@ -104,6 +106,7 @@ def mlstm_siging_parallel__native_autograd(
     return_last_states: bool = False,
     eps: float = 1e-6,
     stable_fgate: bool = True,
+    normalize: bool = True,
     **kwargs,
 ) -> torch.Tensor:
     assert c_initial is None, "c_initial is not supported"
@@ -119,6 +122,7 @@ def mlstm_siging_parallel__native_autograd(
         vecF=f,
         eps=eps,
         stable_fgate=stable_fgate,
+        normalize=normalize,
     )
     return matH
 
@@ -135,6 +139,7 @@ def mlstm_siging_parallel__native_custbw(
     return_last_states: bool = False,
     eps: float = 1e-6,
     stable_fgate: bool = True,
+    normalize: bool = True,
     autocast_kernel_dtype: torch.dtype = torch.float32,
     **kwargs,
 ) -> torch.Tensor:
@@ -144,7 +149,7 @@ def mlstm_siging_parallel__native_custbw(
     assert return_last_states is False, "return_last_states is not supported"
 
     _mlstm_parallel_fwbw = _get_parallel_fwbw_kernel(
-        autocast_kernel_dtype=autocast_kernel_dtype, stable_fgate=stable_fgate
+        autocast_kernel_dtype=autocast_kernel_dtype, stable_fgate=stable_fgate, normalize=normalize
     )
 
     matH, _= _mlstm_parallel_fwbw.apply(q, k, v, i, f, eps)
