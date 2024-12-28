@@ -123,7 +123,7 @@ def mlstm_siging_chunkwise__recurrent_fw_C(
         siz_b_DHQK=siz_b_DHQK,
         siz_b_DHHV=siz_b_DHHV,
         save_states_every_nth_chunk=save_states_every_nth_chunk,
-        normalize=normalize,
+        NORMALIZE=normalize,
         USE_INITIAL_STATE=USE_INITIAL_STATE,
         DTYPE=torch2triton_dtype(matK.dtype),
         num_stages=num_stages,

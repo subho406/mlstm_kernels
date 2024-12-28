@@ -47,7 +47,7 @@ def mlstm_siging_chunkwise__recurrent_fw_C_kernel(
     siz_b_DHQK: tl.constexpr,
     siz_b_DHHV: tl.constexpr,
     save_states_every_nth_chunk: tl.constexpr,
-    normalize: tl.constexpr,
+    NORMALIZE: tl.constexpr,
     USE_INITIAL_STATE: tl.constexpr,
     DTYPE: tl.constexpr = tl.float32,
 ):
@@ -74,7 +74,7 @@ def mlstm_siging_chunkwise__recurrent_fw_C_kernel(
         )
         matC_k_val = tl.load(matCinitial_ptr, boundary_check=(0, 1)).to(tl.float32)
 
-        if normalize:
+        if NORMALIZE:
             # load vecN
             # each thread block loads a (siz_b_DHQK,) chunk from vecN_initial
             vecNinitial_ptr = (
@@ -123,7 +123,7 @@ def mlstm_siging_chunkwise__recurrent_fw_C_kernel(
                 matCstates_k_ptr, matC_k_val.to(dtype=tl.float32), boundary_check=(0, 1)
             )
 
-            if normalize and (idx_b_DHHV == 0):
+            if NORMALIZE and (idx_b_DHHV == 0):
                 vecNstates_k_ptr = (
                     vecN_states
                     + idx_b_BNH * str_vecNstates_B_NH
@@ -178,7 +178,7 @@ def mlstm_siging_chunkwise__recurrent_fw_C_kernel(
         )
 
         # vecN_k update
-        if normalize:
+        if NORMALIZE:
             # tl.sum wants tl.float32 as input dtype
             vecN_k_val = scaGbar_k_val * vecN_k_val + tl.sum(matKbar_k_val, axis=1)
 
@@ -201,7 +201,7 @@ def mlstm_siging_chunkwise__recurrent_fw_C_kernel(
             matCstates_k_ptr, matC_k_val.to(dtype=tl.float32), boundary_check=(0, 1)
         )
 
-        if normalize and (idx_b_DHHV == 0):
+        if NORMALIZE and (idx_b_DHHV == 0):
             vecNstates_k_ptr = (
                 vecN_states
                 + idx_b_BNH * str_vecNstates_B_NH
