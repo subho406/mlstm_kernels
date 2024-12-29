@@ -44,7 +44,7 @@ def _mlstm_siging_chunkwise_fwbw_generator(
             num_stages_intra: int | None = None,
             num_stages_inter: int | None = None,
             recompute_states_in_bw: bool = True,
-        ) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor]:
+        ) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
             B, NH, S, DHQK = matQ.shape
             if qk_scale is None:
                 qk_scale = DHQK**-0.5

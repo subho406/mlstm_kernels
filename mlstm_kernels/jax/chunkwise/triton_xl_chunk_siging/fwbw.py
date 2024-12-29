@@ -40,11 +40,12 @@ def _mlstm_chunkwise_fwbw_generator(
     autocast_kernel_dtype: jnp.dtype = jnp.bfloat16,
     return_last_states: bool = False,
     recompute_states_in_bw: bool = True,
-    chunk_size: int = 64,
+    chunk_size: int = 128,
+    normalize: bool = True,
     eps: float = 1e-6,
 ) -> Callable[
-    [jax.Array, jax.Array, jax.Array, jax.Array, jax.Array, jax.Array, jax.Array, jax.Array],
-    tuple[jax.Array, jax.Array, jax.Array, jax.Array],
+    [jax.Array, jax.Array, jax.Array, jax.Array, jax.Array, jax.Array, jax.Array],
+    tuple[jax.Array, jax.Array, jax.Array],
 ]:
     """
     Generate a forward and backward pass function for the mLSTM kernels with chunkwise formulation.
@@ -69,8 +70,7 @@ def _mlstm_chunkwise_fwbw_generator(
                 vecF: jax.Array,  # (B, NH, S)
                 matC_initial: jax.Array | None = None,  # (B, NH, DHQK, DHV)
                 vecN_initial: jax.Array | None = None,  # (B, NH, DHQK)
-                scaM_initial: jax.Array | None = None,  # (B, NH)
-            ) -> tuple[jax.Array, jax.Array, jax.Array, jax.Array]:
+            ) -> tuple[jax.Array, jax.Array, jax.Array]:
         The function returns the output of the mLSTM computation, and the last states internal states of C, N and M.
     """
 
@@ -83,8 +83,7 @@ def _mlstm_chunkwise_fwbw_generator(
         vecF: jax.Array,  # (B, NH, S)
         matC_initial: jax.Array | None = None,  # (B, NH, DHQK, DHV)
         vecN_initial: jax.Array | None = None,  # (B, NH, DHQK)
-        scaM_initial: jax.Array | None = None,  # (B, NH)
-    ) -> tuple[jax.Array, jax.Array, jax.Array, jax.Array]:
+    ) -> tuple[jax.Array, jax.Array, jax.Array]:
         B, NH, S, DHQK = matQ.shape
         qk_scale = DHQK**-0.5
         # Verify shapes to prevent errors in the kernels.
@@ -106,11 +105,6 @@ def _mlstm_chunkwise_fwbw_generator(
                 NH,
                 DHQK,
             ), f"vecN_initial shape {vecN_initial.shape} does not match matQ shape {matQ.shape}."
-        if scaM_initial is not None:
-            assert scaM_initial.shape == (
-                B,
-                NH,
-            ), f"scaM_initial shape {scaM_initial.shape} does not match matQ shape {matQ.shape}."
         # Cast to autocast_kernel_dtype. Exclude vecF as it is automatically upcasted to float32 in kernels.
         orig_dtypes = {"q": matQ.dtype, "k": matK.dtype, "v": matV.dtype, "i": vecI.dtype, "f": vecF.dtype}
         matQ = matQ.astype(autocast_kernel_dtype)
@@ -123,11 +117,8 @@ def _mlstm_chunkwise_fwbw_generator(
         if vecN_initial is not None:
             orig_dtypes["n"] = vecN_initial.dtype
             vecN_initial = vecN_initial.astype(autocast_kernel_dtype)
-        if scaM_initial is not None:
-            orig_dtypes["m"] = scaM_initial.dtype
-            scaM_initial = scaM_initial.astype(autocast_kernel_dtype)
         # Call the forward triton kernels for the mLSTM.
-        matH_out, vecN_out, vecM_out, last_states, all_states = mlstm_siging_chunkwise_fw(
+        matH_out, vecN_out, last_states, all_states = mlstm_siging_chunkwise_fw(
             matQ=matQ,
             matK=matK,
             matV=matV,
@@ -135,31 +126,32 @@ def _mlstm_chunkwise_fwbw_generator(
             vecF=vecF,
             matC_initial=matC_initial,
             vecN_initial=vecN_initial,
-            scaM_initial=scaM_initial,
             qk_scale=qk_scale,
             return_last_states=return_last_states,
             return_all_states=(not recompute_states_in_bw),
+            normalize=normalize,
+            chunk_size=chunk_size,
             eps=eps,
         )
         # Select what to return.
         if return_last_states:
-            (matC_last, vecN_last, scaM_last) = last_states
+            (matC_last, vecN_last) = last_states
         else:
-            (matC_last, vecN_last, scaM_last) = (None, None, None)
+            (matC_last, vecN_last) = (None, None)
         # Verify saved states.
         if all_states is not None:
-            matC_all, vecN_all, scaM_all = all_states
+            matC_all, vecN_all = all_states
         else:
-            matC_all, vecN_all, scaM_all = (None, None, None)
+            matC_all, vecN_all = (None, None)
 
         def backward(
-            grad_list: tuple[jax.Array, jax.Array, jax.Array, jax.Array],
+            grad_list: tuple[jax.Array, jax.Array, jax.Array],
         ) -> tuple[
-            jax.Array, jax.Array, jax.Array, jax.Array, jax.Array, jax.Array | None, jax.Array | None, jax.Array | None
+            jax.Array, jax.Array, jax.Array, jax.Array, jax.Array, jax.Array | None, jax.Array | None
         ]:
             """Backward function with reverse function signature of forward."""
             # Read out gradients for individual forward outputs.
-            matDeltaH, matDeltaC_last, _, _ = grad_list
+            matDeltaH, matDeltaC_last, _ = grad_list
             # Call the backward triton kernels for the mLSTM.
             (
                 matDeltaQ,
@@ -169,7 +161,6 @@ def _mlstm_chunkwise_fwbw_generator(
                 vecDeltaF,
                 matDeltaC_initial,
                 vecDeltaN_initial,
-                scaDeltaM_initial,
             ) = mlstm_chunkwise_bw(
                 matQ=matQ,
                 matK=matK,
@@ -178,15 +169,14 @@ def _mlstm_chunkwise_fwbw_generator(
                 vecF=vecF,
                 matC_initial=matC_initial,
                 vecN_initial=vecN_initial,
-                scaM_initial=scaM_initial,
                 matC_all=matC_all,
                 vecN_all=vecN_all,
-                scaM_all=scaM_all,
                 vecN_out=vecN_out,
-                vecM_out=vecM_out,
                 matDeltaH=matDeltaH,
                 matDeltaC_last=matDeltaC_last,
                 qk_scale=qk_scale,
+                normalize=normalize,
+                chunk_size=chunk_size,
                 eps=eps,
             )
             # Cast back to original dtypes.
@@ -199,8 +189,6 @@ def _mlstm_chunkwise_fwbw_generator(
                 matDeltaC_initial = matDeltaC_initial.astype(orig_dtypes["c"])
             if vecDeltaN_initial is not None and "n" in orig_dtypes:
                 vecDeltaN_initial = vecDeltaN_initial.astype(orig_dtypes["n"])
-            if scaDeltaM_initial is not None and "m" in orig_dtypes:
-                scaDeltaM_initial = scaDeltaM_initial.astype(orig_dtypes["m"])
             # Return gradients.
             return (
                 matDeltaQ,
@@ -210,10 +198,9 @@ def _mlstm_chunkwise_fwbw_generator(
                 vecDeltaF,
                 matDeltaC_initial,
                 vecDeltaN_initial,
-                scaDeltaM_initial,
             )
 
-        return (matH_out, matC_last, vecN_last, scaM_last), backward
+        return (matH_out, matC_last, vecN_last), backward
 
     return forward
 
@@ -237,7 +224,7 @@ def _get_chunkwise_fwbw_kernel(autocast_kernel_dtype: jnp.dtype, **kwargs) -> Ca
         raise ValueError(f"Unsupported kernel dtype {autocast_kernel_dtype}.")
 
 
-def mlstm_chunkwise__xl_chunk(
+def mlstm_siging_chunkwise__xl_chunk(
     q: jax.Array,
     k: jax.Array,
     v: jax.Array,
@@ -245,10 +232,10 @@ def mlstm_chunkwise__xl_chunk(
     f: jax.Array,
     c_initial: jax.Array | None = None,
     n_initial: jax.Array | None = None,
-    m_initial: jax.Array | None = None,
     return_last_states: bool = False,
     eps: float = 1e-6,
-    chunk_size: int = 64,  # TODO this is unused for now
+    normalize: bool = True,
+    chunk_size: int = 128,
     autocast_kernel_dtype: jnp.dtype = jnp.float32,
 ) -> jax.Array | tuple[jax.Array, tuple[jax.Array, jax.Array, jax.Array]]:
     """
@@ -264,9 +251,9 @@ def mlstm_chunkwise__xl_chunk(
         f: The forget gate preactivation tensor of shape (B, NH, S).
         c_initial: The initial chunk state tensor of shape (B, NH, DHQK, DHV).
         n_initial: The initial chunk state tensor of shape (B, NH, DHQK).
-        m_initial: The initial chunk state tensor of shape (B, NH).
         return_last_states: Whether to return the last states of the mLSTM.
         eps: The epsilon value to use for numerical stability.
+        normalize: Whether to normalize the C state in the mLSTM.
         chunk_size: The chunk size to use for the mLSTM computation.
         autocast_kernel_dtype: The dtype to use for the kernel computation. All inputs arguments up
             to vecF are cast to this dtype. vecF is automatically casted to float32 in the kernels.
@@ -280,9 +267,10 @@ def mlstm_chunkwise__xl_chunk(
         return_last_states=return_last_states,
         recompute_states_in_bw=True,
         chunk_size=chunk_size,
+        normalize=normalize,
         eps=eps,
     )
-    matH_out, matC_last, vecN_last, scaM_last = _mlstm_chunkwise_fwbw(
+    matH_out, matC_last, vecN_last = _mlstm_chunkwise_fwbw(
         q,
         k,
         v,
@@ -290,9 +278,8 @@ def mlstm_chunkwise__xl_chunk(
         f,
         c_initial,
         n_initial,
-        m_initial,
     )
     if return_last_states:
-        return matH_out, (matC_last, vecN_last, scaM_last)
+        return matH_out, (matC_last, vecN_last)
     else:
         return matH_out
