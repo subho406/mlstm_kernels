@@ -18,7 +18,6 @@ from ...utils import jax2triton_dtype
 def mlstm_siging_chunkwise__recurrent_bw_dC(
     matQ: jax.Array,  # (B, NH, S, DHQK)
     vecF: jax.Array,  # (B, NH, NC * L) = (B, NH, S)
-    scaM_inter: jax.Array,  # (B, NH, NC+1)
     matDeltaH: jax.Array,  # (B, NH, S, DHHV)
     vecN_out: jax.Array,  # (B, NH, S)
     matDeltaC_last: jax.Array | None = None,  # (B, NH, DHQK, DHHV)
@@ -96,7 +95,6 @@ def mlstm_siging_chunkwise__recurrent_bw_dC(
     matDeltaC_states = jt.triton_call(
         matQ,
         vecF,
-        scaM_inter,
         matDeltaH,
         vecN_out,
         matDeltaC_last,
