@@ -76,8 +76,8 @@ def compute_gate_grads_vecDeltaI_vecDeltaF(
     matK: torch.Tensor,
     matDeltaQ: torch.Tensor,
     matDeltaK: torch.Tensor,
-    vecF: torch.Tensor,
     vecI: torch.Tensor,
+    vecF: torch.Tensor,
 ) -> tuple[torch.Tensor, torch.Tensor]:
     #! postprocessing: compute deltaF and deltaI gradients
     ## ? postprocessing

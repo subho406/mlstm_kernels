@@ -198,8 +198,8 @@ def mlstm_siging_chunkwise_bw(
         matK=matK,
         matDeltaQ=matDeltaQ,
         matDeltaK=matDeltaK,
-        vecF=vecF,
         vecI=vecI,
+        vecF=vecF,
     )
 
     matDeltaC_initial = (
