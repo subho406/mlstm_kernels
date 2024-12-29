@@ -40,7 +40,7 @@ def _mlstm_chunkwise_fwbw_generator(
     autocast_kernel_dtype: jnp.dtype = jnp.bfloat16,
     return_last_states: bool = False,
     recompute_states_in_bw: bool = True,
-    chunk_size: int = 64,
+    chunk_size: int = 128,
     eps: float = 1e-6,
 ) -> Callable[
     [jax.Array, jax.Array, jax.Array, jax.Array, jax.Array, jax.Array, jax.Array, jax.Array],

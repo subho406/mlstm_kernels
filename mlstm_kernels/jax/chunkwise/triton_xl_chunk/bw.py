@@ -9,6 +9,7 @@ It should allow arbitrary large chunk sizes and head dimensions.
 import jax
 import jax.numpy as jnp
 
+from ....triton.chunkwise.kernel_param_heuristics import get_xl_chunk_kernel_params
 from .bw_parallel_dK import mlstm_chunkwise__parallel_bw_dK
 from .bw_parallel_dQ import mlstm_chunkwise__parallel_bw_dQ
 from .bw_parallel_dV import mlstm_chunkwise__parallel_bw_dV
@@ -37,6 +38,7 @@ def mlstm_chunkwise_bw(
     matDeltaC_last: jax.Array | None = None,  # (B, NH, DHQK, DHV)
     # Other arguments
     qk_scale: float | None = None,
+    chunk_size: int = 128,
     chunk_size_inter: int | None = None,
     chunk_size_intra: int | None = None,
     siz_b_L_parallel: int | None = None,
@@ -51,29 +53,17 @@ def mlstm_chunkwise_bw(
 ):
     B, NH, S, DHQK = matQ.shape
 
-    if chunk_size_inter is None:
-        chunk_size_inter = min(128, S)
-    if chunk_size_intra is None:
-        chunk_size_intra = min(128, S)
-    if siz_b_L_parallel is None:
-        siz_b_L_parallel = min(64, chunk_size_intra)
-    if siz_b_L_loop is None:
-        siz_b_L_loop = min(64, chunk_size_intra)
-
-    assert S % chunk_size_inter == 0, f"Sequence length {S} is not divisible by chunk size inter {chunk_size_inter}."
-    assert S % chunk_size_intra == 0, f"Sequence length {S} is not divisible by chunk size intra {chunk_size_intra}."
+    kernel_chunk_params = get_xl_chunk_kernel_params(
+        sequence_length=S,
+        target_chunk_size=chunk_size,
+        siz_b_L_loop=siz_b_L_loop,
+        siz_b_L_parallel=siz_b_L_parallel,
+        chunk_size_inter=chunk_size_inter,
+        chunk_size_intra=chunk_size_intra,
+    )
 
     if qk_scale is None:
         qk_scale = DHQK**-0.5
-
-    assert (
-        chunk_size_inter <= chunk_size_intra
-    ), f"chunk_size_inter {chunk_size_inter} must be >= chunk_size_intra {chunk_size_intra}"
-    assert (
-        chunk_size_intra % chunk_size_inter == 0
-    ), f"chunk_size_intra {chunk_size_intra} must be divisible by chunk_size_inter {chunk_size_inter}"
-
-    save_states_every_nth_chunk = chunk_size_intra // chunk_size_inter
 
     # recompute the "all" states if needed
     if matC_all is None:
@@ -89,8 +79,8 @@ def mlstm_chunkwise_bw(
             matC_initial=matC_initial,
             vecN_initial=vecN_initial,
             scaMinter_initial=scaM_initial,
-            chunk_size=chunk_size_inter,
-            save_states_every_nth_chunk=save_states_every_nth_chunk,
+            chunk_size=kernel_chunk_params.chunk_size_inter,
+            save_states_every_nth_chunk=kernel_chunk_params.save_states_every_nth_chunk,
             num_stages=num_stages_inter,
             num_warps=num_warps_inter,
         )
@@ -106,16 +96,16 @@ def mlstm_chunkwise_bw(
         vecN_out=vecN_out,  # (B, NH, S)
         matDeltaC_last=matDeltaC_last,  # (B, NH, DHQK, DHV)
         qk_scale=qk_scale,
-        chunk_size=chunk_size_inter,
+        chunk_size=kernel_chunk_params.chunk_size_inter,
         eps=eps,
-        save_states_every_nth_chunk=save_states_every_nth_chunk,
+        save_states_every_nth_chunk=kernel_chunk_params.save_states_every_nth_chunk,
         num_stages=num_stages_inter,
         num_warps=num_warps_inter,
     )
 
     # parallel backward: compute the deltaQ, deltaK, deltaV gradients
     vecB, vecA = compute_chunkwise_log_gates_vecB_vecA(
-        chunk_size=chunk_size_intra, vecI=vecI, vecF=vecF, return_vecB_only=False
+        chunk_size=kernel_chunk_params.chunk_size_intra, vecI=vecI, vecF=vecF, return_vecB_only=False
     )
     grad_output_dtype = matQ.dtype
 
@@ -134,9 +124,9 @@ def mlstm_chunkwise_bw(
         matDeltaH=matDeltaH,
         matDeltaC_states=matDeltaC_states,
         qk_scale=qk_scale,
-        chunk_size=chunk_size_intra,
-        siz_b_LQ=siz_b_L_loop,
-        siz_b_LKV=siz_b_L_parallel,
+        chunk_size=kernel_chunk_params.chunk_size_intra,
+        siz_b_LQ=kernel_chunk_params.siz_b_L_loop,
+        siz_b_LKV=kernel_chunk_params.siz_b_L_parallel,
         siz_b_DHQK=siz_b_DH_loop,
         siz_b_DHHV=siz_b_DH_parallel,
         num_warps=num_warps_intra,
@@ -160,9 +150,9 @@ def mlstm_chunkwise_bw(
         matDeltaH=matDeltaH,
         matDeltaC_states=matDeltaC_states,
         qk_scale=qk_scale,
-        chunk_size=chunk_size_intra,
-        siz_b_LQ=siz_b_L_loop,
-        siz_b_LKV=siz_b_L_parallel,
+        chunk_size=kernel_chunk_params.chunk_size_intra,
+        siz_b_LQ=kernel_chunk_params.siz_b_L_loop,
+        siz_b_LKV=kernel_chunk_params.siz_b_L_parallel,
         siz_b_DHQK=siz_b_DH_parallel,
         siz_b_DHHV=siz_b_DH_loop,
         num_warps=num_warps_intra,
@@ -186,9 +176,9 @@ def mlstm_chunkwise_bw(
         matDeltaH=matDeltaH,
         matDeltaC_states=matDeltaC_states,
         qk_scale=qk_scale,
-        chunk_size=chunk_size_intra,
-        siz_b_LQ=siz_b_L_parallel,
-        siz_b_LKV=siz_b_L_loop,
+        chunk_size=kernel_chunk_params.chunk_size_intra,
+        siz_b_LQ=kernel_chunk_params.siz_b_L_parallel,
+        siz_b_LKV=kernel_chunk_params.siz_b_L_loop,
         siz_b_DHQK=siz_b_DH_parallel,
         siz_b_DHHV=siz_b_DH_loop,
         num_warps=num_warps_intra,

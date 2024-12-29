@@ -25,6 +25,11 @@ class XLChunkParams:
     chunk_size_intra: int
     """Intra chunk size."""
 
+    @property
+    def save_states_every_nth_chunk(self) -> int:
+        """Returns the number of chunks after which the states are saved."""
+        return self.chunk_size_intra // self.chunk_size_inter
+
 
 # The default chunk size for the XL chunk kernel.
 DEFAULT_CHUNK_SIZE = 128

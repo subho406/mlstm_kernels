@@ -30,7 +30,7 @@ import jax
 import jax.numpy as jnp
 
 from .bw import mlstm_chunkwise_bw
-from .fw import mlstm_chunkwise_fw
+from .fw import mlstm_siging_chunkwise_fw
 
 # TODO if we want to tune the kernel parameters we need to pass it through the forward and backward functions
 # See the pytorch wrapper for an example of how to do this.
@@ -127,7 +127,7 @@ def _mlstm_chunkwise_fwbw_generator(
             orig_dtypes["m"] = scaM_initial.dtype
             scaM_initial = scaM_initial.astype(autocast_kernel_dtype)
         # Call the forward triton kernels for the mLSTM.
-        matH_out, vecN_out, vecM_out, last_states, all_states = mlstm_chunkwise_fw(
+        matH_out, vecN_out, vecM_out, last_states, all_states = mlstm_siging_chunkwise_fw(
             matQ=matQ,
             matK=matK,
             matV=matV,

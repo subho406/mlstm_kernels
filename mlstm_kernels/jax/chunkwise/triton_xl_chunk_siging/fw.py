@@ -4,10 +4,9 @@
 import jax
 import jax.numpy as jnp
 
+from ....triton.chunkwise.kernel_param_heuristics import get_xl_chunk_kernel_params
 from .fw_parallel import mlstm_siging_chunkwise__parallel_fw_Hintra
 from .fw_recurrent import mlstm_siging_chunkwise__recurrent_fw_C
-
-from ....triton.chunkwise.xl_chunk_si
 
 
 def mlstm_siging_chunkwise_fw(
@@ -81,30 +80,17 @@ def mlstm_siging_chunkwise_fw(
     """
     B, NH, S, DHQK = matQ.shape
 
-    if chunk_size_inter is None:
-        chunk_size_inter = min(128, S)
-    if chunk_size_intra is None:
-        chunk_size_intra = min(128, S)
-    if siz_b_L_parallel is None:
-        siz_b_L_parallel = min(64, chunk_size_intra)
-    if siz_b_L_loop is None:
-        siz_b_L_loop = min(64, chunk_size_intra)
-
-    assert S % chunk_size_inter == 0, f"Sequence length {S} is not divisible by inter chunk size {chunk_size_inter}."
-
-    assert S % chunk_size_intra == 0, f"Sequence length {S} is not divisible by intra chunk size {chunk_size_intra}."
+    kernel_chunk_params = get_xl_chunk_kernel_params(
+        sequence_length=S,
+        target_chunk_size=chunk_size,
+        siz_b_L_loop=siz_b_L_loop,
+        siz_b_L_parallel=siz_b_L_parallel,
+        chunk_size_inter=chunk_size_inter,
+        chunk_size_intra=chunk_size_intra,
+    )
 
     if qk_scale is None:
         qk_scale = DHQK**-0.5
-
-    assert (
-        chunk_size_inter <= chunk_size_intra
-    ), f"chunk_size_inter {chunk_size_inter} must be >= chunk_size_intra {chunk_size_intra}"
-    assert (
-        chunk_size_intra % chunk_size_inter == 0
-    ), f"chunk_size_intra {chunk_size_intra} must be divisible by chunk_size_inter {chunk_size_inter}"
-
-    save_states_every_nth_chunk = chunk_size_intra // chunk_size_inter
 
     # materialize the  C_k, n_k, m_k states for each chunk
     matC_all, vecN_all = mlstm_siging_chunkwise__recurrent_fw_C(
@@ -115,8 +101,8 @@ def mlstm_siging_chunkwise_fw(
         matC_initial=matC_initial,
         vecN_initial=vecN_initial,
         normalize=normalize,
-        chunk_size=chunk_size_inter,
-        save_states_every_nth_chunk=save_states_every_nth_chunk,
+        chunk_size=kernel_chunk_params.chunk_size_inter,
+        save_states_every_nth_chunk=kernel_chunk_params.save_states_every_nth_chunk,
         num_stages=num_stages_inter,
         num_warps=num_warps_inter,
     )
@@ -132,9 +118,9 @@ def mlstm_siging_chunkwise_fw(
         vecN_all=vecN_all,
         qk_scale=qk_scale,
         normalize=normalize,
-        chunk_size=chunk_size_intra,
-        siz_b_LQ=siz_b_L_parallel,
-        siz_b_LKV=siz_b_L_loop,
+        chunk_size=kernel_chunk_params.chunk_size_intra,
+        siz_b_LQ=kernel_chunk_params.siz_b_L_parallel,
+        siz_b_LKV=kernel_chunk_params.siz_b_L_loop,
         siz_b_DHQK=siz_b_DH_loop,
         siz_b_DHHV=siz_b_DH_parallel,
         eps=eps,
