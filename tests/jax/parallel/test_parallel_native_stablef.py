@@ -35,7 +35,7 @@ def test_parallel_stablef_native_autograd_vs_native_custbw_fp32(
         baseline_fn=mlstm_parallel__native_stablef_autograd,
         target_fn=mlstm_parallel__native_stablef_custbw,
         baseline_name="parallel_stable_autograd",
-        target_name="parallel_sable_custbw",
+        target_name="parallel_stable_custbw",
         S=S,
         B=B,
         NH=NH,
