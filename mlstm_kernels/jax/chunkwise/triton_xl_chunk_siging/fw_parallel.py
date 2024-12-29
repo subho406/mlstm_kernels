@@ -100,7 +100,7 @@ def mlstm_siging_chunkwise__parallel_fw_Hintra(
     if num_warps is None:
         num_warps = 4 if siz_b_DHQK >= 64 else 2
 
-    vecB = compute_chunkwise_log_gates_vecB(vecI=vecI, vecF=vecF, chunk_size=chunk_size)
+    vecB = compute_chunkwise_log_gates_vecB(vecF=vecF, chunk_size=chunk_size)
 
     # Prepare the output shapes.
     matH_out = jax.ShapeDtypeStruct((B, NH, S, DHHV), matQ.dtype)
@@ -149,7 +149,6 @@ def mlstm_siging_chunkwise__parallel_fw_Hintra(
         DTYPE=jax2triton_dtype(matQ.dtype),
         OUTPUT_DTYPE=jax2triton_dtype(output_dtype.dtype),
         EPS=eps,
-        MINIMUM_MAX_VAL=-10.0,
         num_stages=num_stages,
         num_warps=num_warps,
         grid=grid,
