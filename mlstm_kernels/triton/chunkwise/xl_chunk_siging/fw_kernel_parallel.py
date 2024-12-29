@@ -11,7 +11,7 @@ import triton.language as tl
 
 
 @triton.jit
-def mlstm_chunkwise__parallel_fw_Hintra_kernel(
+def mlstm_siging_chunkwise__parallel_fw_Hintra_kernel(
     matQ,  # (B, NH, S, DHQK)
     matK,  # (B, NH, S, DHQK)
     matV,  # (B, NH, S, DHHV)

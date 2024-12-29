@@ -6,7 +6,7 @@ import torch
 import triton
 
 from ....triton.chunkwise.xl_chunk_siging import (
-    mlstm_chunkwise__parallel_fw_Hintra_kernel,
+    mlstm_siging_chunkwise__parallel_fw_Hintra_kernel,
 )
 from ....triton.heuristics import get_head_dim_block_size
 from ....utils.kernels import is_power_of_2
@@ -86,7 +86,7 @@ def mlstm_siging_chunkwise__parallel_fw_Hintra(
 
     grid = (num_b_DHHV, num_b_LQ, NC * B * NH)
     # print("grid(num_b_DHHV, num_b_LQ, NC*B*NH)", grid)
-    mlstm_chunkwise__parallel_fw_Hintra_kernel[grid](
+    mlstm_siging_chunkwise__parallel_fw_Hintra_kernel[grid](
         matQ=matQ,
         matK=matK,
         matV=matV,
