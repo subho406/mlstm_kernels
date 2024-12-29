@@ -5,7 +5,7 @@
 import logging
 from dataclasses import dataclass
 
-from ....utils.kernels import is_power_of_2
+from ...utils.kernels import is_power_of_2
 
 LOGGER = logging.getLogger(__name__)
 

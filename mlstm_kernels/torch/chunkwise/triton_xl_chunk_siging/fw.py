@@ -8,7 +8,7 @@ It should allow arbitrary large chunk sizes and head dimensions.
 
 import torch
 
-from ....triton.chunkwise.xl_chunk.kernel_param_heuristics import (
+from ....triton.chunkwise.kernel_param_heuristics import (
     get_xl_chunk_kernel_params,
 )
 from ...utils import contiguous_noctx
