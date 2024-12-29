@@ -14,7 +14,10 @@ from .bw_parallel_dK import mlstm_chunkwise__parallel_bw_dK
 from .bw_parallel_dQ import mlstm_chunkwise__parallel_bw_dQ
 from .bw_parallel_dV import mlstm_chunkwise__parallel_bw_dV
 from .bw_recurrent import mlstm_chunkwise__recurrent_bw_dC
-from .chunkwise_gates import compute_chunkwise_log_gates_vecB_vecA
+from .chunkwise_gates import (
+    compute_chunkwise_log_gates_vecB_vecA,
+    compute_gate_grads_vecDeltaI_vecDeltaF,
+)
 from .fw_recurrent import mlstm_chunkwise__recurrent_fw_C
 
 
@@ -105,7 +108,7 @@ def mlstm_chunkwise_bw(
 
     # parallel backward: compute the deltaQ, deltaK, deltaV gradients
     vecB, vecA = compute_chunkwise_log_gates_vecB_vecA(
-        chunk_size=kernel_chunk_params.chunk_size_intra, vecI=vecI, vecF=vecF, return_vecB_only=False
+        chunk_size=kernel_chunk_params.chunk_size_intra, vecI=vecI, vecF=vecF
     )
     grad_output_dtype = matQ.dtype
 
@@ -187,27 +190,23 @@ def mlstm_chunkwise_bw(
         output_dtype=grad_output_dtype,
     )
 
-    # postprocessing: compute deltaF and deltaI gradients
-    # vecF = rearrange(vecF, "b nh nc l -> b nh (nc l)")
-    # compute the vecDeltaFbar values with dfbar = rev_cumsum((q*dq - k*dk).sum(-1))
-    matQ = matQ.astype(jnp.float32)
-    matK = matK.astype(jnp.float32)
-    matDeltaQ = matDeltaQ.astype(jnp.float32)
-    matDeltaK = matDeltaK.astype(jnp.float32)
-    vecDeltaFbar_acc = ((matQ * matDeltaQ) - (matK * matDeltaK)).sum(-1)
-    vecDeltaFbar = jnp.flip(jnp.cumsum(jnp.flip(vecDeltaFbar_acc, axis=-1).astype(jnp.float32), axis=-1), axis=-1)
-    vecDeltaF = vecDeltaFbar * jax.nn.sigmoid(-vecF)
+    vecDeltaI, vecDeltaF = compute_gate_grads_vecDeltaI_vecDeltaF(
+        matQ=matQ,
+        matK=matK,
+        matDeltaQ=matDeltaQ,
+        matDeltaK=matDeltaK,
+        vecF=vecF,
+    )
 
-    # compute deltaI
-    # both are equivalent:
-    # vecDeltaI = (matV * matDeltaV).sum(-1)
-    vecDeltaI = (matK * matDeltaK).sum(-1)
-
-    # vecDeltaI = torch.zeros((B, NH, S), dtype=vecI.dtype, device=vecI.device)
-
-    matDeltaC_initial = matDeltaC_states[:, :, :DHQK, :] if matC_initial is not None else None
-    vecDeltaN_initial = jnp.zeros_like(vecN_initial) if vecN_initial is not None else None
-    scaDeltaM_initial = jnp.zeros_like(scaM_initial) if scaM_initial is not None else None
+    matDeltaC_initial = (
+        matDeltaC_states[:, :, :DHQK, :] if matC_initial is not None else None
+    )
+    vecDeltaN_initial = (
+        jnp.zeros_like(vecN_initial) if vecN_initial is not None else None
+    )
+    scaDeltaM_initial = (
+        jnp.zeros_like(scaM_initial) if scaM_initial is not None else None
+    )
 
     return (
         matDeltaQ,
