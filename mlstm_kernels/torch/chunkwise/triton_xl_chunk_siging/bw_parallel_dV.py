@@ -1,6 +1,7 @@
 #  Copyright (c) NXAI GmbH.
 #  This software may be used and distributed according to the terms of the NXAI Community License Agreement.
 
+# Maximilian Beck
 import torch
 import triton
 
@@ -48,7 +49,9 @@ def mlstm_siging_chunkwise__parallel_bw_dV(
     B, NH, S, DHQK = matQ.shape
     DHHV = matV.shape[-1]
 
-    assert S % chunk_size == 0, f"Sequence length {S} must be divisible by chunk size {chunk_size}"
+    assert (
+        S % chunk_size == 0
+    ), f"Sequence length {S} must be divisible by chunk size {chunk_size}"
     NC = S // chunk_size
     L = chunk_size
 
@@ -57,8 +60,16 @@ def mlstm_siging_chunkwise__parallel_bw_dV(
     if qk_scale is None:
         qk_scale = DHQK**-0.5
 
-    siz_b_DHQK = get_head_dim_block_size(head_dim=DHQK, min_block_size=64) if siz_b_DHQK is None else siz_b_DHQK
-    siz_b_DHHV = get_head_dim_block_size(head_dim=DHHV, min_block_size=128) if siz_b_DHHV is None else siz_b_DHHV
+    siz_b_DHQK = (
+        get_head_dim_block_size(head_dim=DHQK, min_block_size=64)
+        if siz_b_DHQK is None
+        else siz_b_DHQK
+    )
+    siz_b_DHHV = (
+        get_head_dim_block_size(head_dim=DHHV, min_block_size=128)
+        if siz_b_DHHV is None
+        else siz_b_DHHV
+    )
 
     assert siz_b_LQ <= L, "siz_b_LQ must be less than or equal to chunk size L"
     assert siz_b_LKV <= L, "siz_b_LKV must be less than or equal to chunk size L"

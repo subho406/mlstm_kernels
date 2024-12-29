@@ -1,6 +1,7 @@
 #  Copyright (c) NXAI GmbH.
 #  This software may be used and distributed according to the terms of the NXAI Community License Agreement.
 
+# Maximilian Beck
 import torch
 import triton
 
@@ -57,7 +58,9 @@ def mlstm_siging_chunkwise__parallel_fw_Hintra(
         qk_scale = DHQK**-0.5
 
     siz_b_DHQK = (
-        get_head_dim_block_size(head_dim=DHQK, min_block_size=64) if siz_b_DHQK is None else siz_b_DHQK
+        get_head_dim_block_size(head_dim=DHQK, min_block_size=64)
+        if siz_b_DHQK is None
+        else siz_b_DHQK
     )
 
     if siz_b_DHHV is None:

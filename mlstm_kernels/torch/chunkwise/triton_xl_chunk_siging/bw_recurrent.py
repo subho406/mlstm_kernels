@@ -1,6 +1,7 @@
 #  Copyright (c) NXAI GmbH.
 #  This software may be used and distributed according to the terms of the NXAI Community License Agreement.
 
+# Maximilian Beck
 import torch
 import triton
 
@@ -37,8 +38,12 @@ def mlstm_siging_chunkwise__recurrent_bw_dC(
     assert S % L == 0, "S must be divisible by chunk_size."
     NC = S // L
 
-    assert save_states_every_nth_chunk > 0, "save_states_every_nth_chunk must be positive."
-    assert save_states_every_nth_chunk <= NC, "save_states_every_nth_chunk must be <= NC."
+    assert (
+        save_states_every_nth_chunk > 0
+    ), "save_states_every_nth_chunk must be positive."
+    assert (
+        save_states_every_nth_chunk <= NC
+    ), "save_states_every_nth_chunk must be <= NC."
 
     assert is_power_of_2(
         save_states_every_nth_chunk
