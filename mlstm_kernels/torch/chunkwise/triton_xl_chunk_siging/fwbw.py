@@ -216,7 +216,6 @@ def mlstm_siging_chunkwise__xl_chunk(
     f: torch.Tensor,  # (B, NH, S)
     c_initial: torch.Tensor = None,  # (B, NH, DHQK, DHHV)
     n_initial: torch.Tensor = None,  # (B, NH, DHQK)
-    m_initial: torch.Tensor = None,  # (B, NH, 1)
     return_last_states: bool = False,
     eps: float = 1e-6,
     normalize: bool = True,
@@ -234,7 +233,7 @@ def mlstm_siging_chunkwise__xl_chunk(
     recompute_states_in_bw: bool = True,
     autocast_kernel_dtype: torch.dtype = torch.float32,
 ) -> (
-    torch.Tensor | tuple[torch.Tensor, tuple[torch.Tensor, torch.Tensor, torch.Tensor]]
+    torch.Tensor | tuple[torch.Tensor, tuple[torch.Tensor, torch.Tensor]]
 ):
     if autocast_kernel_dtype not in (torch.float32, torch.float16, torch.bfloat16):
         raise ValueError(f"Unsupported kernel dtype {autocast_kernel_dtype}.")
