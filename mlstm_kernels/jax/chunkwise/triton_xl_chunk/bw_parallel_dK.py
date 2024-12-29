@@ -9,7 +9,7 @@ import triton
 from ....triton.chunkwise.xl_chunk.bw_kernel_parallel_dK import (
     mlstm_chunkwise__parallel_bw_dK_kernel,
 )
-from ....triton.heuristics import get_head_dim_block_size
+from ....triton.kernel_param_heuristics import get_head_dim_block_size
 from ....utils.kernels import is_power_of_2
 from ...stride_utils import get_stride
 from ...utils import jax2triton_dtype

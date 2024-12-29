@@ -5,7 +5,7 @@ import torch
 import triton
 
 from ....triton.chunkwise.xl_chunk import mlstm_chunkwise__parallel_bw_dV_kernel
-from ....triton.heuristics import get_head_dim_block_size
+from ....triton.kernel_param_heuristics import get_head_dim_block_size
 from ....utils.kernels import is_power_of_2
 from ...utils import torch2triton_dtype
 

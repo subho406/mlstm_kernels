@@ -4,7 +4,7 @@
 import torch
 import triton
 
-from ...triton.heuristics import get_head_dim_block_size
+from ...triton.kernel_param_heuristics import get_head_dim_block_size
 from ...triton.recurrent.fw_step_fused import recurrent_step_fw_kernel
 from ..utils import contiguous_noctx, torch2triton_dtype
 
