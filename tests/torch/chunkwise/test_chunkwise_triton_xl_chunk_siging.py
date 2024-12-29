@@ -41,8 +41,8 @@ def test_triton_chunkwise_xl_chunk_ingsig_vs_native_parallel_stablef_fp32(
             mlstm_siging_parallel__native_custbw, stable_fgate=True, normalize=normalize
         ),
         target_fn=partial(mlstm_siging_chunkwise__xl_chunk, normalize=normalize),
-        baseline_name="native_parallel_stablef_custbw_siging",
-        target_name="triton_chunkwise_xl_chunk_siging",
+        baseline_name=f"native_parallel_stablef_custbw_siging_norm{normalize}",
+        target_name=f"triton_chunkwise_xl_chunk_siging_norm{normalize}",
         S=S,
         B=B,
         NH=NH,
