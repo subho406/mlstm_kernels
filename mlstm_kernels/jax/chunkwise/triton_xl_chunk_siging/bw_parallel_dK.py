@@ -6,8 +6,8 @@ import jax.numpy as jnp
 import jax_triton as jt
 import triton
 
-from ....triton.chunkwise.xl_chunk.bw_kernel_parallel_dK import (
-    mlstm_chunkwise__parallel_bw_dK_kernel,
+from ....triton.chunkwise.xl_chunk_siging import (
+    mlstm_siging_chunkwise__parallel_bw_dK_kernel,
 )
 from ....triton.heuristics import get_head_dim_block_size
 from ....utils.kernels import is_power_of_2
@@ -15,7 +15,7 @@ from ...stride_utils import get_stride
 from ...utils import jax2triton_dtype
 
 
-def mlstm_chunkwise__parallel_bw_dK(
+def mlstm_siging_chunkwise__parallel_bw_dK(
     # Forward arguments
     matQ: jax.Array,  # (B, NH, S, DHQK)
     matK: jax.Array,  # (B, NH, S, DHQK)
@@ -26,13 +26,12 @@ def mlstm_chunkwise__parallel_bw_dK(
     # Backward arguments
     matC_all: jax.Array,  # (B, NH, (NC+1) * DHQK, DHHV)
     vecN_all: jax.Array,  # (B, NH, (NC+1) * DHQK)
-    scaM_all: jax.Array,  # (B, NH, (NC+1))
     vecN_out: jax.Array,  # (B, NH, S) # vecN_combine
-    vecM_out: jax.Array,  # (B, NH, S) # vecM_combine
     matDeltaH: jax.Array,  # (B, NH, S, DHHV)
     matDeltaC_states: jax.Array,  # (B, NH, (NC+1) * DHQK, DHHV)
     # Other arguments
     qk_scale: float | None = None,
+    normalize: bool = True,
     chunk_size: int = 64,
     siz_b_LQ: int = 32,
     siz_b_LKV: int = 32,
@@ -62,14 +61,13 @@ def mlstm_chunkwise__parallel_bw_dK(
         vecB: Tensor containing the cumulative forget gate pre-activations. Shape (B, NH, NC, L).
         matCstate_all: Tensor containing the C states at the chunk borders. Shape (B, NH, (NC+1) * DHQK, DHHV).
         vecNstate_all: Tensor containing the N states at the chunk borders. Shape (B, NH, (NC+1) * DHQK).
-        scaMstate_all: Tensor containing the M states at the chunk borders. Shape (B, NH, (NC+1)).
         matH_out: Tensor containing the output H. Shape (B, NH, S, DHHV).
         vecN_out: Tensor containing the normalizer output N. Shape (B, NH, S).
-        vecM_out: Tensor containing the max state M. Shape (B, NH, S).
         matDeltaH_out: Tensor containing the incoming H gradients. Shape (B, NH, S, DHHV).
         matDeltaC_states: Tensor containing the incoming C gradients. Shape (B, NH, (NC+1) * DHQK, DHHV).
         vecDeltaN_states: Tensor containing the incoming N gradients. Shape (B, NH, (NC+1) * DHQK).
         qk_scale: Scale factor for the QK matrix. Defaults to None.
+        normalize: Whether to normalize the combination matrix C. Defaults to True.
         chunk_size: Chunk size. Defaults to 64.
         siz_b_LQ: Block size for the chunk dimension LQ. Defaults to 32.
         siz_b_LKV: Block size for the chunk dimension LKV. Defaults to 32.
@@ -122,9 +120,7 @@ def mlstm_chunkwise__parallel_bw_dK(
         vecA,
         matC_all,
         vecN_all,
-        scaM_all,
         vecN_out,
-        vecM_out,
         matDeltaH,
         matDeltaC_states,
         out_shape=(matDeltaK),
@@ -141,9 +137,8 @@ def mlstm_chunkwise__parallel_bw_dK(
         str_matCstate_NCDHQK=get_stride(matC_all, axis=2),
         str_matCstate_DHHV=get_stride(matC_all, axis=3),
         str_vecNstate_B_NH=get_stride(vecN_all, axis=1),
-        str_scaMstate_B_NH=get_stride(scaM_all, axis=1),
-        str_vecMN_B_NH=get_stride(vecN_out, axis=1),
-        str_vecMN_S=get_stride(vecN_out, axis=2),
+        str_vecN_B_NH=get_stride(vecN_out, axis=1),
+        str_vecN_S=get_stride(vecN_out, axis=2),
         B=B,
         NH=NH,
         S=S,
@@ -155,13 +150,14 @@ def mlstm_chunkwise__parallel_bw_dK(
         siz_b_LKV=siz_b_LKV,
         siz_b_DHQK=siz_b_DHQK,
         siz_b_DHHV=siz_b_DHHV,
+        NORMALIZE=normalize,
         DTYPE=jax2triton_dtype(matQ.dtype),
         OUTPUT_DTYPE=jax2triton_dtype(output_dtype),
         EPS=eps,
         num_stages=num_stages,
         num_warps=num_warps,
         grid=grid,
-        kernel=mlstm_chunkwise__parallel_bw_dK_kernel,
+        kernel=mlstm_siging_chunkwise__parallel_bw_dK_kernel,
     )
 
     return matDeltaK

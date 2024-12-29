@@ -4,11 +4,13 @@
 import jax
 import jax.numpy as jnp
 
-from .fw_parallel import mlstm_chunkwise__parallel_fw_Hintra
-from .fw_recurrent import mlstm_chunkwise__recurrent_fw_C
+from .fw_parallel import mlstm_siging_chunkwise__parallel_fw_Hintra
+from .fw_recurrent import mlstm_siging_chunkwise__recurrent_fw_C
+
+from ....triton.chunkwise.xl_chunk_si
 
 
-def mlstm_chunkwise_fw(
+def mlstm_siging_chunkwise_fw(
     matQ: jax.Array,  # (B, NH, S, DHQK)
     matK: jax.Array,  # (B, NH, S, DHQK)
     matV: jax.Array,  # (B, NH, S, DHV)
@@ -16,10 +18,11 @@ def mlstm_chunkwise_fw(
     vecF: jax.Array,  # (B, NH, S)
     matC_initial: jax.Array | None = None,  # (B, NH, DHQK, DHV)
     vecN_initial: jax.Array | None = None,  # (B, NH, DHQK)
-    scaM_initial: jax.Array | None = None,  # (B, NH)
     qk_scale: float | None = None,
     return_last_states: bool = False,
     return_all_states: bool = False,
+    normalize: bool = True,  # whether to normalize the combination matrix C
+    chunk_size: int = 128,
     chunk_size_inter: int | None = None,
     chunk_size_intra: int | None = None,
     siz_b_L_parallel: int | None = None,
@@ -35,16 +38,15 @@ def mlstm_chunkwise_fw(
 ) -> tuple[
     jax.Array,  # matH_out (B, NH, S, DHV)
     jax.Array,  # vecN_out (B, NH, S)
-    jax.Array,  # vecM_out (B, NH, S)
     None
     | (
-        tuple[jax.Array, jax.Array, jax.Array]
-    ),  # last_states (matC_states (B, NH, DHQK, DHV), vecN_states (B, NH, DHQK), scaMinter_states (B, NH))
-    None | (tuple[jax.Array, jax.Array, jax.Array]),  # all_states (matC_states (B, NH, (NC+1) * DHQK, DHV),
-    # vecN_states (B, NH, (NC+1) * DHQK), scaMinter_states (B, NH, (NC+1)))
+        tuple[jax.Array, jax.Array]
+    ),  # last_states (matC_states (B, NH, DHQK, DHV), vecN_states (B, NH, DHQK))
+    None | (tuple[jax.Array, jax.Array]),  # all_states (matC_states (B, NH, (NC+1) * DHQK, DHV),
+    # vecN_states (B, NH, (NC+1) * DHQK))
 ]:
     """
-    Execute the forward pass of the mLSTM chunkwise formulation.
+    Execute the forward pass of the mLSTM sigmoid input gate chunkwise formulation.
 
     Args:
         matQ: Tensor containing the queries. Shape (B, NH, S, DHQK).
@@ -56,11 +58,10 @@ def mlstm_chunkwise_fw(
             Defaults to None.
         vecN_initial: Initial state of the N vector. Shape (B, NH, DHQK).
             Defaults to None.
-        scaM_initial: Initial state of the M scalar. Shape (B, NH).
-            Defaults to None.
         qk_scale: Scaling factor for the QK matrix. Defaults to None and will be inferred.
         return_last_states: Whether to return the last states. Defaults to False.
         return_all_states: Whether to return all states. Defaults to False.
+        normalize: Whether to normalize the combination matrix C. Defaults to True.
         chunk_size_inter: Chunk size for the kernel inter chunk (recurrent) kernel. Defaults to None.
         chunk_size_intra: Chunk size for the kernel intra chunk (parallel) kernel. Defaults to None.
         siz_b_L_parallel: Size of the parallel L dimension for the parallel kernel. Defaults to None.
@@ -74,10 +75,9 @@ def mlstm_chunkwise_fw(
         eps: Small value to avoid division by zero. Defaults to 1e-6.
 
     Returns:
-        Tuple containing the output matrix H (shape (B, NH, S, DHV)), the N vector (shape (B, NH, S)),
-        the M scalar (shape (B, NH)). Optionally, it might contain last states (matC_states,
-        vecN_states, scaMinter_states) and optional all states (matC_states, vecN_states,
-        scaMinter_states).
+        Tuple containing the output matrix H (shape (B, NH, S, DHV)), the N vector (shape (B, NH, S)). 
+        Optionally, it might contain last states (matC_states, vecN_states) and 
+        optional all states (matC_states, vecN_states).
     """
     B, NH, S, DHQK = matQ.shape
 
@@ -107,14 +107,14 @@ def mlstm_chunkwise_fw(
     save_states_every_nth_chunk = chunk_size_intra // chunk_size_inter
 
     # materialize the  C_k, n_k, m_k states for each chunk
-    matC_all, vecN_all, scaM_all = mlstm_chunkwise__recurrent_fw_C(
+    matC_all, vecN_all = mlstm_siging_chunkwise__recurrent_fw_C(
         matK=matK,
         matV=matV,
         vecF=vecF,
         vecI=vecI,
         matC_initial=matC_initial,
         vecN_initial=vecN_initial,
-        scaMinter_initial=scaM_initial,
+        normalize=normalize,
         chunk_size=chunk_size_inter,
         save_states_every_nth_chunk=save_states_every_nth_chunk,
         num_stages=num_stages_inter,
@@ -122,7 +122,7 @@ def mlstm_chunkwise_fw(
     )
 
     # compute the outputs within each chunk
-    matH_out, vecN_out, vecM_out = mlstm_chunkwise__parallel_fw_Hintra(
+    matH_out, vecN_out = mlstm_siging_chunkwise__parallel_fw_Hintra(
         matQ=matQ,
         matK=matK,
         matV=matV,
@@ -130,8 +130,8 @@ def mlstm_chunkwise_fw(
         vecF=vecF,
         matC_all=matC_all,
         vecN_all=vecN_all,
-        scaM_all=scaM_all,
         qk_scale=qk_scale,
+        normalize=normalize,
         chunk_size=chunk_size_intra,
         siz_b_LQ=siz_b_L_parallel,
         siz_b_LKV=siz_b_L_loop,
@@ -146,22 +146,20 @@ def mlstm_chunkwise_fw(
     ret_tuple = (
         matH_out,
         vecN_out,
-        vecM_out,
     )
     if return_last_states:
         ret_tuple += (
             (
                 matC_all[:, :, -DHQK:, :],
                 vecN_all[:, :, -DHQK:],
-                scaM_all[:, :, -1],
             ),
         )
     else:
         ret_tuple += (None,)
 
     if return_all_states:
-        ret_tuple += ((matC_all, vecN_all, scaM_all),)
+        ret_tuple += ((matC_all, vecN_all),)
     else:
         ret_tuple += (None,)
 
-    return ret_tuple  # (matH_out, vecN_out, vecM_out, optional(last_states), optional(all_states))
+    return ret_tuple  # (matH_out, vecN_out, optional(last_states), optional(all_states))

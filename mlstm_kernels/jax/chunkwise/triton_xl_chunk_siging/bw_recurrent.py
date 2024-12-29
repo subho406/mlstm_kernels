@@ -6,8 +6,8 @@ import jax.numpy as jnp
 import jax_triton as jt
 import triton
 
-from ....triton.chunkwise.xl_chunk.bw_kernel_recurrent import (
-    mlstm_chunkwise__recurrent_bw_dC_kernel,
+from ....triton.chunkwise.xl_chunk_siging import (
+    mlstm_siging_chunkwise__recurrent_bw_dC_kernel,
 )
 from ....triton.heuristics import get_head_dim_block_size
 from ....utils.kernels import is_power_of_2
@@ -15,15 +15,15 @@ from ...stride_utils import get_stride
 from ...utils import jax2triton_dtype
 
 
-def mlstm_chunkwise__recurrent_bw_dC(
+def mlstm_siging_chunkwise__recurrent_bw_dC(
     matQ: jax.Array,  # (B, NH, S, DHQK)
     vecF: jax.Array,  # (B, NH, NC * L) = (B, NH, S)
     scaM_inter: jax.Array,  # (B, NH, NC+1)
-    vecM_combine: jax.Array,  # (B, NH, S)
     matDeltaH: jax.Array,  # (B, NH, S, DHHV)
     vecN_out: jax.Array,  # (B, NH, S)
     matDeltaC_last: jax.Array | None = None,  # (B, NH, DHQK, DHHV)
     qk_scale: float | None = None,
+    normalize: bool = True,
     chunk_size: int = 64,
     save_states_every_nth_chunk: int = 1,
     num_warps: int | None = None,
@@ -40,12 +40,12 @@ def mlstm_chunkwise__recurrent_bw_dC(
         matQ: Tensor containing the query vectors. Shape (B, NH, S, DHQK).
         vecF: Tensor containing theforget gate pre-activations. Shape (B, NH, NC * L) = (B, NH, S).
         scaM_inter: States of the M scalar. Shape (B, NH, NC+1).
-        vecM_combine: Combined M states. Shape (B, NH, S).
         matDeltaH: Tensor containing the H gradients. Shape (B, NH, S, DHHV).
         vecN_out: States of the N vector. Shape (B, NH, NC * DHQK).
         matDeltaC_last: Tensor containing the last C gradients. Shape (B, NH, DHQK, DHHV).
             Defaults to None.
         qk_scale: Scale factor for the QK matrix. Defaults to None.
+        normalize: Whether to normalize the combination matrix C. Defaults to True.
         chunk_size: Chunk size. Defaults to 64.
         save_states_every_nth_chunk: Save the states every nth chunk. Defaults to 1.
         num_warps: Number of warps. Defaults to None.
@@ -97,7 +97,6 @@ def mlstm_chunkwise__recurrent_bw_dC(
         matQ,
         vecF,
         scaM_inter,
-        vecM_combine,
         matDeltaH,
         vecN_out,
         matDeltaC_last,
@@ -108,10 +107,6 @@ def mlstm_chunkwise__recurrent_bw_dC(
         str_matQ_S=get_stride(matQ, axis=2),
         str_matQ_DHQK=get_stride(matQ, axis=3),
         str_vecF_B_NH=get_stride(vecF, axis=1),
-        str_scaM_inter_B_NH=get_stride(scaM_inter, axis=1),
-        str_scaM_inter_NC=get_stride(scaM_inter, axis=2),
-        str_vecM_combine_B_NH=get_stride(vecM_combine, axis=1),
-        str_vecM_combine_S=get_stride(vecM_combine, axis=2),
         str_matDeltaH_B_NH=get_stride(matDeltaH, axis=1),
         str_matDeltaH_S=get_stride(matDeltaH, axis=2),
         str_matDeltaH_DHHV=get_stride(matDeltaH, axis=3),
@@ -134,12 +129,13 @@ def mlstm_chunkwise__recurrent_bw_dC(
         siz_b_DHHV=siz_b_DHHV,
         save_states_every_nth_chunk=save_states_every_nth_chunk,
         USE_LAST_STATE=USE_LAST_STATE,
+        NORMALIZE=normalize,
         DTYPE=jax2triton_dtype(matQ.dtype),
         EPS=eps,
         num_stages=num_stages,
         num_warps=num_warps,
         grid=grid,
-        kernel=mlstm_chunkwise__recurrent_bw_dC_kernel,
+        kernel=mlstm_siging_chunkwise__recurrent_bw_dC_kernel,
     )
 
     return matDeltaC_states
