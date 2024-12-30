@@ -22,9 +22,9 @@ ModelBenchmarkCreator = Callable[[ModelSpec, dict[str, Any]], "ModelBenchmarkInt
 
 @dataclass
 class BenchmarkInterface(ABC):
-    warmup: int = 25
+    warmup: int = 10
     """Warmup time (in ms) or warmup iterations."""
-    rep: int = 1000
+    rep: int = 30
     """Repetition time (in ms) or repetition iterations."""
 
     warmup_and_rep_in_ms: bool = False

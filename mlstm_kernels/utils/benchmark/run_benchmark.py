@@ -27,6 +27,7 @@ def run_benchmarks(
     runtime_prefix: str = "R--",
     memory_prefix: str = "M--",
     output_folder: Path = None,
+    run_garbage_collection: bool = True,
 ) -> pd.DataFrame:
     """Runs the different kernel configurations and summarizes the results in a DataFrame.
 
@@ -59,8 +60,9 @@ def run_benchmarks(
                 )
             )
             del benchmark
-            gc.collect()
-            torch.cuda.empty_cache()
+            if run_garbage_collection:
+                gc.collect()
+                torch.cuda.empty_cache()
         results.append(result_dict)
         if output_folder is not None:
             result_df = pd.DataFrame(results)

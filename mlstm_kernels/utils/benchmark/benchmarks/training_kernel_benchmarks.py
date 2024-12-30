@@ -24,6 +24,8 @@ class mLSTMBenchmark(KernelBenchmarkInterface):
 
     chunk_size: int = None
 
+    normalize: bool | None = None
+
     kernel_name: str = None
 
     use_torch_compile: bool = False
@@ -58,6 +60,8 @@ class mLSTMBenchmark(KernelBenchmarkInterface):
 
         kernel_fn = get_mlstm_kernel(self.kernel_name)
         kernel_fn = partial(kernel_fn, chunk_size=self.chunk_size)
+        if self.normalize is not None:
+            kernel_fn = partial(kernel_fn, normalize=self.normalize)
         if self.use_torch_compile:
             kernel_fn = torch.compile(kernel_fn)
         return kernel_fn
