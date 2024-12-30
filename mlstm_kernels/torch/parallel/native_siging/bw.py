@@ -17,7 +17,7 @@ def mlstm_siging_parallel_bw(
     eps: float = 1e-6,
     stable_fgate: bool = True,
     normalize: bool = True,
-) -> tuple[torch.Tensor, ...]:
+) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor]:
     B, NH, S, DHQK = matQ.shape
     assert matK.shape == (B, NH, S, DHQK)
     assert vecI.shape == (B, NH, S)
