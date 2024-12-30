@@ -418,8 +418,6 @@ class MambaKernelBenchmark(KernelBenchmarkInterface):
             for x in inputs
         ]
 
-        # see 
-
         if self.kernel_name == "mamba":
             x, dt, A, B, C, D, z = inputs
             x, dt, B, C, z = (

@@ -16,7 +16,10 @@ from mlstm_kernels.utils.benchmark.utils import setup_output_folder
 
 
 def _head_dim_benchmark(
-    output_folder: Path, half_qkdim=False, seq_len: int = 8192, batch_size: int = 1,
+    output_folder: Path,
+    half_qkdim=False,
+    seq_len: int = 8192,
+    batch_size: int = 1,
     debug: bool = False,
 ):
     ### head dimension benchmark 7B
@@ -511,12 +514,271 @@ benchmark_name: "batch_size_7B--{bench_name_params}"
     run_and_record_benchmarks(cfg, create_training_kernel_benchmark, output_folder)
 
 
+def consttoken_benchmark_mlstm_triton(
+    output_folder: Path,
+    fwbw: bool = True,
+    debug: bool = False,
+    sequence_length_limits=[9, 17],
+):
+    """
+    Const token benchmark for the mlstm chunkwise triton kernels.
+
+    This benchmark uses head dimensions as they would be used in a 7B model (i.e. embedding dimension 4096).
+
+    It uses 8 heads and the qk head dimension is half of the v head dimension.
+    """
+    embedding_dim = 4096
+    num_heads = 8
+    head_dim_v = embedding_dim // num_heads
+    head_dim_qk = embedding_dim // num_heads // 2
+    sequence_lengths = list(map(lambda i: 1 << i, range(*sequence_length_limits)))
+    batch_sizes = list(
+        map(
+            lambda i: 1 << i,
+            reversed(range(sequence_length_limits[1] - sequence_length_limits[0])),
+        )
+    )
+
+    cfg_yaml = f"""
+vary_type: sequence
+vary_params:
+  sequence_length: {sequence_lengths}
+  batch_size: {batch_sizes}
+fixed_params:
+  fwbw: {fwbw}
+  rep: {30 if not debug else 10}
+  warmup: {10 if not debug else 3}
+
+x_axis_param: "sequence_length"
+
+kernel_specs:
+  #? this kernel supports only head dimensions up to 256 
+  # and head dim qk must be equal to head dim v
+  # - kernel_name: "parallel--triton_limit_headdim"
+  #   fwbw: {fwbw}
+  #   dtype: bfloat16
+  #   additional_params:
+  #     num_heads: {num_heads}
+  #     head_dim_v: {head_dim_v}
+  #     head_dim_qk: {head_dim_v}
+
+    
+  ####
+  #? chunk size 64 is optimal
+  - kernel_name: "chunkwise--triton_limit_chunk"
+    dtype: bfloat16
+    fwbw: {fwbw}
+    additional_params:
+      chunk_size: 64
+      num_heads: {num_heads}
+      head_dim_v: {head_dim_v}
+      head_dim_qk: {head_dim_qk}
+
+  # - kernel_name: "chunkwise--triton_limit_chunk"
+  #   dtype: bfloat16
+  #   fwbw: {fwbw}
+  #   additional_params:
+  #     chunk_size: 128
+  # - kernel_name: "chunkwise--triton_limit_chunk"
+  #   dtype: bfloat16
+  #   fwbw: {fwbw}
+  #   additional_params:
+  #     chunk_size: 32
+  ####
+  - kernel_name: "chunkwise--triton_xl_chunk"
+    dtype: bfloat16
+    fwbw: {fwbw}
+    additional_params:
+      chunk_size: 128
+      num_heads: {num_heads}
+      head_dim_v: {head_dim_v}
+      head_dim_qk: {head_dim_qk}
+
+  - kernel_name: "chunkwise--triton_xl_chunk_siging"
+    dtype: bfloat16
+    fwbw: {fwbw}
+    additional_params:
+      chunk_size: 128
+      num_heads: {num_heads}
+      head_dim_v: {head_dim_v}
+      head_dim_qk: {head_dim_qk}
+      normalize: True
+
+  - kernel_name: "chunkwise--triton_xl_chunk_siging"
+    dtype: bfloat16
+    fwbw: {fwbw}
+    additional_params:
+      chunk_size: 128
+      num_heads: {num_heads}
+      head_dim_v: {head_dim_v}
+      head_dim_qk: {head_dim_qk}
+      normalize: False
+
+benchmark_name: mlstm_triton_constant_tokens_sequence_{"fwbw" if fwbw else "fw"}
+"""
+
+    cfg = from_dict(
+        data_class=BenchmarkConfig,
+        data=OmegaConf.to_container(OmegaConf.create(cfg_yaml)),
+    )
+
+    run_and_record_benchmarks(cfg, create_training_kernel_benchmark, output_folder)
+
+
+def consttoken_benchmark_fla(
+    output_folder: Path,
+    fwbw: bool = True,
+    debug: bool = False,
+    sequence_length_limits=[9, 17],
+):
+    """
+    Const token benchmark for the flash linear attention triton kernels.
+
+    This benchmark uses head dimensions as they would be used in a 7B model (i.e. embedding dimension 4096).
+
+    It uses 8 heads and the qk head dimension is half of the v head dimension.
+    """
+    embedding_dim = 4096
+    num_heads = 8
+    head_dim_v = embedding_dim // num_heads
+    head_dim_qk = embedding_dim // num_heads // 2
+    sequence_lengths = list(map(lambda i: 1 << i, range(*sequence_length_limits)))
+    batch_sizes = list(
+        map(
+            lambda i: 1 << i,
+            reversed(range(sequence_length_limits[1] - sequence_length_limits[0])),
+        )
+    )
+
+    cfg_yaml = f"""
+vary_type: sequence
+vary_params:
+  sequence_length: {sequence_lengths}
+  batch_size: {batch_sizes}
+fixed_params:
+  fwbw: {fwbw}
+  rep: {30 if not debug else 10}
+  warmup: {10 if not debug else 3}
+
+x_axis_param: "sequence_length"
+
+kernel_specs:
+  - kernel_name: "chunk_gla"
+    dtype: bfloat16
+    use_torch_compile: False
+    fwbw: {fwbw}
+    additional_params:
+      num_heads: {num_heads}
+      head_dim_v: {head_dim_v}
+      head_dim_qk: {head_dim_qk}
+
+  - kernel_name: "fused_chunk_gla"
+    dtype: bfloat16
+    fwbw: {fwbw}
+    additional_params:
+      num_heads: {num_heads}
+      head_dim_v: {head_dim_v}
+      head_dim_qk: {head_dim_qk}
+
+
+  - kernel_name: "chunk_simple_gla"
+    dtype: bfloat16
+    fwbw: {fwbw}
+    additional_params:
+      num_heads: {num_heads}
+      head_dim_v: {head_dim_v}
+      head_dim_qk: {head_dim_qk}
+
+benchmark_name: mlstm_triton_constant_tokens_sequence_{"fwbw" if fwbw else "fw"}
+"""
+
+    cfg = from_dict(
+        data_class=BenchmarkConfig,
+        data=OmegaConf.to_container(OmegaConf.create(cfg_yaml)),
+    )
+
+    run_and_record_benchmarks(cfg, create_training_kernel_benchmark, output_folder)
+
+
+def consttoken_benchmark_mamba(
+    output_folder: Path,
+    fwbw: bool = True,
+    debug: bool = False,
+    sequence_length_limits=[9, 17],
+):
+    """
+    Const token benchmark for the Mamba kernels.
+
+    This benchmark uses head dimensions as they would be used in a 7B model (i.e. embedding dimension 4096).
+    It uses different number of heads and state / qk dimensions for Mamba and Mamba2 as used in their respective
+    default settings for this model size.
+    """
+    embedding_dim = 4096
+    sequence_lengths = list(map(lambda i: 1 << i, range(*sequence_length_limits)))
+    batch_sizes = list(
+        map(
+            lambda i: 1 << i,
+            reversed(range(sequence_length_limits[1] - sequence_length_limits[0])),
+        )
+    )
+
+    cfg_yaml = f"""
+vary_type: sequence
+vary_params:
+  sequence_length: {sequence_lengths}
+  batch_size: {batch_sizes}
+fixed_params:
+  fwbw: {fwbw}
+  rep: {30 if not debug else 10}
+  warmup: {10 if not debug else 3}
+
+x_axis_param: "sequence_length"
+
+kernel_specs:
+  - kernel_name: "mamba"
+    dtype: bfloat16
+    fwbw: {fwbw}
+    use_torch_compile: False
+    additional_params:
+      num_heads: 1
+      head_dim_v: {2*embedding_dim}
+      head_dim_qk: 16
+
+  - kernel_name: "mamba2"
+    dtype: bfloat16
+    fwbw: {fwbw}
+    use_torch_compile: False
+    additional_params:
+      num_heads: {2*embedding_dim//64}
+      head_dim_v: 64
+      head_dim_qk: 64
+
+  - kernel_name: "mamba2_noconv"
+    dtype: bfloat16
+    fwbw: {fwbw}
+    use_torch_compile: False
+    additional_params:
+      num_heads: {2*embedding_dim//64}
+      head_dim_v: 64
+      head_dim_qk: 64
+
+benchmark_name: mlstm_triton_constant_tokens_sequence_{"fwbw" if fwbw else "fw"}
+"""
+
+    cfg = from_dict(
+        data_class=BenchmarkConfig,
+        data=OmegaConf.to_container(OmegaConf.create(cfg_yaml)),
+    )
+
+    run_and_record_benchmarks(cfg, create_training_kernel_benchmark, output_folder)
+
+
 
 def _consttoken_benchmark(
     output_folder: Path,
     fwbw: bool = True,
     debug: bool = False,
-    sequence_length_limits = [9, 17]
+    sequence_length_limits=[9, 17],
 ):
     """
     This benchmark uses head dimensions as they would be used in a 7B model (i.e. embedding dimension 4096).
@@ -529,9 +791,14 @@ def _consttoken_benchmark(
     embedding_dim = 4096
     num_heads = 8
     head_dim_v = embedding_dim // num_heads
-    head_dim_qk = embedding_dim // num_heads //2
-    sequence_lengths = list(map(lambda i: 1<<i, range(*sequence_length_limits)))
-    batch_sizes = list(map(lambda i: 1<<i, reversed(range(sequence_length_limits[1] - sequence_length_limits[0]))))
+    head_dim_qk = embedding_dim // num_heads // 2
+    sequence_lengths = list(map(lambda i: 1 << i, range(*sequence_length_limits)))
+    batch_sizes = list(
+        map(
+            lambda i: 1 << i,
+            reversed(range(sequence_length_limits[1] - sequence_length_limits[0])),
+        )
+    )
 
     cfg_yaml = f"""
 vary_type: sequence
@@ -540,8 +807,8 @@ vary_params:
   batch_size: {batch_sizes}
 fixed_params:
   fwbw: {fwbw}
-  rep: {100 if not debug else 10}
-  warmup: {25 if not debug else 10}
+  warmup: {25 if not debug else 3}
+  rep: {100 if not debug else 5}
 
 x_axis_param: "sequence_length"
 
@@ -785,13 +1052,31 @@ benchmark_name: constant_tokens_sequence_{"fwbw" if fwbw else "fw"}
     run_and_record_benchmarks(cfg, create_training_kernel_benchmark, output_folder)
 
 
-
 def run_multiple_benchmarks(
     output_dir: str = "./outputs_kernel_benchmarks",
     output_folder_suffix: str | None = None,
     debug: bool = False,
+    consttoken_benchmark: str | None = None,
 ):
-    output_folder = setup_output_folder(output_dir, name_suffix=output_folder_suffix)
+    if consttoken_benchmark is not None:
+        output_folder = setup_output_folder(
+            output_dir,
+            name_suffix=f"{consttoken_benchmark}_{output_folder_suffix}"
+            if output_folder_suffix is not None
+            else consttoken_benchmark,
+        )
+
+        if consttoken_benchmark == "mlstm_triton":
+            consttoken_benchmark_mlstm_triton(output_folder, fwbw=True, debug=debug)
+            consttoken_benchmark_mlstm_triton(output_folder, fwbw=False, debug=debug)
+        elif consttoken_benchmark == "fla":
+            consttoken_benchmark_fla(output_folder, fwbw=True, debug=debug)
+            consttoken_benchmark_fla(output_folder, fwbw=False, debug=debug)
+        elif consttoken_benchmark == "mamba":
+            consttoken_benchmark_mamba(output_folder, fwbw=True, debug=debug)
+            consttoken_benchmark_mamba(output_folder, fwbw=False, debug=debug)
+        else:
+            raise ValueError(f"Unknown consttoken benchmark: {consttoken_benchmark}")
 
     # _sequence_length_benchmark(output_folder, batch_size=1, num_heads=16, head_dim=256, debug=debug,)
     # _batch_size_benchmark(output_folder, seq_len=8192, num_heads=16, head_dim=256, debug=debug,)
@@ -817,9 +1102,8 @@ def run_multiple_benchmarks(
     # debug:
     # _head_dim_benchmark(output_folder, half_qkdim=False, seq_len=2048, batch_size=1, debug=debug)
 
-    _consttoken_benchmark(output_folder, fwbw=True, debug=debug)
-    _consttoken_benchmark(output_folder, fwbw=False, debug=debug)
-
+    # _consttoken_benchmark(output_folder, fwbw=True, debug=debug)
+    # _consttoken_benchmark(output_folder, fwbw=False, debug=debug)
 
 
 if __name__ == "__main__":
@@ -831,8 +1115,15 @@ if __name__ == "__main__":
         help="Suffix that is appended to the output folder of the benchmark results.",
     )
     parser.add_argument("--debug", action="store_true")
+    parser.add_argument(
+        "--consttoken_benchmark", type=str, required=False, default=None
+    )
 
     args = parser.parse_args()
     print(args)
 
-    run_multiple_benchmarks(output_folder_suffix=args.folder_suffix, debug=args.debug)
+    run_multiple_benchmarks(
+        output_folder_suffix=args.folder_suffix,
+        debug=args.debug,
+        consttoken_benchmark=args.consttoken_benchmark,
+    )
