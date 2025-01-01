@@ -563,7 +563,7 @@ kernel_specs:
   #     head_dim_qk: {head_dim_v}
 
     
-  ####
+  #### limit_chunk
   #? chunk size 64 is optimal
   - kernel_name: "chunkwise--triton_limit_chunk"
     dtype: bfloat16
@@ -584,7 +584,16 @@ kernel_specs:
   #   fwbw: {fwbw}
   #   additional_params:
   #     chunk_size: 32
-  ####
+  #### xl_chunk
+  - kernel_name: "chunkwise--triton_xl_chunk"
+    dtype: bfloat16
+    fwbw: {fwbw}
+    additional_params:
+      chunk_size: 64
+      num_heads: {num_heads}
+      head_dim_v: {head_dim_v}
+      head_dim_qk: {head_dim_qk}
+
   - kernel_name: "chunkwise--triton_xl_chunk"
     dtype: bfloat16
     fwbw: {fwbw}
@@ -594,6 +603,35 @@ kernel_specs:
       head_dim_v: {head_dim_v}
       head_dim_qk: {head_dim_qk}
 
+  - kernel_name: "chunkwise--triton_xl_chunk"
+    dtype: bfloat16
+    fwbw: {fwbw}
+    additional_params:
+      chunk_size: 256
+      num_heads: {num_heads}
+      head_dim_v: {head_dim_v}
+      head_dim_qk: {head_dim_qk}
+  
+  - kernel_name: "chunkwise--triton_xl_chunk"
+    dtype: bfloat16
+    fwbw: {fwbw}
+    additional_params:
+      chunk_size: 512
+      num_heads: {num_heads}
+      head_dim_v: {head_dim_v}
+      head_dim_qk: {head_dim_qk}
+
+  ### xl_chunk_siging normalize=False
+  - kernel_name: "chunkwise--triton_xl_chunk_siging"
+    dtype: bfloat16
+    fwbw: {fwbw}
+    additional_params:
+      chunk_size: 64
+      num_heads: {num_heads}
+      head_dim_v: {head_dim_v}
+      head_dim_qk: {head_dim_qk}
+      normalize: False
+
   - kernel_name: "chunkwise--triton_xl_chunk_siging"
     dtype: bfloat16
     fwbw: {fwbw}
@@ -602,13 +640,23 @@ kernel_specs:
       num_heads: {num_heads}
       head_dim_v: {head_dim_v}
       head_dim_qk: {head_dim_qk}
-      normalize: True
+      normalize: False
 
   - kernel_name: "chunkwise--triton_xl_chunk_siging"
     dtype: bfloat16
     fwbw: {fwbw}
     additional_params:
-      chunk_size: 128
+      chunk_size: 256
+      num_heads: {num_heads}
+      head_dim_v: {head_dim_v}
+      head_dim_qk: {head_dim_qk}
+      normalize: False
+
+  - kernel_name: "chunkwise--triton_xl_chunk_siging"
+    dtype: bfloat16
+    fwbw: {fwbw}
+    additional_params:
+      chunk_size: 512
       num_heads: {num_heads}
       head_dim_v: {head_dim_v}
       head_dim_qk: {head_dim_qk}
