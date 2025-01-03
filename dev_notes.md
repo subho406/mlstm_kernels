@@ -40,7 +40,7 @@ cd hopper
 PYTHONPATH=. python3 setup.py install
 cd ..
 # Install regular flash attention 2
-python3 install -e .
+python3 pip install -e .
 # Go back to this repo
 cd ../mlstm_kernels
 ```
