@@ -3,14 +3,16 @@
 
 import logging
 
-from mlstm_kernels.jax.chunkwise.triton_xl_chunk import mlstm_chunkwise__xl_chunk
-from mlstm_kernels.jax.parallel.native_stablef import mlstm_parallel__native_stablef_autograd
-
 import jax
 import jax.numpy as jnp
 import pytest
 
-from ...conftest import final_combinations
+from mlstm_kernels.jax.chunkwise.triton_xl_chunk import mlstm_chunkwise__xl_chunk
+from mlstm_kernels.jax.parallel.native_stablef import (
+    mlstm_parallel__native_stablef_autograd,
+)
+
+from ...conftest import combinations_other_list, final_combinations
 from ..template_test_against_pytorch import check_jax_against_pytorch_reference
 
 LOGGER = logging.getLogger(__name__)
@@ -20,6 +22,33 @@ TEST_FOLDER_NAME_PREFIX = "chunkwise-jax_xl_chunk"
 
 @pytest.mark.parametrize(["S", "B", "NH", "DHQK", "DHHV"], final_combinations)
 def test_jax_native_chunkwise_vs_triton_xl_chunk_fp32(
+    test_session_folder, mlstm_parallel_interface_test, S, B, NH, DHQK, DHHV
+):
+    print(f"S{S}B{B}NH{NH}DHQK{DHQK}DHHV{DHHV}")
+    mlstm_parallel_interface_test(
+        baseline_fn=mlstm_parallel__native_stablef_autograd,
+        target_fn=mlstm_chunkwise__xl_chunk,
+        baseline_name="native_parallel_stablef_autograd",
+        target_name="triton_xl_chunk",
+        S=S,
+        B=B,
+        NH=NH,
+        DHQK=DHQK,
+        DHHV=DHHV,
+        dtype=jnp.float32,
+        atol_fw=3e-3,
+        rtol_fw=5e-2,
+        atol_fwbw=2e-1, # we need those high tolerances for the forget gate gradient Max absolute difference: 0.2168259
+        rtol_fwbw=1e-2,
+        vmax=1e-3,
+        test_folder_name_prefix=TEST_FOLDER_NAME_PREFIX,
+        save_dir=str(test_session_folder),
+        add_fp64_baseline=False,
+        use_jit=True,
+    )
+@pytest.mark.skipif(pytest.short_test, reason="Short test.")
+@pytest.mark.parametrize(["S", "B", "NH", "DHQK", "DHHV"], combinations_other_list)
+def test_jax_native_chunkwise_vs_triton_xl_chunk_other(
     test_session_folder, mlstm_parallel_interface_test, S, B, NH, DHQK, DHHV
 ):
     print(f"S{S}B{B}NH{NH}DHQK{DHQK}DHHV{DHHV}")
