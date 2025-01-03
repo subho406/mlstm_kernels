@@ -70,14 +70,18 @@ def compute_gate_grads_vecDeltaI_vecDeltaF(
     # postprocessing: compute deltaF and deltaI gradients
     # vecF = rearrange(vecF, "b nh nc l -> b nh (nc l)")
     # compute the vecDeltaFbar values with dfbar = rev_cumsum((q*dq - k*dk).sum(-1))
-    matQ = matQ.astype(jnp.float32)
-    matK = matK.astype(jnp.float32)
-    matDeltaQ = matDeltaQ.astype(jnp.float32)
-    matDeltaK = matDeltaK.astype(jnp.float32)
+    matQ = matQ.astype(jnp.float64)
+    matK = matK.astype(jnp.float64)
+    matDeltaQ = matDeltaQ.astype(jnp.float64)
+    matDeltaK = matDeltaK.astype(jnp.float64)
     vecDeltaFbar_acc = ((matQ * matDeltaQ) - (matK * matDeltaK)).sum(-1)
-    vecDeltaFbar = jnp.flip(jnp.cumsum(jnp.flip(vecDeltaFbar_acc, axis=-1).astype(jnp.float32), axis=-1), axis=-1)
+    # 
+    # vecDeltaFbar = jnp.flip(jnp.cumsum(jnp.flip(vecDeltaFbar_acc, axis=-1).astype(jnp.float32), axis=-1), axis=-1)
+    # vecDeltaF = vecDeltaFbar * jax.nn.sigmoid(-vecF)
+    # align with limit_chunk kernel:
+    vecDeltaFbar = jnp.flip(vecDeltaFbar_acc, axis=-1).astype(jnp.float64)
+    vecDeltaFbar = jnp.flip(vecDeltaFbar.cumsum(axis=-1), axis=-1)
     vecDeltaF = vecDeltaFbar * jax.nn.sigmoid(-vecF)
-
     # compute deltaI
     # both are equivalent:
     # vecDeltaI = (matV * matDeltaV).sum(-1)
