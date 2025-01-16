@@ -14,7 +14,8 @@ def mlstm_cell_func(
     v: torch.Tensor,  # (B, NH, S, DHHV)
     i: torch.Tensor,  # (B, NH, S)
     f: torch.Tensor,  # (B, NH, S)
-    eps: float = 1e-6,
+    norm_eps: float = 1e-6,
+    backend_eps: float = 1e-6,
 ) -> tuple[torch.Tensor, torch.Tensor]:  # (B, NH, S, DHHV)
     """A general interface for the transfer behavior analysis.
 
@@ -45,7 +46,7 @@ def mlstm_cell_func(
 
     # we want all kernels to work seamlessly with the same interface
     # xl chunk kernels are happy with 128 and larger
-    assert S >= 128, "S must be at least 128"
+    assert S >= 128, f"S must be at least 128, got {S}"
 
     mode_and_nameparts = mlstm_func_specifier.split("__")
     mode = mode_and_nameparts[0]
@@ -59,9 +60,9 @@ def mlstm_cell_func(
         raise ValueError(f"Unsupported mode {mode}. Supported modes are 'mk' and 'tb'.")
 
     h_unnormalized = mlstm_func(
-        mlstm_func_specifier=nameparts, q=q, k=k, v=v, i=i, f=f, eps=eps
+        mlstm_func_specifier=nameparts, q=q, k=k, v=v, i=i, f=f, eps=backend_eps
     )
-    h_normalized = apply_normalize(norm_specifier, x=h_unnormalized, eps=eps)
+    h_normalized = apply_normalize(norm_specifier, x=h_unnormalized, eps=norm_eps)
 
     return h_normalized, h_unnormalized
 
@@ -80,7 +81,7 @@ def apply_mlstm_kernels_func(
     mlstm_kernel = get_mlstm_kernel(mlstm_func_specifier)
     ret = mlstm_kernel(q=q, k=k, v=v, i=i, f=f, eps=eps)
 
-    if isinstance(tuple):
+    if isinstance(ret, tuple):
         ret = ret[0]
     return ret
 
