@@ -107,6 +107,12 @@ def apply_mlstm_transfer_behavior_func(
         raise ValueError(f"Unsupported mLSTM function specifier {mlstm_specifier}.")
 
     ret = mlstm_func(
-        q=q, k=k, v=v, i=i, f=f, eps=eps, normalization_mode=normalization_mode
+        matQ=q,
+        matK=k,
+        matV=v,
+        vecI=i,
+        vecF=f,
+        eps=eps,
+        normalization_mode=normalization_mode,
     )
     return ret[0]

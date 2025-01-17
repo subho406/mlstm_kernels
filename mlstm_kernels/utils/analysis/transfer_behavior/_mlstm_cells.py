@@ -148,6 +148,7 @@ def mlstm_sig_stable_fgate(
     if normalization_mode == "paper":
         # (B, NH, S, S)
         matC = matCtilde
+        vecN = torch.zeros_like(vecI)
     else:
         vecN = _compute_vecN(matCtilde, normalization_mode)
         # (B, NH, S, S)

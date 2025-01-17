@@ -3,22 +3,26 @@ from collections.abc import Callable
 import numpy as np
 import torch
 
-from .mlstm_cell_func import mlstm_cell_func
-
 
 def generate_qkv(
-    B: int,
-    NH: int,
-    S: int,
-    DHQK: int,
-    DHV: int,
+    batch_size: int,
+    num_heads: int,
+    seq_len: int,
+    head_dim_qk: int,
+    head_dim_hv: int,
     q_std: float,
     k_std: float,
     v_std: float,
 ) -> Callable:
-    q = q_std * torch.randn((B, NH, S, DHQK), requires_grad=False)
-    k = k_std * torch.randn((B, NH, S, DHQK), requires_grad=False)
-    v = v_std * torch.randn((B, NH, S, DHV), requires_grad=False)
+    q = q_std * torch.randn(
+        (batch_size, num_heads, seq_len, head_dim_qk), requires_grad=False
+    )
+    k = k_std * torch.randn(
+        (batch_size, num_heads, seq_len, head_dim_qk), requires_grad=False
+    )
+    v = v_std * torch.randn(
+        (batch_size, num_heads, seq_len, head_dim_hv), requires_grad=False
+    )
 
     return q, k, v
 
