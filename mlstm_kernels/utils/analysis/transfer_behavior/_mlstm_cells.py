@@ -8,7 +8,7 @@ import torch
 def _compute_vecN(matCtilde: torch.Tensor, normalization_mode: str) -> torch.Tensor:
     _dtype, _device = matCtilde.dtype, matCtilde.device
     if "max_sum_abs_1" in normalization_mode:
-        split = normalization_mode.split("--")
+        split = normalization_mode.split("-")
         if len(split) == 2:
             denom_const = float(split[1])
         else:
@@ -20,8 +20,10 @@ def _compute_vecN(matCtilde: torch.Tensor, normalization_mode: str) -> torch.Ten
     elif normalization_mode == "sum_abs":
         vecN = matCtilde.sum(dim=-1, keepdim=True).abs()
 
+    elif normalization_mode == "sum":
+        vecN = matCtilde.sum(dim=-1, keepdim=True)
     elif "denom_one" in normalization_mode:
-        split = normalization_mode.split("--")
+        split = normalization_mode.split("-")
         if len(split) == 2:
             denom_const = float(split[1])
         else:
