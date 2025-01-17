@@ -21,6 +21,7 @@ def make_single_transfer_behavior_meshplot(
     y_label: str = "Input Gate Preactivation",
     add_colorbar: bool = True,
     colorbar_ax: Axes = None,
+    colobar_tick_format: str = "%4.1f",
     title: str = None,
     fig: Figure = None,
 ) -> Figure:
@@ -39,9 +40,10 @@ def make_single_transfer_behavior_meshplot(
     im = ax.pcolormesh(grid_x, grid_y, data_z, cmap=cmap, norm=norm)
     if add_colorbar:
         if colorbar_ax is None:
-            fig.colorbar(mappable=im, ax=ax)
+            fig.colorbar(mappable=im, ax=ax, format=colobar_tick_format)
         else:
-            fig.colorbar(mappable=im, cax=colorbar_ax)
+            # NOTE: somehow this is not working
+            fig.colorbar(mappable=im, cax=colorbar_ax, format=colobar_tick_format)
 
     ax.set_ylabel(y_label)
     ax.set_xlabel(x_label)
@@ -67,6 +69,7 @@ def generate_before_after_norm_transfer_behavior_plot(
     dtype: torch.dtype = torch.bfloat16,
     device: torch.device = torch.device("cuda"),
     fig_height: float = 7.5,
+    fig_title: str = None,
 ) -> Figure:
     mlstm_fn = partial(
         mlstm_cell_func,
@@ -106,7 +109,8 @@ def generate_before_after_norm_transfer_behavior_plot(
         ncols=2,
         figsize=(2 * fig_height, fig_height),
         sharey=True,
-        gridspec_kw={"width_ratios": [0.485, 0.485]},
+        sharex=True,
+        gridspec_kw={"width_ratios": [0.46, 0.54]},
     )
 
     fig = make_single_transfer_behavior_meshplot(
@@ -116,7 +120,7 @@ def generate_before_after_norm_transfer_behavior_plot(
         fgate_preact_offsets=fgate_preact_offsets,
         levels=z_levels,
         title="Gain before Norm",
-        add_colorbar=True,
+        add_colorbar=False,
         fig=fig,
     )
     fig = make_single_transfer_behavior_meshplot(
@@ -130,5 +134,6 @@ def generate_before_after_norm_transfer_behavior_plot(
         title="Gain after Norm",
         fig=fig,
     )
+    fig.suptitle(fig_title)
 
     return fig
