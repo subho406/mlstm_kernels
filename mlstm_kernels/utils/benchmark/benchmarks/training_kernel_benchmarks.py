@@ -589,6 +589,51 @@ class FlashAttention3Benchmark(mLSTMBenchmark):
         return ["flashattn3"]
 
 
+@dataclass
+class LightningAttentionBenchmark(KernelBenchmarkInterface):
+    batch_size: int = None
+    num_heads: int = None
+    sequence_length: int = None
+    head_dim_qk: int = None
+    head_dim_v: int = None
+
+    use_torch_compile: bool = False
+
+    def _get_input_tensors(self) -> tuple[torch.Tensor, ...]:
+        from ....baselines.lightning_attention.utils import _build_slope_tensor
+
+        assert self.head_dim_qk == self.head_dim_v, (
+            "Lightning attention only supports equal head dimension for QK and V.",
+             f" Got: qk_dim {self.head_dim_qk}, v_dim {self.head_dim_v}"
+        )
+
+        q = torch.randn(
+            (self.batch_size, self.num_heads, self.sequence_length, self.head_dim_qk),
+            dtype=torch.float32,
+        )
+        k = torch.randn(
+            (self.batch_size, self.num_heads, self.sequence_length, self.head_dim_qk),
+            dtype=torch.float32,
+        )
+        v = torch.randn(
+            (self.batch_size, self.num_heads, self.sequence_length, self.head_dim_v),
+            dtype=torch.float32,
+        )
+        s = _build_slope_tensor(self.num_heads).to(dtype=torch.float32)
+        return q, k, v, s
+
+    def _get_kernel_fn(self) -> Callable[[tuple[torch.Tensor, ...]], torch.Tensor]:
+        from ....baselines.lightning_attention.lightning_attn2 import lightning_attn2
+
+        if self.use_torch_compile:
+            lightning_attn2 = torch.compile(lightning_attn2)
+
+        return lightning_attn2
+
+    def available_kernels(self) -> list[str]:
+        return ["lightning_attn2"]
+
+
 def create_training_kernel_benchmark(
     kernel_spec: KernelSpec, param_dict: dict[str, Any]
 ) -> KernelBenchmarkInterface:
@@ -598,6 +643,7 @@ def create_training_kernel_benchmark(
     flashlinearattention_benchmark = FlashLinearAttentionKernelBenchmark()
     mamba_benchmark = MambaKernelBenchmark()
     flashattn3_benchmark = FlashAttention3Benchmark()
+    lightning_attn_benchmark = LightningAttentionBenchmark()
 
     all_available_kernels = (
         mlstm_benchmark.available_kernels()
@@ -606,6 +652,7 @@ def create_training_kernel_benchmark(
         + flashlinearattention_benchmark.available_kernels()
         + mamba_benchmark.available_kernels()
         + flashattn3_benchmark.available_kernels()
+        + lightning_attn_benchmark.available_kernels()
     )
 
     if kernel_spec.kernel_name in mlstm_benchmark.available_kernels():
@@ -624,6 +671,8 @@ def create_training_kernel_benchmark(
         benchmark = mamba_benchmark
     elif kernel_spec.kernel_name in flashattn3_benchmark.available_kernels():
         benchmark = flashattn3_benchmark
+    elif kernel_spec.kernel_name in lightning_attn_benchmark.available_kernels():
+        benchmark = lightning_attn_benchmark
     else:
         raise ValueError(
             f"Unknown kernel name: {kernel_spec.kernel_name}, available kernels: {all_available_kernels}"
