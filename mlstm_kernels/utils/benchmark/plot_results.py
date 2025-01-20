@@ -43,6 +43,20 @@ def rc_context_wrapper(func: Callable, **kwargs):
     ):
         return func(**kwargs)
 
+def get_rc_context():
+    return mpl.rc_context(
+        rc={
+            "text.usetex": False,
+            "font.size": FONTSIZE + fontsize_delta,
+            "axes.labelsize": FONTSIZE + fontsize_delta,
+            "legend.fontsize": FONTSIZE_SMALL + fontsize_delta,
+            "xtick.labelsize": FONTSIZE_TICKS + fontsize_delta,
+            "ytick.labelsize": FONTSIZE_TICKS + fontsize_delta,
+            "axes.titlesize": FONTSIZE + fontsize_delta,
+            "lines.markersize": MARKERSIZE,
+            "lines.linewidth": LINEWIDTH,
+        }
+    )
 
 def savefig(fig, filename: str):
     dir = Path("./plots/")
@@ -55,6 +69,7 @@ def savefig(fig, filename: str):
                 file,
                 dpi=300,
                 bbox_inches="tight",
+                pad_inches=-0.0020,
             )
 
 
@@ -426,7 +441,6 @@ def create_runtime_line_plot(
         data_df=data_df, colnames=group_col_names, add_colname=add_colname
     )
     raw_data_df = data_df.drop(columns=group_col_names)
-
     # x-axis locations
     if ax is None:
         f, ax = plt.subplots(1, 1, figsize=figsize)

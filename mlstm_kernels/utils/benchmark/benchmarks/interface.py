@@ -39,6 +39,9 @@ class BenchmarkInterface(ABC):
     benchmark_fn: Callable = None
     """The benchmark function to run."""
 
+    result_aggregation: Literal["mean", "meadian"] = "median"
+    """How to aggregate the benchmark results. Either 'mean' or 'median'."""
+
     def set_params(self, param_dict: dict) -> None:
         """Used to set all or multiple parameters of the benchmark at once."""
         if param_dict is None:
@@ -56,7 +59,6 @@ class BenchmarkInterface(ABC):
 
     def run_benchmark(
         self,
-        return_mode: Literal["mean", "median"] = "mean",
         grad_to_none: tuple[torch.Tensor, ...] | None = None,
         profiler=None,
     ) -> RuntimeResult:
@@ -70,7 +72,7 @@ class BenchmarkInterface(ABC):
                 warmup=self.warmup,
                 rep=self.rep,
                 warmup_and_rep_in_ms=self.warmup_and_rep_in_ms,
-                return_mode=return_mode,
+                return_mode=self.result_aggregation,
                 grad_to_none=grad_to_none,
                 device=self.device,
                 profiler=profiler,

@@ -84,6 +84,33 @@ mlstm_triton_kernel_specs = """
       head_dim_v: {head_dim_v}
       head_dim_qk: {head_dim_qk}
 
+  - kernel_name: "chunkwise--triton_xl_chunk"
+    dtype: bfloat16
+    fwbw: {fwbw}
+    additional_params:
+      chunk_size: 1024
+      num_heads: {num_heads}
+      head_dim_v: {head_dim_v}
+      head_dim_qk: {head_dim_qk}
+
+  - kernel_name: "chunkwise--triton_xl_chunk"
+    dtype: bfloat16
+    fwbw: {fwbw}
+    additional_params:
+      chunk_size: 2048
+      num_heads: {num_heads}
+      head_dim_v: {head_dim_v}
+      head_dim_qk: {head_dim_qk}
+
+  - kernel_name: "chunkwise--triton_xl_chunk"
+    dtype: bfloat16
+    fwbw: {fwbw}
+    additional_params:
+      chunk_size: 4096
+      num_heads: {num_heads}
+      head_dim_v: {head_dim_v}
+      head_dim_qk: {head_dim_qk}
+
   ### xl_chunk_siging normalize=False
   - kernel_name: "chunkwise--triton_xl_chunk_siging"
     dtype: bfloat16
@@ -120,6 +147,36 @@ mlstm_triton_kernel_specs = """
     fwbw: {fwbw}
     additional_params:
       chunk_size: 512
+      num_heads: {num_heads}
+      head_dim_v: {head_dim_v}
+      head_dim_qk: {head_dim_qk}
+      normalize: False
+
+  - kernel_name: "chunkwise--triton_xl_chunk_siging"
+    dtype: bfloat16
+    fwbw: {fwbw}
+    additional_params:
+      chunk_size: 1024
+      num_heads: {num_heads}
+      head_dim_v: {head_dim_v}
+      head_dim_qk: {head_dim_qk}
+      normalize: False
+
+  - kernel_name: "chunkwise--triton_xl_chunk_siging"
+    dtype: bfloat16
+    fwbw: {fwbw}
+    additional_params:
+      chunk_size: 2048
+      num_heads: {num_heads}
+      head_dim_v: {head_dim_v}
+      head_dim_qk: {head_dim_qk}
+      normalize: False
+
+  - kernel_name: "chunkwise--triton_xl_chunk_siging"
+    dtype: bfloat16
+    fwbw: {fwbw}
+    additional_params:
+      chunk_size: 4096
       num_heads: {num_heads}
       head_dim_v: {head_dim_v}
       head_dim_qk: {head_dim_qk}
@@ -186,6 +243,7 @@ fixed_params:
   batch_size: {batch_size}
   rep: {100 if not debug else 10}
   warmup: {25 if not debug else 3}
+  result_aggregation: "median"
 
 x_axis_param: "head_dim_v"
 
@@ -304,6 +362,7 @@ fixed_params:
   batch_size: {batch_size}
   rep: {100 if not debug else 10}
   warmup: {25 if not debug else 3}
+  result_aggregation: "median"
 
 x_axis_param: "head_dim_v"
 
@@ -367,6 +426,7 @@ fixed_params:
   fwbw: {fwbw}
   rep: {30 if not debug else 10}
   warmup: {10 if not debug else 3}
+  result_aggregation: "median"
 
 x_axis_param: "sequence_length"
 
@@ -418,7 +478,8 @@ fixed_params:
   fwbw: {fwbw}
   rep: {30 if not debug else 10}
   warmup: {10 if not debug else 3}
-
+  result_aggregation: "median"
+  
 x_axis_param: "sequence_length"
 
 kernel_specs: {fla_kernel_specs.format(fwbw=fwbw, num_heads=num_heads, head_dim_v=head_dim_v, head_dim_qk=head_dim_qk)}
@@ -465,7 +526,8 @@ fixed_params:
   fwbw: {fwbw}
   rep: {30 if not debug else 10}
   warmup: {10 if not debug else 3}
-
+  result_aggregation: "median"
+  
 x_axis_param: "sequence_length"
 
 kernel_specs:
@@ -540,7 +602,8 @@ fixed_params:
   fwbw: {fwbw}
   warmup: {25 if not debug else 3}
   rep: {100 if not debug else 5}
-
+  result_aggregation: "median"
+  
 x_axis_param: "sequence_length"
 
 kernel_specs:
