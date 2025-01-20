@@ -409,6 +409,7 @@ def create_runtime_line_plot(
     yticks: list[float] = None,
     ylim: tuple[float, float] | None = None,
     x_label: str = "Sequence Length",
+    y_label: str = "Time [ms]",
     ax: Axes = None,
     add_colname: bool = False,
 ):
@@ -462,7 +463,7 @@ def create_runtime_line_plot(
                 range(len(raw_data_df)), raw_data_df[col], marker="s", **style_dict[col]
             )
 
-    ax.set_ylabel("Time [ms]")
+    ax.set_ylabel(y_label)
     ax.set_xlabel(x_label)
     ax.spines.right.set_visible(False)
     ax.spines.top.set_visible(False)
