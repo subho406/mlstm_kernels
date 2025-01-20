@@ -164,9 +164,9 @@ class mLSTMXLChunkSizeTuneBenchmark(mLSTMBenchmark):
     def _get_kernel_fn(self) -> Callable[[tuple[torch.Tensor, ...]], torch.Tensor]:
         from functools import partial
 
-        assert (
-            self.kernel_name == "mlstm_chunkwise__xl_chunk"
-        ), "Only supports mlstm_chunkwise__xl_chunk kernel"
+        assert self.kernel_name == "mlstm_chunkwise__xl_chunk", (
+            "Only supports mlstm_chunkwise__xl_chunk kernel"
+        )
 
         from mlstm_kernels.torch.chunkwise.triton_xl_chunk import (
             mlstm_chunkwise__xl_chunk,
@@ -227,7 +227,12 @@ class FlashLinearAttentionKernelBenchmark(KernelBenchmarkInterface):
             return q, k, v, fg
         if "gla" in self.kernel_name:
             fg = torch.randn(
-                (self.batch_size, self.num_heads, self.sequence_length, self.head_dim_qk),
+                (
+                    self.batch_size,
+                    self.num_heads,
+                    self.sequence_length,
+                    self.head_dim_qk,
+                ),
                 dtype=torch.float32,
             )
             return q, k, v, fg
@@ -252,7 +257,9 @@ class FlashLinearAttentionKernelBenchmark(KernelBenchmarkInterface):
         elif self.kernel_name == "naive_retention":
             kernel_pre_fn = naive_retention
         else:
-            raise ValueError(f"Bad kernel name {self.kernel_name} not in {self.available_kernels()}")
+            raise ValueError(
+                f"Bad kernel name {self.kernel_name} not in {self.available_kernels()}"
+            )
 
         # only take first output of tuple
         def kernel_fn(*args, **kwargs):
@@ -264,8 +271,13 @@ class FlashLinearAttentionKernelBenchmark(KernelBenchmarkInterface):
 
     def available_kernels(self) -> list[str]:
         return [
-            "chunk_gla", "fused_chunk_gla", "chunk_simple_gla",
-            "chunk_retention", "parallel_retention", "naive_retention",]
+            "chunk_gla",
+            "fused_chunk_gla",
+            "chunk_simple_gla",
+            "chunk_retention",
+            "parallel_retention",
+            "naive_retention",
+        ]
 
 
 @dataclass
@@ -276,7 +288,7 @@ class MambaKernelBenchmark(KernelBenchmarkInterface):
     head_dim_qk: int = None
     head_dim_v: int = None
     # num groups in Mamba is similar to an additional head dimension within the keys / queries
-    # it has to divide the number of heads and means that the same queries and keys are re-used for 
+    # it has to divide the number of heads and means that the same queries and keys are re-used for
     # nheads/ngroups values
     # See: https://github.com/state-spaces/mamba/blob/
     # 442fab4b1fd5226c1b5939b37d91ede430b5d1ae/mamba_ssm/ops/triton/selective_state_update.py#L255
@@ -297,15 +309,23 @@ class MambaKernelBenchmark(KernelBenchmarkInterface):
         # 442fab4b1fd5226c1b5939b37d91ede430b5d1ae/mamba_ssm/ops/selective_scan_interface.py#L91
         if "mamba" == self.kernel_name:
             x = torch.randn(
-                (self.batch_size, self.num_heads*self.head_dim_v, self.sequence_length,),
+                (
+                    self.batch_size,
+                    self.num_heads * self.head_dim_v,
+                    self.sequence_length,
+                ),
                 dtype=torch.float32,
             )
             dt = torch.randn(
-                (self.batch_size, self.num_heads*self.head_dim_v, self.sequence_length,),
+                (
+                    self.batch_size,
+                    self.num_heads * self.head_dim_v,
+                    self.sequence_length,
+                ),
                 dtype=torch.float32,
             )
             A = torch.randn(
-                (self.num_heads*self.head_dim_v, self.head_dim_qk),
+                (self.num_heads * self.head_dim_v, self.head_dim_qk),
                 dtype=torch.float32,
             )
             B = torch.randn(
@@ -317,11 +337,15 @@ class MambaKernelBenchmark(KernelBenchmarkInterface):
                 dtype=torch.float32,
             )
             D = torch.randn(
-                (self.num_heads*self.head_dim_v),
+                (self.num_heads * self.head_dim_v),
                 dtype=torch.float32,
             )
             z = torch.randn(
-                (self.batch_size, self.num_heads*self.head_dim_v, self.sequence_length,),
+                (
+                    self.batch_size,
+                    self.num_heads * self.head_dim_v,
+                    self.sequence_length,
+                ),
                 dtype=torch.float32,
             )
             return x, dt, A, B, C, D, z
@@ -329,11 +353,16 @@ class MambaKernelBenchmark(KernelBenchmarkInterface):
         # 442fab4b1fd5226c1b5939b37d91ede430b5d1ae/mamba_ssm/ops/triton/ssd_combined.py#L933
         if "mamba2_noconv" == self.kernel_name:
             x = torch.randn(
-                (self.batch_size, self.sequence_length,  self.num_heads, self.head_dim_v),
+                (
+                    self.batch_size,
+                    self.sequence_length,
+                    self.num_heads,
+                    self.head_dim_v,
+                ),
                 dtype=torch.float32,
             )
             dt = torch.randn(
-                (self.batch_size, self.sequence_length,  self.num_heads),
+                (self.batch_size, self.sequence_length, self.num_heads),
                 dtype=torch.float32,
             )
             A = torch.randn(
@@ -341,11 +370,21 @@ class MambaKernelBenchmark(KernelBenchmarkInterface):
                 dtype=torch.float32,
             )
             B = torch.randn(
-                (self.batch_size, self.sequence_length, self.num_heads, self.head_dim_qk),
+                (
+                    self.batch_size,
+                    self.sequence_length,
+                    self.num_heads,
+                    self.head_dim_qk,
+                ),
                 dtype=torch.float32,
             )
             C = torch.randn(
-                (self.batch_size, self.sequence_length, self.num_heads, self.head_dim_qk),
+                (
+                    self.batch_size,
+                    self.sequence_length,
+                    self.num_heads,
+                    self.head_dim_qk,
+                ),
                 dtype=torch.float32,
             )
             chunk_size = 256
@@ -355,16 +394,28 @@ class MambaKernelBenchmark(KernelBenchmarkInterface):
         # 442fab4b1fd5226c1b5939b37d91ede430b5d1ae/mamba_ssm/ops/triton/ssd_combined.py#L933
         if "mamba2" == self.kernel_name:
             zxbcdt = torch.randn(
-                (self.batch_size, self.sequence_length,  
-                2*self.num_heads *self.head_dim_v + 2*self.head_dim_qk*self.num_groups + self.num_heads),
+                (
+                    self.batch_size,
+                    self.sequence_length,
+                    2 * self.num_heads * self.head_dim_v
+                    + 2 * self.head_dim_qk * self.num_groups
+                    + self.num_heads,
+                ),
                 dtype=torch.float32,
             )
             conv1d_weight = torch.randn(
-                (self.num_heads*self.head_dim_v + 2*self.num_groups*self.head_dim_qk, self.width),
+                (
+                    self.num_heads * self.head_dim_v
+                    + 2 * self.num_groups * self.head_dim_qk,
+                    self.width,
+                ),
                 dtype=torch.float32,
             )
             conv1d_bias = torch.randn(
-                (self.num_heads*self.head_dim_v + 2*self.num_groups*self.head_dim_qk),
+                (
+                    self.num_heads * self.head_dim_v
+                    + 2 * self.num_groups * self.head_dim_qk
+                ),
                 dtype=torch.float32,
             )
             dt_bias = torch.randn(
@@ -381,7 +432,9 @@ class MambaKernelBenchmark(KernelBenchmarkInterface):
             )
             chunk_size = 256
             return zxbcdt, conv1d_weight, conv1d_bias, dt_bias, A, D, chunk_size
-        raise ValueError(f"Bad kernel name {self.kernel_name} not in {self.available_kernels()}")
+        raise ValueError(
+            f"Bad kernel name {self.kernel_name} not in {self.available_kernels()}"
+        )
 
     def _get_kernel_fn(self) -> Callable[[tuple[torch.Tensor, ...]], torch.Tensor]:
         from mamba_ssm.ops.selective_scan_interface import selective_scan_fn
@@ -389,7 +442,7 @@ class MambaKernelBenchmark(KernelBenchmarkInterface):
             mamba_chunk_scan_combined,
             mamba_split_conv1d_scan_combined,
         )
-        
+
         if self.kernel_name == "mamba":
             kernel_pre_fn = selective_scan_fn
         elif self.kernel_name == "mamba2_noconv":
@@ -397,7 +450,9 @@ class MambaKernelBenchmark(KernelBenchmarkInterface):
         elif self.kernel_name == "mamba2":
             kernel_pre_fn = mamba_split_conv1d_scan_combined
         else:
-            raise ValueError(f"Bad kernel name {self.kernel_name} not in {self.available_kernels()}")
+            raise ValueError(
+                f"Bad kernel name {self.kernel_name} not in {self.available_kernels()}"
+            )
 
         # only take first output of tuple
         def kernel_fn(*args, **kwargs):
@@ -407,23 +462,26 @@ class MambaKernelBenchmark(KernelBenchmarkInterface):
             kernel_fn = torch.compile(kernel_fn)
         return kernel_fn
 
-
     def setup_benchmark(self) -> None:
         torch_dtype = getattr(torch, self.dtype)
 
         inputs = self._get_input_tensors()
 
         inputs = [
-            x.to(device=self.device).requires_grad_(self.fwbw) if isinstance(x, torch.Tensor) else x
+            x.to(device=self.device).requires_grad_(self.fwbw)
+            if isinstance(x, torch.Tensor)
+            else x
             for x in inputs
         ]
 
         if self.kernel_name == "mamba":
             x, dt, A, B, C, D, z = inputs
             x, dt, B, C, z = (
-                x.to(dtype=torch_dtype), dt.to(dtype=torch_dtype),
-                B.to(dtype=torch_dtype), C.to(dtype=torch_dtype),
-                z.to(dtype=torch_dtype)
+                x.to(dtype=torch_dtype),
+                dt.to(dtype=torch_dtype),
+                B.to(dtype=torch_dtype),
+                C.to(dtype=torch_dtype),
+                z.to(dtype=torch_dtype),
             )
             inputs = x, dt, A, B, C, D, z
         elif self.kernel_name == "mamba2_noconv":
@@ -432,7 +490,7 @@ class MambaKernelBenchmark(KernelBenchmarkInterface):
                 x.to(dtype=torch_dtype),
                 dt.to(dtype=torch_dtype),
                 B.to(dtype=torch_dtype),
-                C.to(dtype=torch_dtype)
+                C.to(dtype=torch_dtype),
             )
             inputs = x, dt, A, B, C, chunk_size
         elif self.kernel_name == "mamba2":
@@ -459,12 +517,8 @@ class MambaKernelBenchmark(KernelBenchmarkInterface):
 
         self.benchmark_fn = benchmark_fn
 
-
     def available_kernels(self) -> list[str]:
-        return [
-            "mamba", "mamba2", "mamba2_noconv"]
-
-
+        return ["mamba", "mamba2", "mamba2_noconv"]
 
 
 @dataclass
@@ -480,7 +534,7 @@ class FlashAttention3Benchmark(mLSTMBenchmark):
     kernel_name: str = None
 
     use_torch_compile: bool = False
-    
+
     def _get_input_tensors(self) -> tuple[torch.Tensor, ...]:
         q = torch.randn(
             (self.batch_size, self.sequence_length, self.num_heads, self.head_dim_qk),
@@ -499,14 +553,19 @@ class FlashAttention3Benchmark(mLSTMBenchmark):
     def _get_kernel_fn(self) -> Callable[[tuple[torch.Tensor, ...]], torch.Tensor]:
         from functools import partial
 
-        assert (
-            self.kernel_name == "flashattn3"
-        ), "Only supports flashattn3"
+        assert self.kernel_name == "flashattn3", "Only supports flashattn3"
 
         import os
         import sys
         from pathlib import Path
-        sys.path.append(str(Path(os.path.abspath(__file__)).parents[5] / "flash-attention" / "hopper"))
+
+        sys.path.append(
+            str(
+                Path(os.path.abspath(__file__)).parents[5]
+                / "flash-attention"
+                / "hopper"
+            )
+        )
         from flash_attn_interface import flash_attn_func
 
         kernel_fn = partial(
@@ -523,12 +582,11 @@ class FlashAttention3Benchmark(mLSTMBenchmark):
 
         def kernel_fn2(q, k, v):
             return kernel_fn(q, k, v)[0]
-        
+
         return kernel_fn2
 
     def available_kernels(self) -> list[str]:
         return ["flashattn3"]
-
 
 
 def create_training_kernel_benchmark(
@@ -559,21 +617,12 @@ def create_training_kernel_benchmark(
         in mlstm_xl_chunk_size_tune_benchmark.available_kernels()
     ):
         benchmark = mlstm_xl_chunk_size_tune_benchmark
-    elif (
-        kernel_spec.kernel_name
-        in flashlinearattention_benchmark.available_kernels()
-    ):
+    elif kernel_spec.kernel_name in flashlinearattention_benchmark.available_kernels():
         benchmark = flashlinearattention_benchmark
-    
-    elif (
-        kernel_spec.kernel_name
-        in mamba_benchmark.available_kernels()
-    ):
+
+    elif kernel_spec.kernel_name in mamba_benchmark.available_kernels():
         benchmark = mamba_benchmark
-    elif (
-        kernel_spec.kernel_name
-        in flashattn3_benchmark.available_kernels()
-    ):
+    elif kernel_spec.kernel_name in flashattn3_benchmark.available_kernels():
         benchmark = flashattn3_benchmark
     else:
         raise ValueError(
