@@ -647,33 +647,6 @@ def run_multiple_benchmarks(
             )
         else:
             raise ValueError(f"Unknown headdim benchmark: {headdim_benchmark}")
-    
-    # _sequence_length_benchmark(output_folder, batch_size=1, num_heads=16, head_dim=256, debug=debug,)
-    # _batch_size_benchmark(output_folder, seq_len=8192, num_heads=16, head_dim=256, debug=debug,)
-    # _sequence_length_benchmark(output_folder, batch_size=1, num_heads=8, head_dim=512, debug=debug,)
-    # _batch_size_benchmark(
-    #     output_folder, seq_len=128, num_heads=8, head_dim=512, fwbw=False, debug=debug,
-    # )
-    # _batch_size_benchmark(
-    #     output_folder, seq_len=512, num_heads=8, head_dim=512, fwbw=False, debug=debug,
-    # )
-    # _batch_size_benchmark(
-    #     output_folder, seq_len=1024, num_heads=8, head_dim=512, fwbw=False, debug=debug,
-    # )
-    # _batch_size_benchmark(
-    #     output_folder, seq_len=2048, num_heads=8, head_dim=512, fwbw=False, debug=debug,
-    # )
-    # _batch_size_benchmark(
-    #     output_folder, seq_len=4096, num_heads=8, head_dim=512, fwbw=False, debug=debug,
-    # )
-    # _head_dim_benchmark(output_folder, half_qkdim=False, seq_len=8192, batch_size=1, debug=debug)
-    # _head_dim_benchmark(output_folder, half_qkdim=True, seq_len=8192, batch_size=1, debug=debug)
-
-    # debug:
-    # _head_dim_benchmark(output_folder, half_qkdim=False, seq_len=2048, batch_size=1, debug=debug)
-
-    # _consttoken_benchmark(output_folder, fwbw=True, debug=debug)
-    # _consttoken_benchmark(output_folder, fwbw=False, debug=debug)
 
 
 if __name__ == "__main__":
@@ -715,3 +688,9 @@ if __name__ == "__main__":
         half_qkdim=args.half_qkdim,
         batch_size=args.batch_size,
     )
+
+# Commands:
+# python scripts/run_training_kernel_benchmarks.py --consttoken_benchmark fla --debug
+# python scripts/run_training_kernel_benchmarks.py --consttoken_benchmark mlstm_triton --debug
+# python scripts/run_training_kernel_benchmarks.py --consttoken_benchmark mamba --debug
+# python scripts/run_training_kernel_benchmarks.py --consttoken_benchmark flashattn --debug
