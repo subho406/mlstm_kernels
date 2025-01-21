@@ -220,7 +220,7 @@ def headdim_benchmark_mlstm_triton(
     batch_size: int = 4,
     debug: bool = False,
 ):
-    head_dims_v = [32, 64, 128, 256, 512, 1024, 2048]
+    head_dims_v = [32, 64, 128, 256, 512, 1024] # 2048 yields illegal memory access
     embedding_dim = 4096
     batch_size = batch_size if batch_size is not None else 4
     num_heads = [embedding_dim // head_dim for head_dim in head_dims_v]
@@ -339,7 +339,7 @@ def headdim_benchmark_fla(
     batch_size: int | None = 4,
     debug: bool = False,
 ):
-    head_dims_v = [256, 512, 1024, 2048] #[32, 64, 128, 256, 512, 1024, 2048]
+    head_dims_v = [128, 256, 512, 1024] #[256, 512, 1024, 2048] #[32, 64, 128, 256, 512, 1024, 2048]
     embedding_dim = 4096
     batch_size = batch_size if batch_size is not None else 4
     num_heads = [embedding_dim // head_dim for head_dim in head_dims_v]
@@ -757,3 +757,4 @@ if __name__ == "__main__":
 # python scripts/run_training_kernel_benchmarks.py --consttoken_benchmark mlstm_triton --debug
 # python scripts/run_training_kernel_benchmarks.py --consttoken_benchmark mamba --debug
 # python scripts/run_training_kernel_benchmarks.py --consttoken_benchmark flashattn --debug
+# python scripts/run_training_kernel_benchmarks.py --headdim_benchmark mlstm_triton --folder_suffix "v0"

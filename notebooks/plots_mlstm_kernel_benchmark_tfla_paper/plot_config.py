@@ -1,9 +1,19 @@
 #  Copyright (c) NXAI GmbH.
 #  This software may be used and distributed according to the terms of the NXAI Community License Agreement.
 from pathlib import Path
+from typing import Any, Literal
 
 import matplotlib as mpl
 import matplotlib.pyplot as plt
+import numpy as np
+from matplotlib.colors import LinearSegmentedColormap
+
+# Load the PiYG colormap
+cmap = plt.cm.PiYG
+
+# Extract the pink side (the upper half of the colormap)
+pink_side = cmap(np.linspace(0.0, 0.5, 256))  # Adjust range for pink side
+pink_cmap = LinearSegmentedColormap.from_list("PinkSide", pink_side)
 
 FONTSIZE_DELTA = 2.5
 FONTSIZE = 12
@@ -56,9 +66,9 @@ kernel_colors = {
     "chunk_simple_gla": "#4fb72e",
     "fused_chunk_gla": "#548c2f",
     "chunk_gla": "#548c2f",
+    "mlstmexp_triton_limit_chunk": "#f0acb9",
     "mlstmexp_torch_native": "#e52e66",
     "mlstmexp_triton_xl_chunk": "#e52e66",
-    "mlstmexp_triton_limit_chunk": "#f0acb9",
     "mlstmsig_triton_xl_chunk": "#9a3c73",
 }
 
@@ -73,9 +83,9 @@ kernel_labels = {
     "chunk_simple_gla": "Simple GLA (FLA)",
     "fused_chunk_gla": "GLA (fused)",
     "chunk_gla": "GLA (FLA)",
+    "mlstmexp_triton_limit_chunk": "mLSTMexp (FLA limit chunk)",
     "mlstmexp_torch_native": "mLSTM (torch)",
     "mlstmexp_triton_xl_chunk": "mLSTMexp (TFLA XL chunk)",
-    "mlstmexp_triton_limit_chunk": "mLSTMexp (FLA limit chunk)",
     "mlstmsig_triton_xl_chunk": "mLSTMsig (TFLA XL chunk)",
 }
 
@@ -145,3 +155,108 @@ legend_order = [
     "mLSTMexp (TFLA xl_chunk)",
     "mLSTMsig (TFLA xl_chunk)",
 ]
+
+
+def map_consttoken_fwbw_appendix_data_col_to_plot_col_mapping(
+    fwbw: bool,
+) -> dict[str, str]:
+    fwbw_str = "fwbw" if fwbw else "fw"
+
+    chunk_sizes = [64, 128, 256, 512, 1024, 2048, 4096]
+    xl_chunk_dict = {}
+    for cs in chunk_sizes:
+        xl_chunk_dict[
+            f"chunkwise--triton_xl_chunk__bfloat16__{fwbw_str}__cs-{cs}_nh-8_hdv-512_hdq-256"
+        ] = f"mlstmexp_triton_xl_chunk--cs-{cs}"
+        xl_chunk_dict[
+            f"chunkwise--triton_xl_chunk_siging__bfloat16__{fwbw_str}__cs-{cs}_nh-8_hdv-512_hdq-256_n-False"
+        ] = f"mlstmsig_triton_xl_chunk--cs-{cs}"
+
+    xl_chunk_dict.update(
+        {
+            f"chunk_gla____bfloat16__{fwbw_str}__nh-8_hdv-512_hdq-256": "chunk_gla",
+            f"chunkwise--triton_limit_chunk__bfloat16__{fwbw_str}__cs-64_nh-8_hdv-512_hdq-256": "mlstmexp_triton_limit_chunk",
+            f"fused_chunk_gla__bfloat16__{fwbw_str}__nh-8_hdv-512_hdq-256": "fused_chunk_gla",
+            f"chunk_simple_gla__bfloat16__{fwbw_str}__nh-8_hdv-512_hdq-256": "chunk_simple_gla",
+        }
+    )
+    return xl_chunk_dict
+
+
+def get_kernel_labels_appendix(
+    chunk_sizes: list[int] = [64, 128, 256, 512, 1024, 2048, 4096],
+) -> dict[str, str]:
+    label_mapping = {}
+    for cs in chunk_sizes:
+        label_mapping[f"mlstmsig_triton_xl_chunk--cs-{cs}"] = (
+            f"mLSTMsig[{cs}]"
+        )
+        label_mapping[f"mlstmexp_triton_xl_chunk--cs-{cs}"] = (
+            f"mLSTMexp[{cs}]"
+        )
+
+    label_mapping.update(
+        {
+            "chunk_simple_gla": "Simple GLA",
+            "fused_chunk_gla": "GLA (fused)",
+            "chunk_gla": "GLA (chunk)",
+            "mlstmexp_triton_limit_chunk": "mLSTMexp (limit chunk)",
+        }
+    )
+    return label_mapping
+
+
+def get_kernel_color_mapping_appendix(
+    chunk_sizes: list[int] = [64, 128, 256, 512, 1024, 2048, 4096],
+    colormap=pink_cmap,
+    cmap_start_end: tuple[float, float] = (0, 0.75),
+) -> dict[str, Any]:
+    color_mapping = {}
+
+    mlstm_colors = colormap(
+        np.linspace(cmap_start_end[0], cmap_start_end[1], len(chunk_sizes))
+    )
+    for i, cs in enumerate(chunk_sizes):
+        color_mapping[f"mlstmsig_triton_xl_chunk--cs-{cs}"] = mlstm_colors[i]
+        color_mapping[f"mlstmexp_triton_xl_chunk--cs-{cs}"] = mlstm_colors[i]
+
+    color_mapping.update(
+        {
+            "chunk_simple_gla": "#4fb72e",
+            "fused_chunk_gla": "#aeed9aff",
+            "chunk_gla": "#548c2f",
+            "mlstmexp_triton_limit_chunk": "#e52e66" #plt.cm.PiYG(0)#"#f0acb9", #plt.cm.tab10(0), #"#f0acb9",
+        }
+    )
+    return color_mapping
+
+
+def get_style_dict_appendix(
+    chunk_sizes: list[int] = [64, 128, 256, 512, 1024, 2048, 4096],
+    colormap=pink_cmap,
+    cmap_start_end: tuple[float, float] = (0, 0.75),
+) -> dict:
+    label_mapping = get_kernel_labels_appendix(chunk_sizes=chunk_sizes)
+    color_mapping = get_kernel_color_mapping_appendix(
+        chunk_sizes=chunk_sizes, colormap=colormap, cmap_start_end=cmap_start_end
+    )
+
+    style_dict = {
+        key: {"label": value, "color": color_mapping[key]}
+        for key, value in label_mapping.items()
+    }
+
+    return style_dict
+
+
+def get_col_order_appendix(chunk_sizes: list[int] = [64, 128, 256, 512, 1024, 2048, 4096], mlstm: Literal["sig", "exp"] = "sig"):
+    col_order = ["chunk_simple_gla",
+                 "chunk_gla",
+                 "fused_chunk_gla",
+                 "mlstmexp_triton_limit_chunk"]
+
+
+    for cs in chunk_sizes:
+        col_order.append(f"mlstm{mlstm}_triton_xl_chunk--cs-{cs}")
+
+    return col_order
