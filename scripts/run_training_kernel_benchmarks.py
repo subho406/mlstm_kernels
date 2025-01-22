@@ -548,6 +548,27 @@ kernel_specs:
       num_heads: {2*embedding_dim//64}
       head_dim_v: 64
       head_dim_qk: 64
+      chunk_size: 256
+
+  # - kernel_name: "mamba2"
+  #   dtype: bfloat16
+  #   fwbw: {fwbw}
+  #   use_torch_compile: False
+  #   additional_params:
+  #     num_heads: {2*embedding_dim//64}
+  #     head_dim_v: 64
+  #     head_dim_qk: 64
+  #     chunk_size: 128
+
+  # - kernel_name: "mamba2"
+  #   dtype: bfloat16
+  #   fwbw: {fwbw}
+  #   use_torch_compile: False
+  #   additional_params:
+  #     num_heads: {2*embedding_dim//64}
+  #     head_dim_v: 64
+  #     head_dim_qk: 64
+  #     chunk_size: 64
 
   - kernel_name: "mamba2_noconv"
     dtype: bfloat16
@@ -557,6 +578,25 @@ kernel_specs:
       num_heads: {2*embedding_dim//64}
       head_dim_v: 64
       head_dim_qk: 64
+      chunk_size: 256
+  # - kernel_name: "mamba2_noconv"
+  #   dtype: bfloat16
+  #   fwbw: {fwbw}
+  #   use_torch_compile: False
+  #   additional_params:
+  #     num_heads: {2*embedding_dim//64}
+  #     head_dim_v: 64
+  #     head_dim_qk: 64
+  #     chunk_size: 128
+  # - kernel_name: "mamba2_noconv"
+  #   dtype: bfloat16
+  #   fwbw: {fwbw}
+  #   use_torch_compile: False
+  #   additional_params:
+  #     num_heads: {2*embedding_dim//64}
+  #     head_dim_v: 64
+  #     head_dim_qk: 64
+  #     chunk_size: 64
 
 benchmark_name: mamba_constant_tokens_sequence_{"fwbw" if fwbw else "fw"}
 """

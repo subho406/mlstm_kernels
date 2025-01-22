@@ -282,6 +282,16 @@ class FlashLinearAttentionKernelBenchmark(KernelBenchmarkInterface):
 
 @dataclass
 class MambaKernelBenchmark(KernelBenchmarkInterface):
+    """
+    @mbeck: Note on this Benchmark:
+    - We would expect that mama2_noconv is faster but it is actually slower than mamba2
+    - it is abit less than factor 2 slower and uses more than twice the gpu memory
+    - both call the same _mamba_chunk_scan_combined_fwd kernel and receive the same input dims
+      as well as the same chunk size, as well as the same dtypes
+    - Not clear what is going on, suspect there is something going on on Mamba side. 
+    - Also tried varying the chunksizes [64, 128, 256 (default)], 128 is fastest for mamba2, 64 is fastest for mamba2_noconv
+    - We report the faster results.
+    """
     batch_size: int = None
     num_heads: int = None
     sequence_length: int = None
@@ -295,6 +305,7 @@ class MambaKernelBenchmark(KernelBenchmarkInterface):
     # it is probably inspired by `arXiV:2305.13245`
     num_groups: int = 1
     width: int = 4  # convolution kernel size
+    chunk_size: int = 256
 
     use_torch_compile: bool = False
 
@@ -387,7 +398,7 @@ class MambaKernelBenchmark(KernelBenchmarkInterface):
                 ),
                 dtype=torch.float32,
             )
-            chunk_size = 256
+            chunk_size = self.chunk_size
 
             return x, dt, A, B, C, chunk_size
         # see: https://github.com/state-spaces/mamba/blob/
@@ -430,7 +441,7 @@ class MambaKernelBenchmark(KernelBenchmarkInterface):
                 (self.num_heads, self.head_dim_v),
                 dtype=torch.float32,
             )
-            chunk_size = 256
+            chunk_size = self.chunk_size
             return zxbcdt, conv1d_weight, conv1d_bias, dt_bias, A, D, chunk_size
         raise ValueError(
             f"Bad kernel name {self.kernel_name} not in {self.available_kernels()}"
