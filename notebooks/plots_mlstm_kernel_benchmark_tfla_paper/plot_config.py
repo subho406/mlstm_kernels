@@ -124,6 +124,86 @@ def map_consttoken_fwbw_data_col_to_plot_col_mapping(fwbw: bool) -> dict[str, st
         f"chunk_simple_gla__bfloat16__{fwbw_str}__nh-8_hdv-512_hdq-256": "chunk_simple_gla",
     }
 
+###### RERUN #####
+
+
+def map_consttoken_fwbw_data_col_to_plot_col_mapping_rerun(fwbw: bool, num_heads: int = 16, mamba_version: str = "") -> dict[str, str]:
+    hdv = 4096 // num_heads
+    hdq = int(0.5 * hdv)
+
+    fwbw_str = "fwbw" if fwbw else "fw"
+    return {
+        f"torch_flash__bfloat16__{fwbw_str}__nh-32_hdq-128_hdv-128": "torch_flashattn",
+        f"torch_cudnn__bfloat16__{fwbw_str}__nh-32_hdq-128_hdv-128": "torch_cudnn",
+        f"flashattn3____bfloat16__{fwbw_str}__nh-32_hdq-128_hdv-128": "flashattn3",
+        f"mamba____bfloat16__{fwbw_str}__nh-1_hdv-8192_hdq-16": "mamba",
+        f"mamba____bfloat16__{fwbw_str}__nh-1_hdv-4096_hdq-16": "mamba-half",
+        f"mamba2{mamba_version}____bfloat16__{fwbw_str}__nh-128_hdv-64_hdq-64_cs-256": "mamba2",
+        f"mamba2{mamba_version}____bfloat16__{fwbw_str}__nh-64_hdv-64_hdq-64_cs-256": "mamba2-half",
+        f"chunk_gla____bfloat16__{fwbw_str}__nh-{num_heads}_hdv-{hdv}_hdq-{hdq}": "chunk_gla",
+        f"chunkwise--triton_limit_chunk__bfloat16__{fwbw_str}__cs-64_nh-{num_heads}_hdv-{hdv}_hdq-{hdq}": "mlstmexp_triton_limit_chunk",
+        f"chunkwise--triton_xl_chunk__bfloat16__{fwbw_str}__cs-128_nh-{num_heads}_hdv-{hdv}_hdq-{hdq}": "mlstmexp_triton_xl_chunk",
+        f"chunkwise--triton_xl_chunk_siging__bfloat16__{fwbw_str}__cs-128_nh-{num_heads}_hdv-{hdv}_hdq-{hdq}_n-False": "mlstmsig_triton_xl_chunk",
+        f"fused_chunk_gla__bfloat16__{fwbw_str}__nh-{num_heads}_hdv-{hdv}_hdq-{hdq}": "fused_chunk_gla",
+        f"chunk_simple_gla__bfloat16__{fwbw_str}__nh-{num_heads}_hdv-{hdv}_hdq-{hdq}": "chunk_simple_gla",
+    }
+
+col_order_consttoken_rerun = [
+    "torch_flashattn",
+    "torch_cudnn",
+    "flashattn3",
+    "chunk_gla",
+    "chunk_simple_gla",
+    # "mamba",
+    # "mamba2",
+    "mamba-half",
+    "mamba2-half",
+    "mlstmexp_triton_limit_chunk",
+    "mlstmexp_triton_xl_chunk",
+    "mlstmsig_triton_xl_chunk",
+]
+
+kernel_colors_rerun = {
+    "torch_flashattn": "#165b89",
+    "torch_cudnn": "#439ebd",
+    "flashattn3": "#80a8b3",
+    "mamba2_noconv": "#d08814",
+    "mamba2": "red",
+    "mamba": "black",
+    "mamba2-half": "#d08814",
+    "mamba-half": "#ffd449",
+    "chunk_simple_gla": "#4fb72e",
+    "fused_chunk_gla": "#548c2f",
+    "chunk_gla": "#548c2f",
+    "mlstmexp_triton_limit_chunk": "#f0acb9",
+    "mlstmexp_torch_native": "#e52e66",
+    "mlstmexp_triton_xl_chunk": "#e52e66",
+    "mlstmsig_triton_xl_chunk": "#9a3c73",
+}
+
+
+kernel_labels_rerun = {
+    "torch_flashattn": "Torch FlashAttn",
+    "torch_cudnn": "cuDNN FlashAttn",
+    "flashattn3": "FlashAttn 3",
+    # "mamba2_noconv": "Mamba 2 SSD",
+    "mamba2": "Mamba 2 double",
+    "mamba": "Mamba double",
+    "mamba2-half": "Mamba 2",
+    "mamba-half": "Mamba",
+    "chunk_simple_gla": "Simple GLA (FLA)",
+    "fused_chunk_gla": "GLA (fused)",
+    "chunk_gla": "GLA (FLA)",
+    "mlstmexp_triton_limit_chunk": "mLSTMexp (limit chunk)",
+    "mlstmexp_torch_native": "mLSTM (torch)",
+    "mlstmexp_triton_xl_chunk": "mLSTMexp (TFLA XL chunk)",
+    "mlstmsig_triton_xl_chunk": "mLSTMsig (TFLA XL chunk)",
+}
+
+style_dict_rerun = {
+    key: {"color": kernel_colors_rerun[key], "label": value}
+    for key, value in kernel_labels_rerun.items()
+}
 
 col_order_fwbw_ = []
 col_order_fw = [
