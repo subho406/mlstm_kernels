@@ -279,7 +279,7 @@ def get_kernel_labels_appendix(
 
     label_mapping.update(
         {
-            "chunk_simple_gla": "Simple GLA",
+            "chunk_simple_gla": "Simple GLA (chunk)",
             "fused_chunk_gla": "GLA (fused)",
             "chunk_gla": "GLA (chunk)",
             "mlstmexp_triton_limit_chunk": "mLSTMexp (limit chunk)",
@@ -336,8 +336,8 @@ def get_col_order_appendix(
     mlstm: Literal["sig", "exp"] = "sig",
 ):
     col_order = [
-        "chunk_simple_gla",
         "chunk_gla",
+        "chunk_simple_gla",
         "fused_chunk_gla",
         "mlstmexp_triton_limit_chunk",
     ]
@@ -366,9 +366,9 @@ def map_headdim_fwbw_data_col_to_plot_col_mapping(
 
 
 col_order_headdim = [
-    "fused_chunk_gla",
     "chunk_gla",
     "chunk_simple_gla",
+    "fused_chunk_gla",
     # "mamba",
     # "mamba2",
     # "mamba-half",
@@ -406,9 +406,9 @@ kernel_labels_headdim = {
     "mamba": "Mamba double",
     "mamba2-half": "Mamba 2",
     "mamba-half": "Mamba",
-    "chunk_simple_gla": "Simple GLA (FLA)",
+    "chunk_simple_gla": "Simple GLA (chunk)",
     "fused_chunk_gla": "GLA (fused)",
-    "chunk_gla": "GLA (FLA)",
+    "chunk_gla": "GLA (chunk)",
     "mlstmexp_triton_limit_chunk": "mLSTMexp (limit chunk)",
     "mlstmexp_torch_native": "mLSTM (torch)",
     "mlstmexp_triton_xl_chunk": "mLSTMexp (TFLA XL chunk)",
