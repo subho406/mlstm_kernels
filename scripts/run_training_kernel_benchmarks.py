@@ -397,6 +397,7 @@ def consttoken_benchmark_mlstm_triton(
     debug: bool = False,
     sequence_length_limits=[9, 17],
     num_heads: int | None = 8,
+    half_qkdim: bool = True,
 ):
     """
     Const token benchmark for the mlstm chunkwise triton kernels.
@@ -408,7 +409,9 @@ def consttoken_benchmark_mlstm_triton(
     embedding_dim = 4096
     num_heads = num_heads if num_heads is not None else 8
     head_dim_v = embedding_dim // num_heads
-    head_dim_qk = embedding_dim // num_heads // 2
+    head_dim_qk = embedding_dim // num_heads
+    if half_qkdim:
+        head_dim_qk = half_qkdim // 2
     sequence_lengths = list(map(lambda i: 1 << i, range(*sequence_length_limits)))
     batch_sizes = list(
         map(
@@ -485,6 +488,66 @@ x_axis_param: "sequence_length"
 kernel_specs: {fla_kernel_specs.format(fwbw=fwbw, num_heads=num_heads, head_dim_v=head_dim_v, head_dim_qk=head_dim_qk)}
 
 benchmark_name: fla_constant_tokens_sequence_{"fwbw" if fwbw else "fw"}
+"""
+
+    cfg = from_dict(
+        data_class=BenchmarkConfig,
+        data=OmegaConf.to_container(OmegaConf.create(cfg_yaml)),
+    )
+
+    run_and_record_benchmarks(cfg, create_training_kernel_benchmark, output_folder)
+
+def consttoken_benchmark_lightning_attn2(
+    output_folder: Path,
+    fwbw: bool = True,
+    debug: bool = False,
+    sequence_length_limits=[9, 17],
+    num_heads: int = 32,
+):
+    """
+    Const token benchmark for the lightning attention 2 triton kernels.
+
+    This benchmark uses head dimensions as they would be used in a 7B model (i.e. embedding dimension 4096).
+
+    Notes: 
+    - Lightning attention does not support different head dimensions for qk and v.
+    - It only supports head dimensions up to 128, i.e. num_heads = 32 or 64
+    """
+    embedding_dim = 4096
+    num_heads = num_heads if num_heads is not None else 32
+    head_dim_v = embedding_dim // num_heads
+    head_dim_qk = embedding_dim // num_heads
+    sequence_lengths = list(map(lambda i: 1 << i, range(*sequence_length_limits)))
+    batch_sizes = list(
+        map(
+            lambda i: 1 << i,
+            reversed(range(sequence_length_limits[1] - sequence_length_limits[0])),
+        )
+    )
+
+    cfg_yaml = f"""
+vary_type: sequence
+vary_params:
+  sequence_length: {sequence_lengths}
+  batch_size: {batch_sizes}
+fixed_params:
+  fwbw: {fwbw}
+  rep: {30 if not debug else 10}
+  warmup: {10 if not debug else 3}
+  result_aggregation: "median"
+  
+x_axis_param: "sequence_length"
+
+kernel_specs: 
+  - kernel_name: "lightning_attn2"
+    dtype: bfloat16
+    fwbw: {fwbw}
+    additional_params:
+      num_heads: {num_heads}
+      head_dim_v: {head_dim_v}
+      head_dim_qk: {head_dim_qk}
+
+benchmark_name: lightning_attn2_constant_tokens_sequence_{"fwbw" if fwbw else "fw"}
 """
 
     cfg = from_dict(
@@ -717,7 +780,7 @@ def run_multiple_benchmarks(
     consttoken_benchmark: str | None = None,
     headdim_benchmark: str | None = None,
     num_heads: int | None = None,
-    half_qkdim: bool = False,
+    half_qkdim: bool = True,
     batch_size: int | None = None,
 ):
     if consttoken_benchmark is not None:
@@ -731,16 +794,23 @@ def run_multiple_benchmarks(
 
         if consttoken_benchmark == "mlstm_triton":
             consttoken_benchmark_mlstm_triton(
-                output_folder, fwbw=True, debug=debug, num_heads=num_heads
+                output_folder, fwbw=True, debug=debug, num_heads=num_heads, half_qkdim=half_qkdim
             )
             consttoken_benchmark_mlstm_triton(
-                output_folder, fwbw=False, debug=debug, num_heads=num_heads
+                output_folder, fwbw=False, debug=debug, num_heads=num_heads, half_qkdim=half_qkdim
             )
         elif consttoken_benchmark == "fla":
             consttoken_benchmark_fla(
                 output_folder, fwbw=True, debug=debug, num_heads=num_heads
             )
             consttoken_benchmark_fla(
+                output_folder, fwbw=False, debug=debug, num_heads=num_heads
+            )
+        elif consttoken_benchmark == "lightning_attn2":
+            consttoken_benchmark_lightning_attn2(
+                output_folder, fwbw=True, debug=debug, num_heads=num_heads
+            )
+            consttoken_benchmark_lightning_attn2(
                 output_folder, fwbw=False, debug=debug, num_heads=num_heads
             )
         elif consttoken_benchmark == "mamba":
@@ -803,7 +873,7 @@ if __name__ == "__main__":
         default=None,
         help="Name of the head dim benchmark.",
     )
-    parser.add_argument("--half_qkdim", action="store_true")
+    parser.add_argument("--half_qkdim", type=int, default=1, required=False)
     parser.add_argument("--batch_size", type=int, required=False)
 
     args = parser.parse_args()
@@ -815,7 +885,7 @@ if __name__ == "__main__":
         consttoken_benchmark=args.consttoken_benchmark,
         num_heads=args.num_heads,
         headdim_benchmark=args.headdim_benchmark,
-        half_qkdim=args.half_qkdim,
+        half_qkdim=bool(args.half_qkdim),
         batch_size=args.batch_size,
     )
 
