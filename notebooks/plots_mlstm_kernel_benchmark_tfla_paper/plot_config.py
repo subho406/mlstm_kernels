@@ -425,26 +425,26 @@ style_dict_headdim = {
 
 def map_consttoken_fwbw_lightnattn_data_col_to_plot_col_mapping(
     fwbw: bool,
-    num_heads: int,
     half_qkdim: bool,
+    num_heads: list[int] = [32, 64],
 ) -> dict[str, str]:
-    hdv = 4096 // num_heads
-    hdq = hdv // 2 if half_qkdim else hdv
-
     fwbw_str = "fwbw" if fwbw else "fw"
     chunk_sizes = [64, 128, 256, 512, 1024, 2048, 4096]
     xl_chunk_dict = {}
-    for cs in chunk_sizes:
-        xl_chunk_dict[
-            f"chunkwise--triton_xl_chunk__bfloat16__{fwbw_str}__cs-{cs}_nh-{num_heads}_hdv-{hdv}_hdq-{hdq}"
-        ] = f"mlstmexp_triton_xl_chunk--cs-{cs}"
-        xl_chunk_dict[
-            f"chunkwise--triton_xl_chunk_siging__bfloat16__{fwbw_str}__cs-{cs}_nh-{num_heads}_hdv-{hdv}_hdq-{hdq}_n-False"
-        ] = f"mlstmsig_triton_xl_chunk--cs-{cs}"
+    for nh in num_heads:
+        hdv = 4096 // nh
+        hdq = hdv // 2 if half_qkdim else hdv
+        for cs in chunk_sizes:
+            xl_chunk_dict[
+                f"chunkwise--triton_xl_chunk__bfloat16__{fwbw_str}__cs-{cs}_nh-{nh}_hdv-{hdv}_hdq-{hdq}"
+            ] = f"mlstmexp_triton_xl_chunk--nh-{nh}-cs-{cs}"
+            xl_chunk_dict[
+                f"chunkwise--triton_xl_chunk_siging__bfloat16__{fwbw_str}__cs-{cs}_nh-{nh}_hdv-{hdv}_hdq-{hdq}_n-False"
+            ] = f"mlstmsig_triton_xl_chunk--nh-{nh}-cs-{cs}"
 
     xl_chunk_dict.update(
         {
-            f"chunkwise--triton_limit_chunk__bfloat16__{fwbw_str}__cs-64_nh-{num_heads}_hdv-{hdv}_hdq-{hdq}": "mlstmexp_triton_limit_chunk",
+            f"chunkwise--triton_limit_chunk__bfloat16__{fwbw_str}__cs-64_nh-{nh}_hdv-{hdv}_hdq-{hdq}": "mlstmexp_triton_limit_chunk",
             f"lightning_attn2__bfloat16__{fwbw_str}__nh-32_hdv-128_hdq-128": "lightnattn_nh32",
             f"lightning_attn2__bfloat16__{fwbw_str}__nh-64_hdv-64_hdq-64": "lightnattn_nh64",
         }
@@ -454,11 +454,17 @@ def map_consttoken_fwbw_lightnattn_data_col_to_plot_col_mapping(
 
 def get_kernel_labels_lightnattn(
     chunk_sizes: list[int] = [64, 128, 256, 512, 1024, 2048, 4096],
+    num_heads: list[int] = [32, 64],
 ) -> dict[str, str]:
     label_mapping = {}
-    for cs in chunk_sizes:
-        label_mapping[f"mlstmsig_triton_xl_chunk--cs-{cs}"] = f"mLSTMsig[{cs}]"
-        label_mapping[f"mlstmexp_triton_xl_chunk--cs-{cs}"] = f"mLSTMexp[{cs}]"
+    for nh in num_heads:
+        for cs in chunk_sizes:
+            label_mapping[f"mlstmsig_triton_xl_chunk--nh-{nh}-cs-{cs}"] = (
+                f"mLSTMsigNH{nh}[{cs}]"
+            )
+            label_mapping[f"mlstmexp_triton_xl_chunk--nh-{nh}-cs-{cs}"] = (
+                f"mLSTMexpNH{nh}[{cs}]"
+            )
 
     label_mapping.update(
         {
@@ -466,8 +472,8 @@ def get_kernel_labels_lightnattn(
             # "fused_chunk_gla": "GLA (fused)",
             # "chunk_gla": "GLA (chunk)",
             "mlstmexp_triton_limit_chunk": "mLSTMexp (limit chunk)",
-            "lightnattn_nh32": "LightnAttn (NH=32)",
-            "lightnattn_nh64": "LightnAttn (NH=64)",
+            "lightnattn_nh32": "LightnAttnNH32",
+            "lightnattn_nh64": "LightnAttnNH64",
         }
     )
     return label_mapping
@@ -477,15 +483,22 @@ def get_kernel_color_mapping_lightnattn(
     chunk_sizes: list[int] = [64, 128, 256, 512, 1024, 2048, 4096],
     colormap=pink_cmap,
     cmap_start_end: tuple[float, float] = (0, 0.75),
+    num_heads: list[int] = [32, 64],
+    override_color_mapping: dict[str, Any] = {},
 ) -> dict[str, Any]:
     color_mapping = {}
 
     mlstm_colors = colormap(
         np.linspace(cmap_start_end[0], cmap_start_end[1], len(chunk_sizes))
     )
-    for i, cs in enumerate(chunk_sizes):
-        color_mapping[f"mlstmsig_triton_xl_chunk--cs-{cs}"] = mlstm_colors[i]
-        color_mapping[f"mlstmexp_triton_xl_chunk--cs-{cs}"] = mlstm_colors[i]
+    for nh in num_heads:
+        for i, cs in enumerate(chunk_sizes):
+            color_mapping[f"mlstmsig_triton_xl_chunk--nh-{nh}-cs-{cs}"] = mlstm_colors[
+                i
+            ]
+            color_mapping[f"mlstmexp_triton_xl_chunk--nh-{nh}-cs-{cs}"] = mlstm_colors[
+                i
+            ]
 
     color_mapping.update(
         {
@@ -493,8 +506,9 @@ def get_kernel_color_mapping_lightnattn(
             "fused_chunk_gla": "#aeed9aff",
             "chunk_gla": "#548c2f",
             "mlstmexp_triton_limit_chunk": "#e52e66",  # plt.cm.PiYG(0)#"#f0acb9", #plt.cm.tab10(0), #"#f0acb9",
-            "lightnattn_nh32": plt.cm.tab20c(13), #"grey",
-            "lightnattn_nh64": plt.cm.tab20c(12), #"black",
+            "lightnattn_nh32": plt.cm.tab20c(12),  # "grey",
+            "lightnattn_nh64": plt.cm.tab20c(13),  # "black",
+            **override_color_mapping,
         }
     )
     return color_mapping
@@ -504,10 +518,18 @@ def get_style_dict_lightnattn(
     chunk_sizes: list[int] = [64, 128, 256, 512, 1024, 2048, 4096],
     colormap=pink_cmap,
     cmap_start_end: tuple[float, float] = (0, 0.75),
+    num_heads: list[int] = [32, 64],
+    override_color_mapping: dict[str, Any] = {},
 ) -> dict:
-    label_mapping = get_kernel_labels_lightnattn(chunk_sizes=chunk_sizes)
+    label_mapping = get_kernel_labels_lightnattn(
+        chunk_sizes=chunk_sizes, num_heads=num_heads
+    )
     color_mapping = get_kernel_color_mapping_lightnattn(
-        chunk_sizes=chunk_sizes, colormap=colormap, cmap_start_end=cmap_start_end
+        chunk_sizes=chunk_sizes,
+        colormap=colormap,
+        cmap_start_end=cmap_start_end,
+        num_heads=num_heads,
+        override_color_mapping=override_color_mapping,
     )
 
     style_dict = {
@@ -521,81 +543,25 @@ def get_style_dict_lightnattn(
 def get_col_order_lightnattn(
     chunk_sizes: list[int] = [64, 128, 256, 512, 1024, 2048, 4096],
     mlstm: Literal["sig", "exp"] = "sig",
+    num_heads: int = 32,
+    additional_col: str = None
 ):
     col_order = [
         # "chunk_gla",
         # "chunk_simple_gla",
         # "fused_chunk_gla",
-        "lightnattn_nh32",
         "lightnattn_nh64",
+        "lightnattn_nh32",
         # "mlstmexp_triton_limit_chunk",
     ]
-
+    col_order += [
+        "mlstmexp_triton_limit_chunk",
+    ]
+    if additional_col:
+        col_order += [additional_col]
+    nh = num_heads
     for cs in chunk_sizes:
-        col_order.append(f"mlstm{mlstm}_triton_xl_chunk--cs-{cs}")
-    
-    col_order += ["mlstmexp_triton_limit_chunk",]
+        col_order.append(f"mlstm{mlstm}_triton_xl_chunk--nh-{nh}-cs-{cs}")
+
 
     return col_order
-
-
-###
-
-
-# def map_consttoken_fwbw_data_col_to_plot_col_mapping_lightnattn(
-#     fwbw: bool, num_heads: int = 16, mamba_version: str = ""
-# ) -> dict[str, str]:
-#     hdv = 4096 // num_heads
-#     hdq = int(0.5 * hdv)
-
-#     fwbw_str = "fwbw" if fwbw else "fw"
-#     return {
-#         f"chunkwise--triton_limit_chunk__bfloat16__{fwbw_str}__cs-64_nh-{num_heads}_hdv-{hdv}_hdq-{hdq}": "mlstmexp_triton_limit_chunk",
-#         f"chunkwise--triton_xl_chunk__bfloat16__{fwbw_str}__cs-128_nh-{num_heads}_hdv-{hdv}_hdq-{hdq}": "mlstmexp_triton_xl_chunk",
-#         f"chunkwise--triton_xl_chunk_siging__bfloat16__{fwbw_str}__cs-128_nh-{num_heads}_hdv-{hdv}_hdq-{hdq}_n-False": "mlstmsig_triton_xl_chunk",
-#         f"lightning_attn2__bfloat16__{fwbw_str}__nh-32_hdv-128_hdq-128": "lightnattn_nh32",
-#         f"lightning_attn2__bfloat16__{fwbw_str}__nh-64_hdv-64_hdq-64": "lightnattn_nh64",
-#     }
-
-
-# col_order_consttoken_lightnattn = [
-#     "lightnattn_nh32",
-#     "lightnattn_nh64",
-#     # "mlstmexp_triton_limit_chunk",
-#     # "mlstmexp_triton_xl_chunk",
-#     # "mlstmsig_triton_xl_chunk",
-# ]
-
-# kernel_colors_lightnattn = {
-#     "torch_flashattn": "#165b89",
-#     "torch_cudnn": "#439ebd",
-#     "flashattn3": "#80a8b3",
-#     "mamba2_noconv": "#d08814",
-#     "mamba2": "red",
-#     "mamba": "black",
-#     "mamba2-half": "#d08814",
-#     "mamba-half": "#ffd449",
-#     "chunk_simple_gla": "#4fb72e",
-#     "fused_chunk_gla": "#548c2f",
-#     "chunk_gla": "#548c2f",
-#     "mlstmexp_triton_limit_chunk": "#f0acb9",
-#     "mlstmexp_torch_native": "#e52e66",
-#     "mlstmexp_triton_xl_chunk": "#e52e66",
-#     "mlstmsig_triton_xl_chunk": "#9a3c73",
-#     "lightnattn_nh32": "grey",
-#     "lightnattn_nh64": "black",
-# }
-
-
-# kernel_labels_lightnattn = {
-#     "mlstmexp_triton_limit_chunk": "mLSTMexp (limit chunk)",
-#     "mlstmexp_triton_xl_chunk": "mLSTMexp (TFLA XL chunk)",
-#     "mlstmsig_triton_xl_chunk": "mLSTMsig (TFLA XL chunk)",
-#     "lightnattn_nh32": "LightnAttn (NH=32)",
-#     "lightnattn_nh64": "LightnAttn (NH=64)",
-# }
-
-# style_dict_lightnattn = {
-#     key: {"color": kernel_colors_lightnattn[key], "label": value}
-#     for key, value in kernel_labels_lightnattn.items()
-# }
