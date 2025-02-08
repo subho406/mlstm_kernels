@@ -5,7 +5,7 @@
 import logging
 from dataclasses import dataclass
 
-from ....utils.kernels import is_power_of_2
+from ...utils.kernels import is_power_of_2
 
 LOGGER = logging.getLogger(__name__)
 
@@ -24,6 +24,11 @@ class XLChunkParams:
     """Inter chunk size."""
     chunk_size_intra: int
     """Intra chunk size."""
+
+    @property
+    def save_states_every_nth_chunk(self) -> int:
+        """Returns the number of chunks after which the states are saved."""
+        return self.chunk_size_intra // self.chunk_size_inter
 
 
 # The default chunk size for the XL chunk kernel.

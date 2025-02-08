@@ -8,7 +8,7 @@ It should allow arbitrary large chunk sizes and head dimensions.
 
 import torch
 
-from ....triton.chunkwise.xl_chunk.kernel_param_heuristics import (
+from ....triton.chunkwise.kernel_param_heuristics import (
     get_xl_chunk_kernel_params,
 )
 from ...utils import contiguous_noctx
@@ -70,10 +70,6 @@ def mlstm_chunkwise_fw(
         chunk_size_intra=chunk_size_intra,
     )
 
-    save_states_every_nth_chunk = (
-        kernel_chunk_params.chunk_size_intra // kernel_chunk_params.chunk_size_inter
-    )
-
     #! materialize the  C_k, n_k, m_k states for each chunk
     matC_k_states, vecN_k_states, scaMinter_k_states = mlstm_chunkwise__recurrent_fw_C(
         matK=matK,
@@ -84,7 +80,7 @@ def mlstm_chunkwise_fw(
         vecN_initial=vecN_initial,
         scaMinter_initial=scaM_initial,
         chunk_size=kernel_chunk_params.chunk_size_inter,
-        save_states_every_nth_chunk=save_states_every_nth_chunk,
+        save_states_every_nth_chunk=kernel_chunk_params.save_states_every_nth_chunk,
         num_stages=num_stages_inter,
         num_warps=num_warps_inter,
     )

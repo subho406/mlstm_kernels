@@ -40,7 +40,7 @@ def _mlstm_chunkwise_fwbw_generator(
     autocast_kernel_dtype: jnp.dtype = jnp.bfloat16,
     return_last_states: bool = False,
     recompute_states_in_bw: bool = True,
-    chunk_size: int = 64,
+    chunk_size: int = 128,
     eps: float = 1e-6,
 ) -> Callable[
     [jax.Array, jax.Array, jax.Array, jax.Array, jax.Array, jax.Array, jax.Array, jax.Array],
@@ -136,6 +136,7 @@ def _mlstm_chunkwise_fwbw_generator(
             matC_initial=matC_initial,
             vecN_initial=vecN_initial,
             scaM_initial=scaM_initial,
+            chunk_size=chunk_size,
             qk_scale=qk_scale,
             return_last_states=return_last_states,
             return_all_states=(not recompute_states_in_bw),
@@ -187,6 +188,7 @@ def _mlstm_chunkwise_fwbw_generator(
                 matDeltaH=matDeltaH,
                 matDeltaC_last=matDeltaC_last,
                 qk_scale=qk_scale,
+                chunk_size=chunk_size,
                 eps=eps,
             )
             # Cast back to original dtypes.
@@ -248,7 +250,7 @@ def mlstm_chunkwise__xl_chunk(
     m_initial: jax.Array | None = None,
     return_last_states: bool = False,
     eps: float = 1e-6,
-    chunk_size: int = 64,  # TODO this is unused for now
+    chunk_size: int = 128,
     autocast_kernel_dtype: jnp.dtype = jnp.float32,
 ) -> jax.Array | tuple[jax.Array, tuple[jax.Array, jax.Array, jax.Array]]:
     """

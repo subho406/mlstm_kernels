@@ -36,8 +36,19 @@ repos:
 - repo: https://github.com/astral-sh/ruff-pre-commit
   rev: v0.6.1
   hooks:
-  # - id: ruff # TODO this does not allow fixtures in pytest
+  # - id: ruff
   #   types_or: [ python, pyi, jupyter ]
   #   args: [ --fix ]
   - id: ruff-format
     types_or: [ python, pyi, jupyter ]
+# This would clean up all notebooks.
+# - repo: https://github.com/srstevenson/nb-clean
+#   rev: 4.0.1
+#   hooks:
+#     - id: nb-clean
+#       args:
+#         - --remove-empty-cells
+#         - --preserve-cell-metadata
+#         - tags
+#         - slideshow
+#         - --

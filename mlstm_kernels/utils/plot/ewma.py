@@ -85,7 +85,7 @@ def ewma_vectorized(data, alpha, offset=None, dtype=None, order="C", out=None):
     if offset is None:
         offset = data[0]
 
-    alpha = np.array(alpha, copy=False).astype(dtype, copy=False)
+    alpha = np.asarray(alpha, dtype=dtype)
 
     # scaling_factors -> 0 as len(data) gets large
     # this leads to divide-by-zeros below
@@ -98,7 +98,7 @@ def ewma_vectorized(data, alpha, offset=None, dtype=None, order="C", out=None):
     out /= scaling_factors[-2::-1]
 
     if offset != 0:
-        offset = np.array(offset, copy=False).astype(dtype, copy=False)
+        offset = np.asarray(offset, dtype=dtype)
         # add offsets
         out += offset * scaling_factors[1:]
 

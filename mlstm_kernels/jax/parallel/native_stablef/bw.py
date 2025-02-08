@@ -1,6 +1,8 @@
 #  Copyright (c) NXAI GmbH.
 #  This software may be used and distributed according to the terms of the NXAI Community License Agreement.
 
+# Maximilian Beck
+
 import jax
 import jax.numpy as jnp
 
@@ -20,8 +22,6 @@ def mlstm_parallel_bw(
     assert matK.shape == (B, NH, S, DHQK)
     assert vecI.shape == (B, NH, S)
     assert vecF.shape == (B, NH, S)
-
-    _dtype, _device = matQ.dtype, matQ.device
 
     vecLogSigF = jax.nn.log_sigmoid(vecF)  # (B, NH, S)
 

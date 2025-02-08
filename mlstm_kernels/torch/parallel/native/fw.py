@@ -28,8 +28,8 @@ def mlstm_parallel_fw(
     _dtype, _device = matQ.dtype, matQ.device
 
     vecLogSigF = F.logsigmoid(vecF)  # (B, NH, S)
+    
     vecLogSigF_cumsum = vecLogSigF.cumsum(-1)
-
     matLogSigF = vecLogSigF_cumsum[:, :, :, None] - vecLogSigF_cumsum[:, :, None, :]
 
     ltr = torch.tril(
