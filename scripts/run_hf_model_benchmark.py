@@ -45,8 +45,8 @@ fixed_params:
 x_axis_param: "batch_size"
 
 kernel_specs:
-  # Note: not implemented for mlstm_simple
-  # - model_name: "mlstm_simple"
+  # Note: not implemented for xlstm.xlstm_large
+  # - model_name: "xlstm.xlstm_large"
   #   weight_dtype: {weight_dtype}
   #   use_torch_compile_model: True
   #   additional_params:
@@ -62,8 +62,8 @@ kernel_specs:
   #     weight_mode: "fused"
 
   #     chunkwise_kernel: chunkwise--triton_xl_chunk
-  #     sequence_kernel: native_sequence__triton_step_fused
-  #     step_kernel: triton_fused
+  #     sequence_kernel: native_sequence__triton
+  #     step_kernel: triton
 
   #     chunk_size: 128
   #     autocast_kernel_dtype: bfloat16
@@ -83,8 +83,8 @@ kernel_specs:
       weight_mode: "fused"
 
       chunkwise_kernel: chunkwise--triton_xl_chunk
-      sequence_kernel: native_sequence__triton_step_fused
-      step_kernel: triton_fused
+      sequence_kernel: native_sequence__triton
+      step_kernel: triton
 
       chunk_size: 128
       autocast_kernel_dtype: bfloat16
@@ -158,7 +158,7 @@ fixed_params:
 x_axis_param: "generation_length"
 
 kernel_specs:
-  - model_name: "mlstm_simple"
+  - model_name: "xlstm.xlstm_large"
     weight_dtype: {weight_dtype}
     use_torch_compile_model: True
     additional_params:
@@ -174,8 +174,8 @@ kernel_specs:
       weight_mode: "fused"
 
       chunkwise_kernel: chunkwise--triton_xl_chunk
-      sequence_kernel: native_sequence__triton_step_fused
-      step_kernel: triton_fused
+      sequence_kernel: native_sequence__triton
+      step_kernel: triton
 
       chunk_size: 128
       autocast_kernel_dtype: bfloat16
@@ -195,8 +195,8 @@ kernel_specs:
       weight_mode: "fused"
 
       chunkwise_kernel: chunkwise--triton_xl_chunk
-      sequence_kernel: native_sequence__triton_step_fused
-      step_kernel: triton_fused
+      sequence_kernel: native_sequence__triton
+      step_kernel: triton
 
       chunk_size: 128
       autocast_kernel_dtype: bfloat16
@@ -288,13 +288,13 @@ kernel_specs:
       weight_mode: "fused"
 
       chunkwise_kernel: chunkwise--triton_xl_chunk
-      sequence_kernel: native_sequence__triton_step_fused
-      step_kernel: triton_fused
+      sequence_kernel: native_sequence__triton
+      step_kernel: triton
 
       chunk_size: 128
       autocast_kernel_dtype: bfloat16
 
-  - model_name: "mlstm_simple"
+  - model_name: "xlstm.xlstm_large"
     weight_dtype: {weight_dtype}
     use_torch_compile_model: {use_torch_compile_model}
     additional_params:
@@ -311,8 +311,8 @@ kernel_specs:
       weight_mode: "fused"
 
       chunkwise_kernel: chunkwise--triton_xl_chunk
-      sequence_kernel: native_sequence__triton_step_fused
-      step_kernel: triton_fused
+      sequence_kernel: native_sequence__triton
+      step_kernel: triton
 
       chunk_size: 128
       autocast_kernel_dtype: bfloat16
@@ -332,13 +332,13 @@ kernel_specs:
       weight_mode: "fused"
 
       chunkwise_kernel: chunkwise--triton_xl_chunk
-      sequence_kernel: native_sequence__triton_step_fused
-      step_kernel: triton_fused
+      sequence_kernel: native_sequence__triton
+      step_kernel: triton
 
       chunk_size: 128
       autocast_kernel_dtype: bfloat16
 
-  - model_name: "mlstm_simple"
+  - model_name: "xlstm.xlstm_large"
     weight_dtype: {weight_dtype}
     use_torch_compile_model: True
     additional_params:
@@ -355,8 +355,8 @@ kernel_specs:
       weight_mode: "fused"
 
       chunkwise_kernel: chunkwise--triton_xl_chunk
-      sequence_kernel: native_sequence__triton_step_fused
-      step_kernel: triton_fused
+      sequence_kernel: native_sequence__triton
+      step_kernel: triton
 
       chunk_size: 128
       autocast_kernel_dtype: bfloat16
