@@ -1,7 +1,6 @@
 # Tiled Flash Linear Attention - mLSTM Kernels
 
-<img src="./res/Figure_1-7.svg" width="350px" alt="xLSTM Figure 1">
-<img src="./res/Figure 2 - paper.svg" width="350px" alt="xLSTM Figure 1">
+<img src="./res/Figure_1-7.svg" width="450px" alt="xLSTM Figure 1"> <img src="./res/Figure 2 - paper.svg" width="500px" alt="xLSTM Figure 1">
 
 >Paper: TODO
 >
