@@ -1,6 +1,6 @@
 # Tiled Flash Linear Attention - mLSTM Kernels
 
-<img src="./res/Figure_1-7.svg" width="450px" alt="xLSTM Figure 1"> <img src="./res/Figure 2 - paper.svg" width="500px" alt="xLSTM Figure 1">
+<img src="./res/Figure_1-7.svg" width="350px" alt="xLSTM Figure 1"> <img src="./res/Figure 2 - paper.svg" width="400px" alt="xLSTM Figure 1">
 
 >Paper: TODO
 >
@@ -280,10 +280,10 @@ Please cite our papers if you use this codebase, or otherwise find our work valu
 @article{beck:25xlstm7b,
   title        = {{xLSTM 7B}: A Recurrent LLM for Fast and Efficient Inference},
   author       = {Maximilian Beck and Korbinian Pöppel and Phillip Lippe and Richard Kurle and Patrick M. Blies and Günter Klambauer and Sebastian Böck and Sepp Hochreiter},
-  year         = {2024},
-  volume       = {XXX},
+  year         = {2025},
+  volume       = {2503.13427},
   journal      = {arXiv},
   primaryclass = {cs.LG},
-  url          = {XXX}
+  url          = {https://arxiv.org/abs/2503.13427}
 }
 ```
