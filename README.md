@@ -286,4 +286,12 @@ Please cite our papers if you use this codebase, or otherwise find our work valu
   primaryclass = {cs.LG},
   url          = {https://arxiv.org/abs/2503.13427}
 }
+
+@inproceedings{beck:24xlstm,
+      title={xLSTM: Extended Long Short-Term Memory},
+      author={Maximilian Beck and Korbinian Pöppel and Markus Spanring and Andreas Auer and Oleksandra Prudnikova and Michael Kopp and Günter Klambauer and Johannes Brandstetter and Sepp Hochreiter},
+      booktitle = {Thirty-eighth Conference on Neural Information Processing Systems},
+      year={2024},
+      url={https://arxiv.org/abs/2405.04517},
+}
 ```
