@@ -10,6 +10,7 @@ from .template_test_parallel_interface import template_test_parallel_interface
 if not torch.cuda.is_available():
     pytest.skip("Skipping all tests, since there is no GPU available")
 
+
 @pytest.fixture
 def mlstm_parallel_interface_test() -> callable:
     return template_test_parallel_interface

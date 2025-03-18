@@ -58,7 +58,9 @@ def mlstm_chunkwise__parallel_fw_H(
     NC = NUM_CHUNKS
     L = CHUNK_SIZE
 
-    assert NC == vecB.shape[2], "Number of chunks must match the number of chunks in vecB."
+    assert (
+        NC == vecB.shape[2]
+    ), "Number of chunks must match the number of chunks in vecB."
     assert L == vecB.shape[3], "Chunk size must match the chunk size in vecB."
     assert is_power_of_2(L), "Chunk size must be a power of 2."
 

@@ -2,9 +2,6 @@
 #  This software may be used and distributed according to the terms of the NXAI Community License Agreement.
 
 # Maximilian Beck
-import triton
-import triton.language as tl
-
 """
 Triton.
 
@@ -15,6 +12,9 @@ Ca. 30% faster than the torch.compile version.
 
 First kernel computes the next C, n, m states. Second kernel computes the output H.
 """
+
+import triton
+import triton.language as tl
 
 ENABLE_AUTOTUNING = True
 
@@ -117,14 +117,34 @@ def recurrent_step_fw_kernel_C(
         order=(0, 1),
     )
 
-    vecN_old_ptr = vecN_old + i_bnh * s_vecN_nh + i_dhqk * BLOCK_DQK * s_vecN_dhqk + tl.arange(0, BLOCK_DQK)
-    vecN_new_ptr = vecN_new + i_bnh * s_vecN_nh + i_dhqk * BLOCK_DQK * s_vecN_dhqk + tl.arange(0, BLOCK_DQK)
+    vecN_old_ptr = (
+        vecN_old
+        + i_bnh * s_vecN_nh
+        + i_dhqk * BLOCK_DQK * s_vecN_dhqk
+        + tl.arange(0, BLOCK_DQK)
+    )
+    vecN_new_ptr = (
+        vecN_new
+        + i_bnh * s_vecN_nh
+        + i_dhqk * BLOCK_DQK * s_vecN_dhqk
+        + tl.arange(0, BLOCK_DQK)
+    )
 
     scaM_old_ptr = scaM_old + i_bnh * s_scaM_nh
     scaM_new_ptr = scaM_new + i_bnh * s_scaM_nh
 
-    vecK_ptr = vecK + i_bnh * s_vecQK_nh + i_dhqk * BLOCK_DQK * s_vecQK_dhqk + tl.arange(0, BLOCK_DQK)
-    vecV_ptr = vecV + i_bnh * s_vecVH_nh + i_dhv * BLOCK_DV * s_vecVH_dhv + tl.arange(0, BLOCK_DV)
+    vecK_ptr = (
+        vecK
+        + i_bnh * s_vecQK_nh
+        + i_dhqk * BLOCK_DQK * s_vecQK_dhqk
+        + tl.arange(0, BLOCK_DQK)
+    )
+    vecV_ptr = (
+        vecV
+        + i_bnh * s_vecVH_nh
+        + i_dhv * BLOCK_DV * s_vecVH_dhv
+        + tl.arange(0, BLOCK_DV)
+    )
 
     scaI_ptr = scaI + i_bnh * s_scaIF_nh
     scaF_ptr = scaF + i_bnh * s_scaIF_nh
@@ -141,9 +161,13 @@ def recurrent_step_fw_kernel_C(
 
     # update rule
     # cast back to state type
-    scaM_new_val = tl.maximum(scaFlog_val + scaM_old_val, scaI_val)  # .to(scaM_old.type.element_ty)
+    scaM_new_val = tl.maximum(
+        scaFlog_val + scaM_old_val, scaI_val
+    )  # .to(scaM_old.type.element_ty)
 
-    scaF_act = tl.exp(scaFlog_val + scaM_old_val - scaM_new_val).to(scaM_old.type.element_ty)
+    scaF_act = tl.exp(scaFlog_val + scaM_old_val - scaM_new_val).to(
+        scaM_old.type.element_ty
+    )
     scaI_act = tl.exp(scaI_val - scaM_new_val).to(scaM_old.type.element_ty)
 
     vecK_val = tl.load(vecK_ptr)
@@ -151,12 +175,16 @@ def recurrent_step_fw_kernel_C(
 
     matC_old_val = tl.load(matC_old_bptr, boundary_check=(0, 1), padding_option="zero")
 
-    matC_new_val = scaF_act * matC_old_val + scaI_act * (vecK_val[:, None] * vecV_val[None, :])
+    matC_new_val = scaF_act * matC_old_val + scaI_act * (
+        vecK_val[:, None] * vecV_val[None, :]
+    )
 
     vecN_new_val = scaF_act * tl.load(vecN_old_ptr) + scaI_act * vecK_val
 
     # ? Store data
-    tl.store(matC_new_bptr, matC_new_val.to(matC_new.type.element_ty), boundary_check=(0, 1))
+    tl.store(
+        matC_new_bptr, matC_new_val.to(matC_new.type.element_ty), boundary_check=(0, 1)
+    )
     tl.store(vecN_new_ptr, vecN_new_val.to(vecN_new.type.element_ty))
     tl.store(scaM_new_ptr, scaM_new_val.to(scaM_new.type.element_ty))
 
@@ -208,7 +236,12 @@ def recurrent_step_fw_kernel_H(
     )
     scaM_new_ptr = scaM_new + i_bnh * s_scaM_nh
     scaM_new_val = tl.load(scaM_new_ptr)
-    vecH_ptr = vecH + i_bnh * s_vecVH_nh + i_dhv * BLOCK_DV * s_vecVH_dhv + tl.arange(0, BLOCK_DV)
+    vecH_ptr = (
+        vecH
+        + i_bnh * s_vecVH_nh
+        + i_dhv * BLOCK_DV * s_vecVH_dhv
+        + tl.arange(0, BLOCK_DV)
+    )
 
     h_num = tl.zeros((BLOCK_DV,), dtype=tl.float32)
     qn_dotproduct = tl.zeros((1,), dtype=tl.float32)
@@ -216,12 +249,24 @@ def recurrent_step_fw_kernel_H(
     NUM_BLOCKS_DQK = triton.cdiv(DHQK, BLOCK_DQK)
 
     for i_dhqk in range(NUM_BLOCKS_DQK):
-        vecN_new_ptr = vecN_new + i_bnh * s_vecN_nh + i_dhqk * BLOCK_DQK * s_vecN_dhqk + tl.arange(0, BLOCK_DQK)
+        vecN_new_ptr = (
+            vecN_new
+            + i_bnh * s_vecN_nh
+            + i_dhqk * BLOCK_DQK * s_vecN_dhqk
+            + tl.arange(0, BLOCK_DQK)
+        )
 
-        vecQ_ptr = vecQ + i_bnh * s_vecQK_nh + i_dhqk * BLOCK_DQK * s_vecQK_dhqk + tl.arange(0, BLOCK_DQK)
+        vecQ_ptr = (
+            vecQ
+            + i_bnh * s_vecQK_nh
+            + i_dhqk * BLOCK_DQK * s_vecQK_dhqk
+            + tl.arange(0, BLOCK_DQK)
+        )
 
         # ? Load data
-        matC_new_val = tl.load(matC_new_bptr, boundary_check=(0, 1), padding_option="zero")
+        matC_new_val = tl.load(
+            matC_new_bptr, boundary_check=(0, 1), padding_option="zero"
+        )
         vecN_new_val = tl.load(vecN_new_ptr)
 
         vecQ_val = tl.load(vecQ_ptr) * qk_scale

@@ -1,10 +1,6 @@
 #  Copyright (c) NXAI GmbH.
 #  This software may be used and distributed according to the terms of the NXAI Community License Agreement.
-
-from time import time
-from typing import List
-
-""" The code in this file is adapted from https://github.com/BenediktAlkin/KappaProfiler.
+"""The code in this file is adapted from https://github.com/BenediktAlkin/KappaProfiler.
 
 Usage:
 ```
@@ -16,6 +12,9 @@ print(f"operation took {sw.elapsed_seconds} seconds")
 ```
 
 """
+
+from time import time
+from typing import List
 
 FORMAT_DATETIME_SHORT = "%y%m%d_%H%M%S"
 FORMAT_DATETIME_MID = "%Y-%m-%d %H:%M:%S"
@@ -61,7 +60,9 @@ class Stopwatch:
 
     @property
     def last_lap_time(self) -> float:
-        assert len(self._lap_elapsed_seconds) > 0, "last_lap_time requires lap()/stop() to be called at least once"
+        assert (
+            len(self._lap_elapsed_seconds) > 0
+        ), "last_lap_time requires lap()/stop() to be called at least once"
         return self._lap_elapsed_seconds[-1]
 
     @property
@@ -70,7 +71,9 @@ class Stopwatch:
 
     @property
     def average_lap_time(self) -> float:
-        assert len(self._lap_elapsed_seconds) > 0, "average_lap_time requires lap()/stop() to be called at least once"
+        assert (
+            len(self._lap_elapsed_seconds) > 0
+        ), "average_lap_time requires lap()/stop() to be called at least once"
         return sum(self._lap_elapsed_seconds) / len(self._lap_elapsed_seconds)
 
     def __enter__(self) -> "Stopwatch":
@@ -86,7 +89,9 @@ class Stopwatch:
 
     @property
     def elapsed_seconds(self) -> float:
-        assert self._start_time is None, "elapsed_seconds requires stopwatch to be stopped"
+        assert (
+            self._start_time is None
+        ), "elapsed_seconds requires stopwatch to be stopped"
         # assert len(self._lap_elapsed_seconds) > 0, "elapsed_seconds requires stopwatch to have been started and stopped"
         return self._total_elapsed_seconds
 

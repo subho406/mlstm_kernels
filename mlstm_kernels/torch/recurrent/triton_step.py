@@ -10,6 +10,7 @@ from ..utils import contiguous_noctx, torch2triton_dtype
 
 # NOTE: This kernel fails in the tests. Therefore, it should not be used.
 
+
 @contiguous_noctx
 def mlstm_recurrent_step__triton_fw(
     matC_old: torch.Tensor,  # (B, NH, DHQK, DHHV)

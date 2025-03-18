@@ -94,8 +94,12 @@ def template_test_parallel_interface(
         loss_layernorm_offset_quadratic(matH_baseline).backward()
     fwbw_seconds = sw.stop()
 
-    print(f"{baseline_name} | fw (ms): {fw_seconds * 1000}, fwbw (ms): {fwbw_seconds * 1000}")
-    LOGGER.info(f"{baseline_name} | fw (ms): {fw_seconds * 1000}, fwbw (ms): {fwbw_seconds * 1000}")
+    print(
+        f"{baseline_name} | fw (ms): {fw_seconds * 1000}, fwbw (ms): {fwbw_seconds * 1000}"
+    )
+    LOGGER.info(
+        f"{baseline_name} | fw (ms): {fw_seconds * 1000}, fwbw (ms): {fwbw_seconds * 1000}"
+    )
 
     # target
     sw = Stopwatch()
@@ -112,8 +116,12 @@ def template_test_parallel_interface(
     if run_backward:
         loss_layernorm_offset_quadratic(matH_target, eps=ln_eps).backward()
     fwbw_seconds = sw.stop()
-    print(f"{target_name} | fw (ms): {fw_seconds * 1000}, fwbw (ms): {fwbw_seconds * 1000}")
-    LOGGER.info(f"{target_name} | fw (ms): {fw_seconds * 1000}, fwbw (ms): {fwbw_seconds * 1000}")
+    print(
+        f"{target_name} | fw (ms): {fw_seconds * 1000}, fwbw (ms): {fwbw_seconds * 1000}"
+    )
+    LOGGER.info(
+        f"{target_name} | fw (ms): {fw_seconds * 1000}, fwbw (ms): {fwbw_seconds * 1000}"
+    )
 
     test_specifier_template_str = "{specifier}_bl-{dtype}"
 
@@ -133,7 +141,9 @@ def template_test_parallel_interface(
         vecF_target,
     ):
         matH_match = check_correctness(
-            test_specifier=test_specifier_template_str.format(specifier="matH", dtype=dtype2str(matH_baseline.dtype)),
+            test_specifier=test_specifier_template_str.format(
+                specifier="matH", dtype=dtype2str(matH_baseline.dtype)
+            ),
             baseline=to_numpy(matH_baseline),
             target=to_numpy(matH_target),
             atol=atol_fw,
@@ -250,11 +260,21 @@ def template_test_parallel_interface(
     # float64 baseline
     if add_fp64_baseline:
         baseline_fp64_dtype = torch.float64
-        matQ_baseline_fp64 = matQ.clone().to(dtype=baseline_fp64_dtype).detach().requires_grad_(True)
-        matK_baseline_fp64 = matK.clone().to(dtype=baseline_fp64_dtype).detach().requires_grad_(True)
-        matV_baseline_fp64 = matV.clone().to(dtype=baseline_fp64_dtype).detach().requires_grad_(True)
-        vecI_baseline_fp64 = vecI.clone().to(dtype=baseline_fp64_dtype).detach().requires_grad_(True)
-        vecF_baseline_fp64 = vecF.clone().to(dtype=baseline_fp64_dtype).detach().requires_grad_(True)
+        matQ_baseline_fp64 = (
+            matQ.clone().to(dtype=baseline_fp64_dtype).detach().requires_grad_(True)
+        )
+        matK_baseline_fp64 = (
+            matK.clone().to(dtype=baseline_fp64_dtype).detach().requires_grad_(True)
+        )
+        matV_baseline_fp64 = (
+            matV.clone().to(dtype=baseline_fp64_dtype).detach().requires_grad_(True)
+        )
+        vecI_baseline_fp64 = (
+            vecI.clone().to(dtype=baseline_fp64_dtype).detach().requires_grad_(True)
+        )
+        vecF_baseline_fp64 = (
+            vecF.clone().to(dtype=baseline_fp64_dtype).detach().requires_grad_(True)
+        )
 
         matH_baseline_fp64 = baseline_fn(
             q=matQ_baseline_fp64,
@@ -288,41 +308,93 @@ def template_test_parallel_interface(
             vecF_target=vecF_target,
         )
 
-    np.testing.assert_allclose(to_numpy(matH_baseline), to_numpy(matH_target), atol=atol_fw, rtol=rtol_fw, err_msg="matH")
+    np.testing.assert_allclose(
+        to_numpy(matH_baseline),
+        to_numpy(matH_target),
+        atol=atol_fw,
+        rtol=rtol_fw,
+        err_msg="matH",
+    )
     if run_backward:
         np.testing.assert_allclose(
-            to_numpy(matQ_baseline.grad), to_numpy(matQ_target.grad), atol=atol_fwbw, rtol=rtol_fwbw, err_msg="matQgrad"
+            to_numpy(matQ_baseline.grad),
+            to_numpy(matQ_target.grad),
+            atol=atol_fwbw,
+            rtol=rtol_fwbw,
+            err_msg="matQgrad",
         )
         np.testing.assert_allclose(
-            to_numpy(matK_baseline.grad), to_numpy(matK_target.grad), atol=atol_fwbw, rtol=rtol_fwbw, err_msg="matKgrad"
+            to_numpy(matK_baseline.grad),
+            to_numpy(matK_target.grad),
+            atol=atol_fwbw,
+            rtol=rtol_fwbw,
+            err_msg="matKgrad",
         )
         np.testing.assert_allclose(
-            to_numpy(matV_baseline.grad), to_numpy(matV_target.grad), atol=atol_fwbw, rtol=rtol_fwbw, err_msg="matVgrad"
+            to_numpy(matV_baseline.grad),
+            to_numpy(matV_target.grad),
+            atol=atol_fwbw,
+            rtol=rtol_fwbw,
+            err_msg="matVgrad",
         )
         np.testing.assert_allclose(
-            to_numpy(vecI_baseline.grad), to_numpy(vecI_target.grad), atol=atol_fwbw, rtol=rtol_fwbw, err_msg="vecIgrad"
+            to_numpy(vecI_baseline.grad),
+            to_numpy(vecI_target.grad),
+            atol=atol_fwbw,
+            rtol=rtol_fwbw,
+            err_msg="vecIgrad",
         )
         np.testing.assert_allclose(
-            to_numpy(vecF_baseline.grad), to_numpy(vecF_target.grad), atol=atol_fwbw, rtol=rtol_fwbw, err_msg="vecFgrad"
+            to_numpy(vecF_baseline.grad),
+            to_numpy(vecF_target.grad),
+            atol=atol_fwbw,
+            rtol=rtol_fwbw,
+            err_msg="vecFgrad",
         )
 
     if add_fp64_baseline:
-        np.testing.assert_allclose(to_numpy(matH_baseline_fp64), to_numpy(matH_target), atol=atol_fw, rtol=rtol_fw, err_msg="matH_fp64")
+        np.testing.assert_allclose(
+            to_numpy(matH_baseline_fp64),
+            to_numpy(matH_target),
+            atol=atol_fw,
+            rtol=rtol_fw,
+            err_msg="matH_fp64",
+        )
         if run_backward:
             np.testing.assert_allclose(
-                to_numpy(matQ_baseline_fp64.grad), to_numpy(matQ_target.grad), atol=atol_fwbw, rtol=rtol_fwbw, err_msg="matQgrad_fp64"
+                to_numpy(matQ_baseline_fp64.grad),
+                to_numpy(matQ_target.grad),
+                atol=atol_fwbw,
+                rtol=rtol_fwbw,
+                err_msg="matQgrad_fp64",
             )
             np.testing.assert_allclose(
-                to_numpy(matK_baseline_fp64.grad), to_numpy(matK_target.grad), atol=atol_fwbw, rtol=rtol_fwbw, err_msg="matKgrad_fp64"
+                to_numpy(matK_baseline_fp64.grad),
+                to_numpy(matK_target.grad),
+                atol=atol_fwbw,
+                rtol=rtol_fwbw,
+                err_msg="matKgrad_fp64",
             )
             np.testing.assert_allclose(
-                to_numpy(matV_baseline_fp64.grad), to_numpy(matV_target.grad), atol=atol_fwbw, rtol=rtol_fwbw, err_msg="matVgrad_fp64"
+                to_numpy(matV_baseline_fp64.grad),
+                to_numpy(matV_target.grad),
+                atol=atol_fwbw,
+                rtol=rtol_fwbw,
+                err_msg="matVgrad_fp64",
             )
             np.testing.assert_allclose(
-                to_numpy(vecI_baseline_fp64.grad), to_numpy(vecI_target.grad), atol=atol_fwbw, rtol=rtol_fwbw, err_msg="vecIgrad_fp64"
+                to_numpy(vecI_baseline_fp64.grad),
+                to_numpy(vecI_target.grad),
+                atol=atol_fwbw,
+                rtol=rtol_fwbw,
+                err_msg="vecIgrad_fp64",
             )
             np.testing.assert_allclose(
-                to_numpy(vecF_baseline_fp64.grad), to_numpy(vecF_target.grad), atol=atol_fwbw, rtol=rtol_fwbw, err_msg="vecFgrad_fp64"
+                to_numpy(vecF_baseline_fp64.grad),
+                to_numpy(vecF_target.grad),
+                atol=atol_fwbw,
+                rtol=rtol_fwbw,
+                err_msg="vecFgrad_fp64",
             )
 
     if save_output_tensors_dir is not None:

@@ -1,3 +1,6 @@
+#  Copyright (c) NXAI GmbH.
+#  This software may be used and distributed according to the terms of the NXAI Community License Agreement.
+
 import torch
 
 from .ops import (
@@ -15,7 +18,7 @@ def mlstm_siging_parallel(
     lower_triangular_matrix: torch.Tensor = None,
     qk_decmask_normalize: bool = True,
     normalization_mode: str = "max_abs_sum_C_1",
-    normalize_sqrt_d: bool = False, # in order to match with new implementation
+    normalize_sqrt_d: bool = False,  # in order to match with new implementation
     normalizer_offset: float = 0.0,
     eps: float = 1e-6,
     **kwargs,
@@ -33,7 +36,7 @@ def mlstm_siging_parallel(
         qk_decmask_normalize (bool, optional): Wether to normalize the combination matrix C. Defaults to True.
         normalization_mode (str, optional): Normalization mode for the combination matrix C. Defaults to "sum_C".
         normalize_sqrt_d (bool, optional): Wether to normalize the combination matrix C by the sqrt of the qk head dimension.
-                                           Originally, this was not present. In the new implementation we add this in order to 
+                                           Originally, this was not present. In the new implementation we add this in order to
                                            match with the exponential input gate version. Defaults to False.
         normalizer_offset (float, optional): Offset for the normalizer. This number is added to the denominator.
                                              Defaults to 0.0.
@@ -67,7 +70,10 @@ def mlstm_siging_parallel(
     if qk_decmask_normalize:
         # (B, NH, S, S)
         C_matrix_normalized = qkdecmask_normalize_parallel(
-            C_matrix=C_matrix, normalization_mode=normalization_mode, normalizer_offset=normalizer_offset, eps=eps
+            C_matrix=C_matrix,
+            normalization_mode=normalization_mode,
+            normalizer_offset=normalizer_offset,
+            eps=eps,
         )
     else:
         C_matrix_normalized = C_matrix

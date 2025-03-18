@@ -62,7 +62,9 @@ def mlstm_chunkwise__recurrent_fw_C(
         str_scaMinterinitial_B_NH = 0
 
     matC_states = (
-        torch.empty(B, NH, (NC + 1) * DHQK, DHHV, device=matK.device, dtype=torch.float32)
+        torch.empty(
+            B, NH, (NC + 1) * DHQK, DHHV, device=matK.device, dtype=torch.float32
+        )
         if matC_states is None
         else matC_states
     )

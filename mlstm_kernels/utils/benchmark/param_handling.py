@@ -73,17 +73,37 @@ class ModelSpec:
 
 @dataclass
 class BenchmarkConfig:
-    vary_type: Literal["grid", "sequence"]
-    vary_params: dict[str, list[Any]] | None
+    """Configuration dataclass for several benchmarks that are run together."""
 
+    vary_type: Literal["grid", "sequence"]
+    """The type of vary parameters. Either 'grid' or 'sequence'.
+    For 'grid', all combinations of the vary parameters are used.
+    For 'sequence', the vary parameters must have the same length and are used in sequence.
+    """
+    vary_params: dict[str, list[Any]] | None
+    """The vary parameters to use for the benchmark.
+    Will be combined with the fixed parameters to create the parameter dictionaries.
+    Example:
+    ```
+    vary_params = {
+        "sequence_length": [512, 1024],
+        "batch_size": [8, 4],
+    }
+    ```
+    """
     fixed_params: dict[str, Any]
+    """The fixed parameters to use for the benchmark."""
 
     # TODO rename kernel_specs to a generic name
     kernel_specs: list[KernelSpec | ModelSpec]
 
     benchmark_name: str
+    """The name of the benchmark. Used for the plot title or folder name."""
 
     x_axis_param: str = None
+    """The parameter to use for the x-axis in the plot.
+    Must be one of the fixed or vary parameters.
+    """
 
     def _get_vary_param_dicts(self) -> list[dict[str, Any]]:
         vary_dicts = []

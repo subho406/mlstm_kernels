@@ -4,7 +4,10 @@
 import torch
 import triton
 
-from ....triton.parallel.limit_headdim import mlstm_parallel_bw_dKdV_kernel, mlstm_parallel_bw_dQ_kernel
+from ....triton.parallel.limit_headdim import (
+    mlstm_parallel_bw_dKdV_kernel,
+    mlstm_parallel_bw_dQ_kernel,
+)
 
 
 def mlstm_parallel_bw(

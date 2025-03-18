@@ -69,8 +69,6 @@ def mlstm_siging_parallel_fw(
         matC = matCtilde
         vecN = None
 
-
     matH = matC @ matV  # (B, NH, S, DH)
-
 
     return (matH, vecN)

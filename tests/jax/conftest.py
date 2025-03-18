@@ -34,7 +34,9 @@ else:
     NUM_DEVICES = len(os.environ["CUDA_VISIBLE_DEVICES"].split(","))
     # Set XLA flags for deterministic operations on GPU. We do not use this flag for training runs
     # as it can slow down the training significantly.
-    os.environ["XLA_FLAGS"] = os.environ.get("XLA_FLAGS", "") + " --xla_gpu_deterministic_ops=true"
+    os.environ["XLA_FLAGS"] = (
+        os.environ.get("XLA_FLAGS", "") + " --xla_gpu_deterministic_ops=true"
+    )
 
 
 # Check if triton is available.
@@ -64,18 +66,19 @@ def pytest_configure():
 
 
 @pytest.fixture
-def torch_parallel_stablef_vs_unstablef_test_data(test_output_folder: Path) -> dict[str, np.ndarray]:
+def torch_parallel_stablef_vs_unstablef_test_data(
+    test_output_folder: Path,
+) -> dict[str, np.ndarray]:
     torch_stablef_vs_unstablef_test_file = (
         test_output_folder
         / "parallel-torch-native_parallel_stablef_custbw-vs-parallel_unstable_custbw_S256B1NH2DHQK64DHHV128.npz"
     )
 
-    assert (
-        torch_stablef_vs_unstablef_test_file.exists()
-    ), f"File {torch_stablef_vs_unstablef_test_file} does not exist. Please run pytorch tests first."
+    assert torch_stablef_vs_unstablef_test_file.exists(), f"File {torch_stablef_vs_unstablef_test_file} does not exist. Please run pytorch tests first."
 
     data = np.load(torch_stablef_vs_unstablef_test_file)
     return data
+
 
 @pytest.fixture
 def default_qkvif() -> tuple[jax.Array, jax.Array, jax.Array, jax.Array, jax.Array]:

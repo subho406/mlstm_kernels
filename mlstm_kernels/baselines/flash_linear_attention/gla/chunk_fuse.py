@@ -53,17 +53,33 @@ def fused_chunk_gla_fwd_kernel(
     b_h = tl.zeros([BK, BV], dtype=tl.float32)
 
     # make block pointers
-    p_q = tl.make_block_ptr(q + i_bh * s_qk_h, (T, DK), (s_qk_t, s_qk_d), (0, i_k * BK), (BT, BK), (1, 0))
+    p_q = tl.make_block_ptr(
+        q + i_bh * s_qk_h, (T, DK), (s_qk_t, s_qk_d), (0, i_k * BK), (BT, BK), (1, 0)
+    )
     p_db = g + i_bh * s_qk_h + (BT - 1) * s_qk_t + i_k * BK + tl.arange(0, BK)
-    p_k = tl.make_block_ptr(k + i_bh * s_qk_h, (DK, T), (s_qk_d, s_qk_t), (i_k * BK, 0), (BK, BT), (0, 1))
-    p_v = tl.make_block_ptr(v + i_bh * s_vo_h, (T, DV), (s_vo_t, s_vo_d), (0, i_v * BV), (BT, BV), (1, 0))
+    p_k = tl.make_block_ptr(
+        k + i_bh * s_qk_h, (DK, T), (s_qk_d, s_qk_t), (i_k * BK, 0), (BK, BT), (0, 1)
+    )
+    p_v = tl.make_block_ptr(
+        v + i_bh * s_vo_h, (T, DV), (s_vo_t, s_vo_d), (0, i_v * BV), (BT, BV), (1, 0)
+    )
     p_o = tl.make_block_ptr(
-        o + (i_bh + i_k * B * H) * s_vo_h, (T, DV), (s_vo_t, s_vo_d), (0, i_v * BV), (BT, BV), (1, 0)
+        o + (i_bh + i_k * B * H) * s_vo_h,
+        (T, DV),
+        (s_vo_t, s_vo_d),
+        (0, i_v * BV),
+        (BT, BV),
+        (1, 0),
     )
 
     if USE_INITIAL_STATE:
         p_h = tl.make_block_ptr(
-            initial_state + i_bh * DK * DV, (DK, DV), (DV, 1), (i_k * BK, i_v * BV), (BK, BV), (1, 0)
+            initial_state + i_bh * DK * DV,
+            (DK, DV),
+            (DV, 1),
+            (i_k * BK, i_v * BV),
+            (BK, BV),
+            (1, 0),
         )
         b_h += tl.load(p_h, boundary_check=(0, 1)).to(tl.float32)
 
@@ -80,10 +96,14 @@ def fused_chunk_gla_fwd_kernel(
         d_b = tl.load(p_db, mask=mask, other=0).to(tl.float32)
         if CHECK and i == 0:
             b_o = tl.dot(b_q.to(b_v.dtype), b_h.to(b_v.dtype), allow_tf32=False)
-            b_h = b_h * tl.math.exp2(d_b)[:, None] + tl.dot(b_k.to(b_v.dtype), b_v, allow_tf32=False)
+            b_h = b_h * tl.math.exp2(d_b)[:, None] + tl.dot(
+                b_k.to(b_v.dtype), b_v, allow_tf32=False
+            )
         else:
             b_o = tl.dot(b_q.to(b_v.dtype), b_h.to(b_v.dtype), allow_tf32=False)
-            b_h = b_h * tl.math.exp2(d_b)[:, None] + tl.dot(b_k.to(b_v.dtype), b_v, allow_tf32=False)
+            b_h = b_h * tl.math.exp2(d_b)[:, None] + tl.dot(
+                b_k.to(b_v.dtype), b_v, allow_tf32=False
+            )
 
         tl.store(p_o, b_o.to(p_o.dtype.element_ty), boundary_check=(0, 1))
         p_q = tl.advance(p_q, (BT, 0))
@@ -94,7 +114,12 @@ def fused_chunk_gla_fwd_kernel(
 
     if STORE_FINAL_STATE:
         p_final = tl.make_block_ptr(
-            final_state + i_bh * DK * DV, (DK, DV), (DV, 1), (i_k * BK, i_v * BV), (BK, BV), (1, 0)
+            final_state + i_bh * DK * DV,
+            (DK, DV),
+            (DV, 1),
+            (i_k * BK, i_v * BV),
+            (BK, BV),
+            (1, 0),
         )
         tl.store(p_final, b_h.to(p_final.dtype.element_ty), boundary_check=(0, 1))
 
@@ -136,18 +161,55 @@ def fused_chunk_gla_bwd_kernel(
 
     if USE_INITIAL_STATE:
         p_h = tl.make_block_ptr(
-            initial_state + i_bh * DK * DV, (DV, DK), (1, DV), (i_v * BV, i_k * BK), (BV, BK), (0, 1)
+            initial_state + i_bh * DK * DV,
+            (DV, DK),
+            (1, DV),
+            (i_v * BV, i_k * BK),
+            (BV, BK),
+            (0, 1),
         )
         b_h += tl.load(p_h, boundary_check=(0, 1)).to(tl.float32)
 
     mask = (i_k * BK + tl.arange(0, BK)) < DK
     for i in range(0, tl.cdiv(T, BT)):
-        p_k = tl.make_block_ptr(k + i_bh * s_qk_h, (T, DK), (s_qk_t, s_qk_d), (i * BT, i_k * BK), (BT, BK), (1, 0))
-        p_db = g + i_bh * s_qk_h + ((i + 1) * BT - 1) * s_qk_t + i_k * BK + tl.arange(0, BK)
-        p_v = tl.make_block_ptr(v + i_bh * s_vo_h, (DV, T), (s_vo_d, s_vo_t), (i_v * BV, i * BT), (BV, BT), (0, 1))
-        p_do = tl.make_block_ptr(do + i_bh * s_vo_h, (T, DV), (s_vo_t, s_vo_d), (i * BT, i_v * BV), (BT, BV), (1, 0))
+        p_k = tl.make_block_ptr(
+            k + i_bh * s_qk_h,
+            (T, DK),
+            (s_qk_t, s_qk_d),
+            (i * BT, i_k * BK),
+            (BT, BK),
+            (1, 0),
+        )
+        p_db = (
+            g
+            + i_bh * s_qk_h
+            + ((i + 1) * BT - 1) * s_qk_t
+            + i_k * BK
+            + tl.arange(0, BK)
+        )
+        p_v = tl.make_block_ptr(
+            v + i_bh * s_vo_h,
+            (DV, T),
+            (s_vo_d, s_vo_t),
+            (i_v * BV, i * BT),
+            (BV, BT),
+            (0, 1),
+        )
+        p_do = tl.make_block_ptr(
+            do + i_bh * s_vo_h,
+            (T, DV),
+            (s_vo_t, s_vo_d),
+            (i * BT, i_v * BV),
+            (BT, BV),
+            (1, 0),
+        )
         p_dq = tl.make_block_ptr(
-            dq + (i_bh + i_v * B * H) * s_qk_h, (T, DK), (s_qk_t, s_qk_d), (i * BT, i_k * BK), (BT, BK), (1, 0)
+            dq + (i_bh + i_v * B * H) * s_qk_h,
+            (T, DK),
+            (s_qk_t, s_qk_d),
+            (i * BT, i_k * BK),
+            (BT, BK),
+            (1, 0),
         )
         b_dq = tl.zeros([BT, BK], dtype=tl.float32)
         # [BT, DK]
@@ -162,10 +224,14 @@ def fused_chunk_gla_bwd_kernel(
         # [DV, DK]
         if CHECK and i == 0:
             b_dq += tl.dot(b_do, b_h.to(b_do.dtype), allow_tf32=False)
-            b_h = b_h * tl.math.exp2(d_b)[None, :] + tl.dot(b_v, b_k.to(b_v.dtype), allow_tf32=False)
+            b_h = b_h * tl.math.exp2(d_b)[None, :] + tl.dot(
+                b_v, b_k.to(b_v.dtype), allow_tf32=False
+            )
         else:
             b_dq += tl.dot(b_do, b_h.to(b_do.dtype), allow_tf32=False)
-            b_h = b_h * tl.math.exp2(d_b)[None, :] + tl.dot(b_v, b_k.to(b_v.dtype), allow_tf32=False)
+            b_h = b_h * tl.math.exp2(d_b)[None, :] + tl.dot(
+                b_v, b_k.to(b_v.dtype), allow_tf32=False
+            )
         b_dq *= scale
         tl.store(p_dq, b_dq.to(p_dq.dtype.element_ty), boundary_check=(0, 1))
 
@@ -177,18 +243,60 @@ def fused_chunk_gla_bwd_kernel(
 
     # cum = tl.zeros([BK], dtype=tl.float32)
     for i in range(1, tl.cdiv(T, BT) + 1):
-        p_q = tl.make_block_ptr(q + i_bh * s_qk_h, (DK, T), (s_qk_d, s_qk_t), (i_k * BK, T - i * BT), (BK, BT), (0, 1))
-        p_k = tl.make_block_ptr(k + i_bh * s_qk_h, (T, DK), (s_qk_t, s_qk_d), (T - i * BT, i_k * BK), (BT, BK), (1, 0))
-        p_db = g + i_bh * s_qk_h + (T - (i - 1) * BT - 1) * s_qk_t + i_k * BK + tl.arange(0, BK)
-        p_v = tl.make_block_ptr(v + i_bh * s_vo_h, (T, DV), (s_vo_t, s_vo_d), (T - i * BT, i_v * BV), (BT, BV), (1, 0))
+        p_q = tl.make_block_ptr(
+            q + i_bh * s_qk_h,
+            (DK, T),
+            (s_qk_d, s_qk_t),
+            (i_k * BK, T - i * BT),
+            (BK, BT),
+            (0, 1),
+        )
+        p_k = tl.make_block_ptr(
+            k + i_bh * s_qk_h,
+            (T, DK),
+            (s_qk_t, s_qk_d),
+            (T - i * BT, i_k * BK),
+            (BT, BK),
+            (1, 0),
+        )
+        p_db = (
+            g
+            + i_bh * s_qk_h
+            + (T - (i - 1) * BT - 1) * s_qk_t
+            + i_k * BK
+            + tl.arange(0, BK)
+        )
+        p_v = tl.make_block_ptr(
+            v + i_bh * s_vo_h,
+            (T, DV),
+            (s_vo_t, s_vo_d),
+            (T - i * BT, i_v * BV),
+            (BT, BV),
+            (1, 0),
+        )
         p_do = tl.make_block_ptr(
-            do + i_bh * s_vo_h, (T, DV), (s_vo_t, s_vo_d), (T - i * BT, i_v * BV), (BT, BV), (1, 0)
+            do + i_bh * s_vo_h,
+            (T, DV),
+            (s_vo_t, s_vo_d),
+            (T - i * BT, i_v * BV),
+            (BT, BV),
+            (1, 0),
         )
         p_dk = tl.make_block_ptr(
-            dk + (i_bh + i_v * B * H) * s_qk_h, (T, DK), (s_qk_t, s_qk_d), (T - i * BT, i_k * BK), (BT, BK), (1, 0)
+            dk + (i_bh + i_v * B * H) * s_qk_h,
+            (T, DK),
+            (s_qk_t, s_qk_d),
+            (T - i * BT, i_k * BK),
+            (BT, BK),
+            (1, 0),
         )
         p_dv = tl.make_block_ptr(
-            dv + (i_bh + i_k * B * H) * s_vo_h, (T, DV), (s_vo_t, s_vo_d), (T - i * BT, i_v * BV), (BT, BV), (1, 0)
+            dv + (i_bh + i_k * B * H) * s_vo_h,
+            (T, DV),
+            (s_vo_t, s_vo_d),
+            (T - i * BT, i_v * BV),
+            (BT, BV),
+            (1, 0),
         )
         # [DK, BT]
         b_q = tl.load(p_q, boundary_check=(0, 1))
@@ -204,11 +312,15 @@ def fused_chunk_gla_bwd_kernel(
         if CHECK and i == 1:
             b_dk = tl.trans(tl.dot(b_dh.to(b_v.dtype), tl.trans(b_v), allow_tf32=False))
             b_dv = tl.dot((b_k).to(b_v.dtype), b_dh.to(b_v.dtype), allow_tf32=False)
-            b_dh = b_dh * tl.math.exp2(b_db)[:, None] + tl.dot(b_q.to(b_do.dtype), b_do, allow_tf32=False)
+            b_dh = b_dh * tl.math.exp2(b_db)[:, None] + tl.dot(
+                b_q.to(b_do.dtype), b_do, allow_tf32=False
+            )
         else:
             b_dk = tl.trans(tl.dot(b_dh.to(b_v.dtype), tl.trans(b_v), allow_tf32=False))
             b_dv = tl.dot((b_k).to(b_v.dtype), b_dh.to(b_v.dtype), allow_tf32=False)
-            b_dh = b_dh * tl.math.exp2(b_db)[:, None] + tl.dot(b_q.to(b_do.dtype), b_do, allow_tf32=False)
+            b_dh = b_dh * tl.math.exp2(b_db)[:, None] + tl.dot(
+                b_q.to(b_do.dtype), b_do, allow_tf32=False
+            )
 
         tl.store(p_dk, b_dk.to(p_dk.dtype.element_ty), boundary_check=(0, 1))
         tl.store(p_dv, b_dv.to(p_dv.dtype.element_ty), boundary_check=(0, 1))
@@ -234,11 +346,25 @@ def fwd_inner_chunk(
 ):
     i_k, i_t, i_bh = tl.program_id(0), tl.program_id(1), tl.program_id(2)
 
-    p_k = tl.make_block_ptr(k + i_bh * s_qk_h, (T, DK), (s_qk_t, s_qk_d), (i_t * BT, i_k * BK), (BT, BK), (1, 0))
+    p_k = tl.make_block_ptr(
+        k + i_bh * s_qk_h,
+        (T, DK),
+        (s_qk_t, s_qk_d),
+        (i_t * BT, i_k * BK),
+        (BT, BK),
+        (1, 0),
+    )
 
     b_k = tl.load(p_k, boundary_check=(0, 1))
 
-    p_g = tl.make_block_ptr(g + i_bh * s_qk_h, (T, DK), (s_qk_t, s_qk_d), (i_t * BT, i_k * BK), (BT, BK), (1, 0))
+    p_g = tl.make_block_ptr(
+        g + i_bh * s_qk_h,
+        (T, DK),
+        (s_qk_t, s_qk_d),
+        (i_t * BT, i_k * BK),
+        (BT, BK),
+        (1, 0),
+    )
 
     b_g = tl.load(p_g, boundary_check=(0, 1)).to(tl.float32)
 
@@ -247,7 +373,12 @@ def fwd_inner_chunk(
 
     p_q = q + i_bh * s_qk_h + i_k * BK + i_t * BT * DK + tl.arange(0, BK)
     p_gq = g + i_bh * s_qk_h + i_k * BK + i_t * BT * DK + tl.arange(0, BK)
-    p_A = A + (i_bh + (i_k * B * H)) * (tl.cdiv(T, BT) * BT * BT) + i_t * BT * BT + tl.arange(0, BT)
+    p_A = (
+        A
+        + (i_bh + (i_k * B * H)) * (tl.cdiv(T, BT) * BT * BT)
+        + i_t * BT * BT
+        + tl.arange(0, BT)
+    )
 
     for i in range(BT):
         _q = tl.load(p_q, mask=mask, other=0) * scale
@@ -282,9 +413,23 @@ def bwd_inner_chunk(
     DK: tl.constexpr,  # D_head_K
 ):
     i_k, i_t, i_bh = tl.program_id(0), tl.program_id(1), tl.program_id(2)
-    p_k = tl.make_block_ptr(k + i_bh * s_qk_h, (T, DK), (s_qk_t, s_qk_d), (i_t * BT, i_k * BK), (BT, BK), (1, 0))
+    p_k = tl.make_block_ptr(
+        k + i_bh * s_qk_h,
+        (T, DK),
+        (s_qk_t, s_qk_d),
+        (i_t * BT, i_k * BK),
+        (BT, BK),
+        (1, 0),
+    )
     b_k = tl.load(p_k, boundary_check=(0, 1))
-    p_g = tl.make_block_ptr(g + i_bh * s_qk_h, (T, DK), (s_qk_t, s_qk_d), (i_t * BT, i_k * BK), (BT, BK), (1, 0))
+    p_g = tl.make_block_ptr(
+        g + i_bh * s_qk_h,
+        (T, DK),
+        (s_qk_t, s_qk_d),
+        (i_t * BT, i_k * BK),
+        (BT, BK),
+        (1, 0),
+    )
     b_g = tl.load(p_g, boundary_check=(0, 1)).to(tl.float32)
 
     mask = (i_k * BK + tl.arange(0, BK)) < DK
@@ -312,7 +457,14 @@ def bwd_inner_chunk(
         p_gq += DK
         p_dA += BT
 
-    p_dk = tl.make_block_ptr(dk + i_bh * s_qk_h, (T, DK), (s_qk_t, s_qk_d), (i_t * BT, i_k * BK), (BT, BK), (1, 0))
+    p_dk = tl.make_block_ptr(
+        dk + i_bh * s_qk_h,
+        (T, DK),
+        (s_qk_t, s_qk_d),
+        (i_t * BT, i_k * BK),
+        (BT, BK),
+        (1, 0),
+    )
     tl.store(p_dk, b_dk.to(dk.dtype.element_ty), boundary_check=(0, 1))
 
 
@@ -375,7 +527,14 @@ class FusedChunkGLAFunction(torch.autograd.Function):
         )
 
         if output_final_state:
-            final_state = q.new_empty(batch_size, n_heads, d_head_qk, d_head_v, dtype=torch.float, requires_grad=False)
+            final_state = q.new_empty(
+                batch_size,
+                n_heads,
+                d_head_qk,
+                d_head_v,
+                dtype=torch.float,
+                requires_grad=False,
+            )
         else:
             final_state = None
         # the bug still exists even for Triton 2.2 on H100 GPUs
@@ -515,7 +674,10 @@ class FusedChunkGLAFunction(torch.autograd.Function):
 
         # inter-chunk
         BT = 16
-        BK, BV = min(triton.next_power_of_2(d_head_qk), 64), min(triton.next_power_of_2(d_head_v), 64)
+        BK, BV = (
+            min(triton.next_power_of_2(d_head_qk), 64),
+            min(triton.next_power_of_2(d_head_v), 64),
+        )
         NK, NV = triton.cdiv(d_head_qk, BK), triton.cdiv(d_head_v, BV)
         num_stages = 1
         num_warps = 2
@@ -664,6 +826,8 @@ def fused_chunk_gla(
         initial_state = initial_state.detach()
     seq_len = q.shape[-2]
     q, k, v, g = map(lambda x: pad(x), [q, k, v, g])
-    o, final_state = FusedChunkGLAFunction.apply(q, k, v, g, scale, initial_state, output_final_state)
+    o, final_state = FusedChunkGLAFunction.apply(
+        q, k, v, g, scale, initial_state, output_final_state
+    )
     o = o[..., :seq_len, :]
     return o, final_state

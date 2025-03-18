@@ -4,7 +4,9 @@
 import logging
 
 from mlstm_kernels.jax.chunkwise.native import mlstm_chunkwise__native_autograd
-from mlstm_kernels.jax.parallel.native_stablef import mlstm_parallel__native_stablef_autograd
+from mlstm_kernels.jax.parallel.native_stablef import (
+    mlstm_parallel__native_stablef_autograd,
+)
 
 import jax
 import jax.numpy as jnp
@@ -15,6 +17,7 @@ from ...conftest import final_combinations
 LOGGER = logging.getLogger(__name__)
 
 TEST_FOLDER_NAME_PREFIX = "chunkwise-jax__native"
+
 
 @pytest.mark.parametrize(["S", "B", "NH", "DHQK", "DHHV"], final_combinations)
 def test_native_chunkwise_torch_vs_native_parallel_stablef_fp32(

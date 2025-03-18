@@ -544,7 +544,7 @@ def get_col_order_lightnattn(
     chunk_sizes: list[int] = [64, 128, 256, 512, 1024, 2048, 4096],
     mlstm: Literal["sig", "exp"] = "sig",
     num_heads: int = 32,
-    additional_col: str = None
+    additional_col: str = None,
 ):
     col_order = [
         # "chunk_gla",
@@ -562,6 +562,5 @@ def get_col_order_lightnattn(
     nh = num_heads
     for cs in chunk_sizes:
         col_order.append(f"mlstm{mlstm}_triton_xl_chunk--nh-{nh}-cs-{cs}")
-
 
     return col_order

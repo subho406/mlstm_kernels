@@ -47,15 +47,51 @@ def fused_recurrent_gla_fwd_kernel(
     # indices
     i_v, i_k, i_bh = tl.program_id(0), tl.program_id(1), tl.program_id(2)
 
-    p_q = q + i_bh * s_qk_h + i_k * BK + tl.arange(0, BK) + ((T - 1) * DK if REVERSE else 0)
-    p_k = k + i_bh * s_qk_h + i_k * BK + tl.arange(0, BK) + ((T - 1) * DK if REVERSE else 0)
-    p_v = v + i_bh * s_vo_h + i_v * BV + tl.arange(0, BV) + ((T - 1) * DV if REVERSE else 0)
-    p_o = o + (i_bh + i_k * B * H) * s_vo_h + i_v * BV + tl.arange(0, BV) + ((T - 1) * DV if REVERSE else 0)
+    p_q = (
+        q
+        + i_bh * s_qk_h
+        + i_k * BK
+        + tl.arange(0, BK)
+        + ((T - 1) * DK if REVERSE else 0)
+    )
+    p_k = (
+        k
+        + i_bh * s_qk_h
+        + i_k * BK
+        + tl.arange(0, BK)
+        + ((T - 1) * DK if REVERSE else 0)
+    )
+    p_v = (
+        v
+        + i_bh * s_vo_h
+        + i_v * BV
+        + tl.arange(0, BV)
+        + ((T - 1) * DV if REVERSE else 0)
+    )
+    p_o = (
+        o
+        + (i_bh + i_k * B * H) * s_vo_h
+        + i_v * BV
+        + tl.arange(0, BV)
+        + ((T - 1) * DV if REVERSE else 0)
+    )
 
     if USE_GK:
-        p_gk = gk + i_bh * s_qk_h + i_k * BK + tl.arange(0, BK) + ((T - 1) * DK if REVERSE else 0)
+        p_gk = (
+            gk
+            + i_bh * s_qk_h
+            + i_k * BK
+            + tl.arange(0, BK)
+            + ((T - 1) * DK if REVERSE else 0)
+        )
     if USE_GV:
-        p_gv = gv + i_bh * s_vo_h + i_v * BV + tl.arange(0, BV) + ((T - 1) * DV if REVERSE else 0)
+        p_gv = (
+            gv
+            + i_bh * s_vo_h
+            + i_v * BV
+            + tl.arange(0, BV)
+            + ((T - 1) * DV if REVERSE else 0)
+        )
 
     mask_bk = (i_k * BK + tl.arange(0, BK)) < DK
     mask_bv = (i_v * BV + tl.arange(0, BV)) < DV
@@ -143,15 +179,57 @@ def fused_recurrent_gla_bwd_kernel(
 ):
     i_v, i_k, i_bh = tl.program_id(0), tl.program_id(1), tl.program_id(2)
 
-    p_q = q + i_bh * s_qk_h + i_k * BK + tl.arange(0, BK) + ((T - 1) * DK if REVERSE else 0)
-    p_k = k + i_bh * s_qk_h + i_k * BK + tl.arange(0, BK) + ((T - 1) * DK if REVERSE else 0)
-    p_v = v + i_bh * s_vo_h + i_v * BV + tl.arange(0, BV) + ((T - 1) * DV if REVERSE else 0)
-    p_do = do + i_bh * s_vo_h + i_v * BV + tl.arange(0, BV) + ((T - 1) * DV if REVERSE else 0)
-    p_dq = dq + (i_bh + i_v * B * H) * s_qk_h + i_k * BK + tl.arange(0, BK) + ((T - 1) * DK if REVERSE else 0)
+    p_q = (
+        q
+        + i_bh * s_qk_h
+        + i_k * BK
+        + tl.arange(0, BK)
+        + ((T - 1) * DK if REVERSE else 0)
+    )
+    p_k = (
+        k
+        + i_bh * s_qk_h
+        + i_k * BK
+        + tl.arange(0, BK)
+        + ((T - 1) * DK if REVERSE else 0)
+    )
+    p_v = (
+        v
+        + i_bh * s_vo_h
+        + i_v * BV
+        + tl.arange(0, BV)
+        + ((T - 1) * DV if REVERSE else 0)
+    )
+    p_do = (
+        do
+        + i_bh * s_vo_h
+        + i_v * BV
+        + tl.arange(0, BV)
+        + ((T - 1) * DV if REVERSE else 0)
+    )
+    p_dq = (
+        dq
+        + (i_bh + i_v * B * H) * s_qk_h
+        + i_k * BK
+        + tl.arange(0, BK)
+        + ((T - 1) * DK if REVERSE else 0)
+    )
     if USE_GK:
-        p_gk = gk + i_bh * s_qk_h + i_k * BK + tl.arange(0, BK) + ((T - 1) * DK if REVERSE else 0)
+        p_gk = (
+            gk
+            + i_bh * s_qk_h
+            + i_k * BK
+            + tl.arange(0, BK)
+            + ((T - 1) * DK if REVERSE else 0)
+        )
     if USE_GV:
-        p_gv = gv + i_bh * s_vo_h + i_v * BV + tl.arange(0, BV) + ((T - 1) * DV if REVERSE else 0)
+        p_gv = (
+            gv
+            + i_bh * s_vo_h
+            + i_v * BV
+            + tl.arange(0, BV)
+            + ((T - 1) * DV if REVERSE else 0)
+        )
     mask_bk = i_k * BK + tl.arange(0, BK) < DK
     mask_bv = i_v * BV + tl.arange(0, BV) < DV
     mask_kv = mask_bk[:, None] & mask_bv[None, :]
@@ -194,16 +272,64 @@ def fused_recurrent_gla_bwd_kernel(
     # sync threads
     tl.debug_barrier()
 
-    p_q = q + i_bh * s_qk_h + i_k * BK + tl.arange(0, BK) + ((T - 1) * DK if not REVERSE else 0)
-    p_k = k + i_bh * s_qk_h + i_k * BK + tl.arange(0, BK) + ((T - 1) * DK if not REVERSE else 0)
-    p_do = do + i_bh * s_vo_h + i_v * BV + tl.arange(0, BV) + ((T - 1) * DV if not REVERSE else 0)
-    p_v = v + i_bh * s_vo_h + i_v * BV + tl.arange(0, BV) + ((T - 1) * DV if not REVERSE else 0)
-    p_dk = dk + (i_bh + i_v * B * H) * s_qk_h + i_k * BK + tl.arange(0, BK) + ((T - 1) * DK if not REVERSE else 0)
-    p_dv = dv + (i_bh + i_k * B * H) * s_vo_h + i_v * BV + tl.arange(0, BV) + ((T - 1) * DV if not REVERSE else 0)
+    p_q = (
+        q
+        + i_bh * s_qk_h
+        + i_k * BK
+        + tl.arange(0, BK)
+        + ((T - 1) * DK if not REVERSE else 0)
+    )
+    p_k = (
+        k
+        + i_bh * s_qk_h
+        + i_k * BK
+        + tl.arange(0, BK)
+        + ((T - 1) * DK if not REVERSE else 0)
+    )
+    p_do = (
+        do
+        + i_bh * s_vo_h
+        + i_v * BV
+        + tl.arange(0, BV)
+        + ((T - 1) * DV if not REVERSE else 0)
+    )
+    p_v = (
+        v
+        + i_bh * s_vo_h
+        + i_v * BV
+        + tl.arange(0, BV)
+        + ((T - 1) * DV if not REVERSE else 0)
+    )
+    p_dk = (
+        dk
+        + (i_bh + i_v * B * H) * s_qk_h
+        + i_k * BK
+        + tl.arange(0, BK)
+        + ((T - 1) * DK if not REVERSE else 0)
+    )
+    p_dv = (
+        dv
+        + (i_bh + i_k * B * H) * s_vo_h
+        + i_v * BV
+        + tl.arange(0, BV)
+        + ((T - 1) * DV if not REVERSE else 0)
+    )
     if USE_GK:
-        p_gk = gk + i_bh * s_qk_h + i_k * BK + tl.arange(0, BK) + ((T - 1) * DK if not REVERSE else 0)
+        p_gk = (
+            gk
+            + i_bh * s_qk_h
+            + i_k * BK
+            + tl.arange(0, BK)
+            + ((T - 1) * DK if not REVERSE else 0)
+        )
     if USE_GV:
-        p_gv = gv + i_bh * s_vo_h + i_v * BV + tl.arange(0, BV) + ((T - 1) * DV if not REVERSE else 0)
+        p_gv = (
+            gv
+            + i_bh * s_vo_h
+            + i_v * BV
+            + tl.arange(0, BV)
+            + ((T - 1) * DV if not REVERSE else 0)
+        )
 
     d_h = tl.zeros([BK, BV], dtype=tl.float32)
 
@@ -240,7 +366,18 @@ class FusedRecurrentGLAFunction(torch.autograd.Function):
     @staticmethod
     @contiguous
     @custom_fwd(device_type="cuda")
-    def forward(ctx, q, k, v, gk, gv, scale=None, initial_state=None, output_final_state=False, reverse=False):
+    def forward(
+        ctx,
+        q,
+        k,
+        v,
+        gk,
+        gv,
+        scale=None,
+        initial_state=None,
+        output_final_state=False,
+        reverse=False,
+    ):
         batch_size, n_heads, seq_len, d_head_qk = q.shape
         d_head_v = v.shape[-1]
         # default scale
@@ -320,9 +457,15 @@ class FusedRecurrentGLAFunction(torch.autograd.Function):
         num_stages = 1
         num_warps = 1
 
-        dq = q.new_empty(NV, batch_size, n_heads, seq_len, d_head_qk, dtype=torch.float32)
-        dk = q.new_empty(NV, batch_size, n_heads, seq_len, d_head_qk, dtype=torch.float32)
-        dv = q.new_empty(NK, batch_size, n_heads, seq_len, d_head_v, dtype=torch.float32)
+        dq = q.new_empty(
+            NV, batch_size, n_heads, seq_len, d_head_qk, dtype=torch.float32
+        )
+        dk = q.new_empty(
+            NV, batch_size, n_heads, seq_len, d_head_qk, dtype=torch.float32
+        )
+        dv = q.new_empty(
+            NK, batch_size, n_heads, seq_len, d_head_v, dtype=torch.float32
+        )
         grid = (NV, NK, batch_size * n_heads)
 
         fused_recurrent_gla_bwd_kernel[grid](
@@ -380,7 +523,17 @@ class FusedRecurrentGLAFunction(torch.autograd.Function):
         else:
             dgv = None
 
-        return dq.to(q.dtype), dk.to(k.dtype), dv.to(v.dtype), dgk, dgv, None, None, None, None
+        return (
+            dq.to(q.dtype),
+            dk.to(k.dtype),
+            dv.to(v.dtype),
+            dgk,
+            dgv,
+            None,
+            None,
+            None,
+            None,
+        )
 
 
 # if scale is None, use d_head_qk ** -0.5 by default. Otherwise specify the scale yourself. e.g. scale = 1.0
@@ -400,7 +553,9 @@ def fused_recurrent_gla(
     if initial_state is not None:
         initial_state = initial_state.detach()
     if causal:
-        o, final_state = FusedRecurrentGLAFunction.apply(q, k, v, gk, gv, scale, initial_state, output_final_state)
+        o, final_state = FusedRecurrentGLAFunction.apply(
+            q, k, v, gk, gv, scale, initial_state, output_final_state
+        )
         return o, final_state
     else:
         # do not support initial_state yet. looks very strange for bidirectional modeling

@@ -66,7 +66,9 @@ def mlstm_chunkwise__recurrent_fw_C(
     NC = NUM_CHUNKS
     L = CHUNK_SIZE
 
-    assert NC == vecB.shape[2], "Number of chunks must match the number of chunks in vecB."
+    assert (
+        NC == vecB.shape[2]
+    ), "Number of chunks must match the number of chunks in vecB."
     assert L == vecB.shape[3], "Chunk size must match the chunk size in vecB."
     assert is_power_of_2(L), "Chunk size must be a power of 2."
 
@@ -90,7 +92,9 @@ def mlstm_chunkwise__recurrent_fw_C(
         str_vecNinitial_DHQK = get_stride(vecN_initial, axis=2)
         str_scaMinterinitial_B_NH = get_stride(scaMinter_initial, axis=1)
     else:
-        assert matC_initial is None and vecN_initial is None and scaMinter_initial is None
+        assert (
+            matC_initial is None and vecN_initial is None and scaMinter_initial is None
+        )
         # Note: We need to pass empty arrays for the jax_triton.triton_call() to work.
         # triton_call() expects the first arguments to be the input arrays, and the last arguments
         # to be the output arrays.
@@ -111,13 +115,19 @@ def mlstm_chunkwise__recurrent_fw_C(
 
     # If the states are not provided, they are initialized to the correct shape in the jax-triton call.
     matC_states = (
-        jax.ShapeDtypeStruct((B, NH, (NC + 1) * DHQK, DHHV), dtype=jnp.float32) if matC_states is None else matC_states
+        jax.ShapeDtypeStruct((B, NH, (NC + 1) * DHQK, DHHV), dtype=jnp.float32)
+        if matC_states is None
+        else matC_states
     )
     vecN_states = (
-        jax.ShapeDtypeStruct((B, NH, (NC + 1) * DHQK), dtype=jnp.float32) if vecN_states is None else vecN_states
+        jax.ShapeDtypeStruct((B, NH, (NC + 1) * DHQK), dtype=jnp.float32)
+        if vecN_states is None
+        else vecN_states
     )
     scaMinter_states = (
-        jax.ShapeDtypeStruct((B, NH, (NC + 1)), dtype=jnp.float32) if scaMinter_states is None else scaMinter_states
+        jax.ShapeDtypeStruct((B, NH, (NC + 1)), dtype=jnp.float32)
+        if scaMinter_states is None
+        else scaMinter_states
     )
 
     # Shared kwargs for the triton call.

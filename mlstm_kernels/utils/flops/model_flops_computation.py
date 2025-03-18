@@ -1,6 +1,7 @@
 #  Copyright (c) NXAI GmbH.
 #  This software may be used and distributed according to the terms of the NXAI Community License Agreement.
 
+
 def compute_total_model_flops(
     total_fw_block_flops: int = None,
     batch_size: int = None,
@@ -19,7 +20,9 @@ def compute_total_model_flops(
 
     total_block_flops = total_fw_block_flops * num_blocks
     if total_fw_block2_flops is not None:
-        assert num_blocks2 is not None, "num_blocks2 must be provided if total_fw_block2_flops is provided"
+        assert (
+            num_blocks2 is not None
+        ), "num_blocks2 must be provided if total_fw_block2_flops is provided"
         total_block_flops += total_fw_block2_flops * num_blocks2
 
     total_flops += total_block_flops

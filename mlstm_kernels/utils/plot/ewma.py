@@ -1,12 +1,11 @@
 #  Copyright (c) NXAI GmbH.
 #  This software may be used and distributed according to the terms of the NXAI Community License Agreement.
-
-import numpy as np
-
 """
 This files contains exponential moving average (EMA) functions in numpy.
 Obtained from https://stackoverflow.com/questions/42869495/numpy-version-of-exponential-weighted-moving-average-equivalent-to-pandas-ewm
 """
+
+import numpy as np
 
 
 def ewma(x, alpha):
@@ -89,9 +88,13 @@ def ewma_vectorized(data, alpha, offset=None, dtype=None, order="C", out=None):
 
     # scaling_factors -> 0 as len(data) gets large
     # this leads to divide-by-zeros below
-    scaling_factors = np.power(1.0 - alpha, np.arange(data.size + 1, dtype=dtype), dtype=dtype)
+    scaling_factors = np.power(
+        1.0 - alpha, np.arange(data.size + 1, dtype=dtype), dtype=dtype
+    )
     # create cumulative sum array
-    np.multiply(data, (alpha * scaling_factors[-2]) / scaling_factors[:-1], dtype=dtype, out=out)
+    np.multiply(
+        data, (alpha * scaling_factors[-2]) / scaling_factors[:-1], dtype=dtype, out=out
+    )
     np.cumsum(out, dtype=dtype, out=out)
 
     # cumsums / scaling

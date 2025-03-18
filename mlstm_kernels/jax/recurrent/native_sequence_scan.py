@@ -64,7 +64,9 @@ def _mlstm_recurrent_sequence_loop_scan_fw(
         vecF = vecF[:, :, :, None]
 
     if matC_initial is not None:
-        assert vecN_initial is not None and scaM_initial is not None, "Initial states must be provided together."
+        assert (
+            vecN_initial is not None and scaM_initial is not None
+        ), "Initial states must be provided together."
         assert scaM_initial.axis() == 2, "Initial states must be 2D."
         matC_state, vecN_state, scaM_state = (
             matC_initial,
@@ -89,10 +91,14 @@ def _mlstm_recurrent_sequence_loop_scan_fw(
     def scan_fn(carry, inputs):
         matC_state, vecN_state, scaM_state = carry
         vecQ, vecK, vecV, scaI, scaF = inputs
-        matH, carry = mlstm_step_fn(matC_state, vecN_state, scaM_state, vecQ, vecK, vecV, scaI, scaF, eps=eps)
+        matH, carry = mlstm_step_fn(
+            matC_state, vecN_state, scaM_state, vecQ, vecK, vecV, scaI, scaF, eps=eps
+        )
         return carry, matH
 
-    inputs = jax.tree.map(lambda x: jnp.moveaxis(x, 2, 0), (matQ, matK, matV, vecI, vecF))
+    inputs = jax.tree.map(
+        lambda x: jnp.moveaxis(x, 2, 0), (matQ, matK, matV, vecI, vecF)
+    )
     (matC_state, vecN_state, scaM_state), matH = jax.lax.scan(
         f=scan_fn, init=(matC_state, vecN_state, scaM_state), xs=inputs
     )
@@ -161,7 +167,6 @@ def mlstm_recurrent_sequence__native_fw(
         eps=eps,
         state_dtype=state_dtype,
     )
-    
 
 
 def mlstm_recurrent_sequence__triton_step_fused_fw(
@@ -213,5 +218,5 @@ def mlstm_recurrent_sequence__triton_step_fused_fw(
         scaM_initial=m_initial,
         return_last_states=return_last_states,
         eps=eps,
-        state_dtype=state_dtype,        
+        state_dtype=state_dtype,
     )

@@ -284,7 +284,10 @@ def mlstm_siging_parallel__native_custbw(
     assert return_last_states is False, "return_last_states is not supported"
 
     _mlstm_parallel_fwbw = _get_parallel_fwbw_kernel(
-        autocast_kernel_dtype=autocast_kernel_dtype, eps=eps, stable_fgate=stable_fgate, normalize=normalize
+        autocast_kernel_dtype=autocast_kernel_dtype,
+        eps=eps,
+        stable_fgate=stable_fgate,
+        normalize=normalize,
     )
 
     matH, _ = _mlstm_parallel_fwbw(q, k, v, i, f)

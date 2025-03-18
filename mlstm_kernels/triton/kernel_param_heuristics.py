@@ -1,10 +1,12 @@
+#  Copyright (c) NXAI GmbH.
+#  This software may be used and distributed according to the terms of the NXAI Community License Agreement.
+
 import triton
 
 from ..utils.kernels import is_power_of_2
 
 
 def get_head_dim_block_size(head_dim: int, min_block_size: int = 64) -> int:
-
     # TODO make proper tests, for when and where this check is necessary.
     # For 160M model size, this check is not necessary.
     # assert (

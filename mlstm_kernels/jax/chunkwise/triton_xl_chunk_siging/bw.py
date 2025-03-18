@@ -68,8 +68,8 @@ def mlstm_chunkwise_bw(
 
     # recompute the "all" states if needed
     if matC_all is None:
-        assert (
-            (matC_all is None) and (vecN_all is None)
+        assert (matC_all is None) and (
+            vecN_all is None
         ), "Either all or none of the states must be provided."
 
         matC_all, vecN_all = mlstm_siging_chunkwise__recurrent_fw_C(
@@ -193,8 +193,12 @@ def mlstm_chunkwise_bw(
         vecF=vecF,
     )
 
-    matDeltaC_initial = matDeltaC_states[:, :, :DHQK, :] if matC_initial is not None else None
-    vecDeltaN_initial = jnp.zeros_like(vecN_initial) if vecN_initial is not None else None
+    matDeltaC_initial = (
+        matDeltaC_states[:, :, :DHQK, :] if matC_initial is not None else None
+    )
+    vecDeltaN_initial = (
+        jnp.zeros_like(vecN_initial) if vecN_initial is not None else None
+    )
 
     return (
         matDeltaQ,

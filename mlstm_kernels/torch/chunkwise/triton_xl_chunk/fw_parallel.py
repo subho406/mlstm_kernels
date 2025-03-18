@@ -55,7 +55,9 @@ def mlstm_chunkwise__parallel_fw_Hintra(
         qk_scale = DHQK**-0.5
 
     siz_b_DHQK = (
-        get_head_dim_block_size(head_dim=DHQK, min_block_size=64) if siz_b_DHQK is None else siz_b_DHQK
+        get_head_dim_block_size(head_dim=DHQK, min_block_size=64)
+        if siz_b_DHQK is None
+        else siz_b_DHQK
     )
 
     if siz_b_DHHV is None:

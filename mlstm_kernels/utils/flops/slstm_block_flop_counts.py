@@ -24,14 +24,24 @@ def _count_ln_flops(d):
 
 
 def count_flops_slstm_block_fw(
-    S, d, Nh, conv1d_kernel_size=4, pf_ffn=1.3, factor_exp=1, count_ln_flops: Callable[[int], int] = _count_ln_flops
+    S,
+    d,
+    Nh,
+    conv1d_kernel_size=4,
+    pf_ffn=1.3,
+    factor_exp=1,
+    count_ln_flops: Callable[[int], int] = _count_ln_flops,
 ):
     slstm_cell_flops = count_flops_slstm_cell_fw(S=S, d=d, Nh=Nh)
     dh = d // Nh
-    conv1d_flops = 2 * conv1d_kernel_size * (S + conv1d_kernel_size - 1) * dh * Nh + S * dh * Nh
+    conv1d_flops = (
+        2 * conv1d_kernel_size * (S + conv1d_kernel_size - 1) * dh * Nh + S * dh * Nh
+    )
     ffn_flops = 4 * S * d * d * pf_ffn + S * d * factor_exp
 
-    skip_ln_flops = 2 * S * d + (2 + 1) * S * count_ln_flops(d)  # 2 block pre-norm, 1 group norm
+    skip_ln_flops = 2 * S * d + (2 + 1) * S * count_ln_flops(
+        d
+    )  # 2 block pre-norm, 1 group norm
 
     total_flops = int(slstm_cell_flops + conv1d_flops + ffn_flops + skip_ln_flops)
     linear_layer_flops = int(ffn_flops)
@@ -46,5 +56,8 @@ def get_slstm_fw_flop_dict(sequence_length: int) -> dict[str, tuple[int, int, in
         "1.3B": dict(d=2048, Nh=4),
     }
 
-    flops_dict = {k: count_flops_slstm_block_fw(sequence_length, **v) for k, v in slstm_size_dict.items()}
+    flops_dict = {
+        k: count_flops_slstm_block_fw(sequence_length, **v)
+        for k, v in slstm_size_dict.items()
+    }
     return flops_dict

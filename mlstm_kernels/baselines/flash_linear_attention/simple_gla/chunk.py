@@ -52,14 +52,40 @@ def chunk_simple_gla_fwd_kernel_h(
     b_h = tl.zeros([BK, BV], dtype=tl.float32)
 
     if USE_INITIAL_STATE:
-        p_h0 = tl.make_block_ptr(initial_state + i_bh * K * V, (K, V), (V, 1), (i_k * BK, i_v * BV), (BK, BV), (1, 0))
+        p_h0 = tl.make_block_ptr(
+            initial_state + i_bh * K * V,
+            (K, V),
+            (V, 1),
+            (i_k * BK, i_v * BV),
+            (BK, BV),
+            (1, 0),
+        )
         b_h = tl.load(p_h0, boundary_check=(0, 1)).to(tl.float32)
 
     for i_t in range(NT):
-        p_k = tl.make_block_ptr(k + i_bh * s_qk_h, (K, T), (s_qk_d, s_qk_t), (i_k * BK, i_t * BT), (BK, BT), (0, 1))
-        p_v = tl.make_block_ptr(v + i_bh * s_vo_h, (T, V), (s_vo_t, s_vo_d), (i_t * BT, i_v * BV), (BT, BV), (1, 0))
+        p_k = tl.make_block_ptr(
+            k + i_bh * s_qk_h,
+            (K, T),
+            (s_qk_d, s_qk_t),
+            (i_k * BK, i_t * BT),
+            (BK, BT),
+            (0, 1),
+        )
+        p_v = tl.make_block_ptr(
+            v + i_bh * s_vo_h,
+            (T, V),
+            (s_vo_t, s_vo_d),
+            (i_t * BT, i_v * BV),
+            (BT, BV),
+            (1, 0),
+        )
         p_h = tl.make_block_ptr(
-            h + i_bh * s_h_h + i_t * K * V, (K, V), (s_h_t, 1), (i_k * BK, i_v * BV), (BK, BV), (1, 0)
+            h + i_bh * s_h_h + i_t * K * V,
+            (K, V),
+            (s_h_t, 1),
+            (i_k * BK, i_v * BV),
+            (BK, BV),
+            (1, 0),
         )
 
         tl.store(p_h, b_h.to(p_h.dtype.element_ty), boundary_check=(0, 1))
@@ -71,10 +97,21 @@ def chunk_simple_gla_fwd_kernel_h(
         b_g_last = tl.load(g + i_bh * T + i_t * BT + BT - 1)
         b_h *= tl.math.exp2(b_g_last)
         b_g = tl.load(g + i_bh * T + i_t * BT + tl.arange(0, BT))
-        b_h += tl.dot(b_k, (b_v * tl.math.exp2(b_g_last - b_g)[:, None]).to(b_k.dtype), allow_tf32=False)
+        b_h += tl.dot(
+            b_k,
+            (b_v * tl.math.exp2(b_g_last - b_g)[:, None]).to(b_k.dtype),
+            allow_tf32=False,
+        )
 
     if STORE_FINAL_STATE:
-        p_ht = tl.make_block_ptr(final_state + i_bh * K * V, (K, V), (V, 1), (i_k * BK, i_v * BV), (BK, BV), (1, 0))
+        p_ht = tl.make_block_ptr(
+            final_state + i_bh * K * V,
+            (K, V),
+            (V, 1),
+            (i_k * BK, i_v * BV),
+            (BK, BV),
+            (1, 0),
+        )
         tl.store(p_ht, b_h.to(p_ht.dtype.element_ty), boundary_check=(0, 1))
 
 
@@ -111,10 +148,29 @@ def chunk_simple_gla_fwd_kernel_o(
     b_o = tl.zeros([BT, BV], dtype=tl.float32)
     b_s = tl.zeros([BT, BT], dtype=tl.float32)
     for i_k in range(tl.cdiv(K, BK)):
-        p_q = tl.make_block_ptr(q + i_bh * s_qk_h, (T, K), (s_qk_t, s_qk_d), (i_t * BT, i_k * BK), (BT, BK), (1, 0))
-        p_k = tl.make_block_ptr(k + i_bh * s_qk_h, (K, T), (s_qk_d, s_qk_t), (i_k * BK, i_t * BT), (BK, BT), (0, 1))
+        p_q = tl.make_block_ptr(
+            q + i_bh * s_qk_h,
+            (T, K),
+            (s_qk_t, s_qk_d),
+            (i_t * BT, i_k * BK),
+            (BT, BK),
+            (1, 0),
+        )
+        p_k = tl.make_block_ptr(
+            k + i_bh * s_qk_h,
+            (K, T),
+            (s_qk_d, s_qk_t),
+            (i_k * BK, i_t * BT),
+            (BK, BT),
+            (0, 1),
+        )
         p_h = tl.make_block_ptr(
-            h + i_bh * s_h_h + i_t * K * V, (K, V), (s_h_t, 1), (i_k * BK, i_v * BV), (BK, BV), (1, 0)
+            h + i_bh * s_h_h + i_t * K * V,
+            (K, V),
+            (s_h_t, 1),
+            (i_k * BK, i_v * BV),
+            (BK, BV),
+            (1, 0),
         )
 
         # [BT, BK]
@@ -134,10 +190,24 @@ def chunk_simple_gla_fwd_kernel_o(
     b_s = b_s * tl.math.exp2(b_g[:, None] - b_g[None, :])
     b_s = tl.where(m_s, b_s, 0)
 
-    p_v = tl.make_block_ptr(v + i_bh * s_vo_h, (T, V), (s_vo_t, s_vo_d), (i_t * BT, i_v * BV), (BT, BV), (1, 0))
+    p_v = tl.make_block_ptr(
+        v + i_bh * s_vo_h,
+        (T, V),
+        (s_vo_t, s_vo_d),
+        (i_t * BT, i_v * BV),
+        (BT, BV),
+        (1, 0),
+    )
     b_v = tl.load(p_v, boundary_check=(0, 1))
     b_o = (b_o + tl.dot(b_s.to(b_v.dtype), b_v, allow_tf32=False)) * scale
-    p_o = tl.make_block_ptr(o + i_bh * s_vo_h, (T, V), (s_vo_t, s_vo_d), (i_t * BT, i_v * BV), (BT, BV), (1, 0))
+    p_o = tl.make_block_ptr(
+        o + i_bh * s_vo_h,
+        (T, V),
+        (s_vo_t, s_vo_d),
+        (i_t * BT, i_v * BV),
+        (BT, BV),
+        (1, 0),
+    )
     tl.store(p_o, b_o.to(p_o.dtype.element_ty), boundary_check=(0, 1))
 
 
@@ -170,16 +240,39 @@ def chunk_simple_gla_bwd_kernel_dh(
     # [BK, BV]
     b_dh = tl.zeros([BK, BV], dtype=tl.float32)
     for i_t in range(NT - 1, -1, -1):
-        p_q = tl.make_block_ptr(q + i_bh * s_qk_h, (K, T), (s_qk_d, s_qk_t), (i_k * BK, i_t * BT), (BK, BT), (0, 1))
-        p_do = tl.make_block_ptr(do + i_bh * s_vo_h, (T, V), (s_vo_t, s_vo_d), (i_t * BT, i_v * BV), (BT, BV), (1, 0))
+        p_q = tl.make_block_ptr(
+            q + i_bh * s_qk_h,
+            (K, T),
+            (s_qk_d, s_qk_t),
+            (i_k * BK, i_t * BT),
+            (BK, BT),
+            (0, 1),
+        )
+        p_do = tl.make_block_ptr(
+            do + i_bh * s_vo_h,
+            (T, V),
+            (s_vo_t, s_vo_d),
+            (i_t * BT, i_v * BV),
+            (BT, BV),
+            (1, 0),
+        )
         p_dh = tl.make_block_ptr(
-            dh + i_bh * s_h_h + i_t * K * V, (K, V), (s_h_t, 1), (i_k * BK, i_v * BV), (BK, BV), (1, 0)
+            dh + i_bh * s_h_h + i_t * K * V,
+            (K, V),
+            (s_h_t, 1),
+            (i_k * BK, i_v * BV),
+            (BK, BV),
+            (1, 0),
         )
 
         tl.store(p_dh, b_dh.to(p_dh.dtype.element_ty), boundary_check=(0, 1))
         # [BK, BT]
         b_q = tl.load(p_q, boundary_check=(0, 1))
-        b_q = (b_q * scale * tl.math.exp2(tl.load(g + i_bh * T + i_t * BT + tl.arange(0, BT)))[None, :]).to(b_q.dtype)
+        b_q = (
+            b_q
+            * scale
+            * tl.math.exp2(tl.load(g + i_bh * T + i_t * BT + tl.arange(0, BT)))[None, :]
+        ).to(b_q.dtype)
         # [BT, V]
         b_do = tl.load(p_do, boundary_check=(0, 1))
         # [BK, BV]
@@ -222,8 +315,22 @@ def chunk_simple_gla_bwd_kernel_dqkv(
     n_bh = tl.num_programs(2)
     o_i = tl.arange(0, BT)
 
-    p_q = tl.make_block_ptr(q + i_bh * s_qk_h, (K, T), (s_qk_d, s_qk_t), (i_k * BK, i_t * BT), (BK, BT), (0, 1))
-    p_k = tl.make_block_ptr(k + i_bh * s_qk_h, (T, K), (s_qk_t, s_qk_d), (i_t * BT, i_k * BK), (BT, BK), (1, 0))
+    p_q = tl.make_block_ptr(
+        q + i_bh * s_qk_h,
+        (K, T),
+        (s_qk_d, s_qk_t),
+        (i_k * BK, i_t * BT),
+        (BK, BT),
+        (0, 1),
+    )
+    p_k = tl.make_block_ptr(
+        k + i_bh * s_qk_h,
+        (T, K),
+        (s_qk_t, s_qk_d),
+        (i_t * BT, i_k * BK),
+        (BT, BK),
+        (1, 0),
+    )
 
     b_q = tl.load(p_q, boundary_check=(0, 1))
     b_k = tl.load(p_k, boundary_check=(0, 1))
@@ -239,16 +346,45 @@ def chunk_simple_gla_bwd_kernel_dqkv(
     b_dk = tl.zeros([BT, BK], dtype=tl.float32)
     b_ds = tl.zeros([BT, BT], dtype=tl.float32)
     for i_v in range(tl.cdiv(V, BV)):
-        p_v = tl.make_block_ptr(v + i_bh * s_vo_h, (T, V), (s_vo_t, s_vo_d), (i_t * BT, i_v * BV), (BT, BV), (1, 0))
-        p_h = tl.make_block_ptr(
-            h + i_bh * s_h_h, (V, NT * K), (1, s_h_t), (i_v * BV, i_t * K + i_k * BK), (BV, BK), (0, 1)
+        p_v = tl.make_block_ptr(
+            v + i_bh * s_vo_h,
+            (T, V),
+            (s_vo_t, s_vo_d),
+            (i_t * BT, i_v * BV),
+            (BT, BV),
+            (1, 0),
         )
-        p_do = tl.make_block_ptr(do + i_bh * s_vo_h, (T, V), (s_vo_t, s_vo_d), (i_t * BT, i_v * BV), (BT, BV), (1, 0))
+        p_h = tl.make_block_ptr(
+            h + i_bh * s_h_h,
+            (V, NT * K),
+            (1, s_h_t),
+            (i_v * BV, i_t * K + i_k * BK),
+            (BV, BK),
+            (0, 1),
+        )
+        p_do = tl.make_block_ptr(
+            do + i_bh * s_vo_h,
+            (T, V),
+            (s_vo_t, s_vo_d),
+            (i_t * BT, i_v * BV),
+            (BT, BV),
+            (1, 0),
+        )
         p_dh = tl.make_block_ptr(
-            dh + i_bh * s_h_h, (NT * K, V), (s_h_t, 1), (i_t * K + i_k * BK, i_v * BV), (BK, BV), (1, 0)
+            dh + i_bh * s_h_h,
+            (NT * K, V),
+            (s_h_t, 1),
+            (i_t * K + i_k * BK, i_v * BV),
+            (BK, BV),
+            (1, 0),
         )
         p_dv = tl.make_block_ptr(
-            dv + (i_k * n_bh + i_bh) * s_vo_h, (T, V), (s_vo_t, s_vo_d), (i_t * BT, i_v * BV), (BT, BV), (1, 0)
+            dv + (i_k * n_bh + i_bh) * s_vo_h,
+            (T, V),
+            (s_vo_t, s_vo_d),
+            (i_t * BT, i_v * BV),
+            (BT, BV),
+            (1, 0),
         )
         # [BT, BV]
         b_v = tl.load(p_v, boundary_check=(0, 1))
@@ -263,9 +399,9 @@ def chunk_simple_gla_bwd_kernel_dqkv(
         b_dq += tl.dot(b_do, b_h, allow_tf32=False) * scale
         b_dk += tl.dot(b_v, tl.trans(b_dh), allow_tf32=False)
         # [BT, BV]
-        b_dv = tl.dot(b_k, b_dh, allow_tf32=False) * tl.math.exp2(-b_g + b_g_last)[:, None] + tl.dot(
-            b_s.to(b_q.dtype), b_do, allow_tf32=False
-        )
+        b_dv = tl.dot(b_k, b_dh, allow_tf32=False) * tl.math.exp2(-b_g + b_g_last)[
+            :, None
+        ] + tl.dot(b_s.to(b_q.dtype), b_do, allow_tf32=False)
         tl.store(p_dv, b_dv.to(p_dv.dtype.element_ty), boundary_check=(0, 1))
 
     b_dq = b_dq * tl.math.exp2(b_g)[:, None]
@@ -275,8 +411,22 @@ def chunk_simple_gla_bwd_kernel_dqkv(
     # [BT, BK]
     b_dq += tl.dot(b_ds, b_k, allow_tf32=False)
     b_dk += tl.trans(tl.dot(b_q, b_ds, allow_tf32=False))
-    p_dq = tl.make_block_ptr(dq + i_bh * s_qk_h, (T, K), (s_qk_t, s_qk_d), (i_t * BT, i_k * BK), (BT, BK), (1, 0))
-    p_dk = tl.make_block_ptr(dk + i_bh * s_qk_h, (T, K), (s_qk_t, s_qk_d), (i_t * BT, i_k * BK), (BT, BK), (1, 0))
+    p_dq = tl.make_block_ptr(
+        dq + i_bh * s_qk_h,
+        (T, K),
+        (s_qk_t, s_qk_d),
+        (i_t * BT, i_k * BK),
+        (BT, BK),
+        (1, 0),
+    )
+    p_dk = tl.make_block_ptr(
+        dk + i_bh * s_qk_h,
+        (T, K),
+        (s_qk_t, s_qk_d),
+        (i_t * BT, i_k * BK),
+        (BT, BK),
+        (1, 0),
+    )
     tl.store(p_dq, b_dq.to(p_dq.dtype.element_ty), boundary_check=(0, 1))
     tl.store(p_dk, b_dk.to(p_dk.dtype.element_ty), boundary_check=(0, 1))
 
@@ -302,7 +452,9 @@ class SimpleGLAFunction(torch.autograd.Function):
 
         final_state = None
         if output_final_state:
-            final_state = q.new_empty(B, H, K, V, dtype=torch.float32, requires_grad=False)
+            final_state = q.new_empty(
+                B, H, K, V, dtype=torch.float32, requires_grad=False
+            )
 
         h = q.new_empty(B, H, NT * K, V)
         grid = (NK, NV, B * H)
@@ -457,7 +609,14 @@ class SimpleGLAFunction(torch.autograd.Function):
             return rev_cumsum_x + x
 
         dg = rev_cumsum(dg)
-        return dq.to(q.dtype), dk.to(k.dtype), dv.to(v.dtype), dg.to(g.dtype), None, None
+        return (
+            dq.to(q.dtype),
+            dk.to(k.dtype),
+            dv.to(v.dtype),
+            dg.to(g.dtype),
+            None,
+            None,
+        )
 
 
 def chunk_simple_gla(
@@ -471,5 +630,7 @@ def chunk_simple_gla(
     if initial_state is not None:
         initial_state = initial_state.detach()
     g = g.float()
-    o, final_state = SimpleGLAFunction.apply(q, k, v, g, initial_state, output_final_state)
+    o, final_state = SimpleGLAFunction.apply(
+        q, k, v, g, initial_state, output_final_state
+    )
     return o, final_state

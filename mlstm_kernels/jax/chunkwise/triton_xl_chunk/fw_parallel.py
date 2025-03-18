@@ -36,7 +36,9 @@ def mlstm_chunkwise__parallel_fw_Hintra(
     num_stages: int | None = None,
     eps: float = 1e-6,
     output_dtype: jnp.dtype = jnp.float32,
-) -> tuple[jax.Array, jax.Array, jax.Array]:  # matH_out (B, NH, S, DHHV), vecN_out (B, NH, S), vecM_out (B, NH, S)
+) -> tuple[
+    jax.Array, jax.Array, jax.Array
+]:  # matH_out (B, NH, S, DHHV), vecN_out (B, NH, S), vecM_out (B, NH, S)
     """
     Execute the parallel forward kernel for the H computation in the mLSTM chunkwise formulation.
 
@@ -68,7 +70,9 @@ def mlstm_chunkwise__parallel_fw_Hintra(
     B, NH, S, DHQK = matK.shape
     DHHV = matV.shape[-1]
 
-    assert S % chunk_size == 0, f"Sequence length {S} must be divisible by chunk size {chunk_size}"
+    assert (
+        S % chunk_size == 0
+    ), f"Sequence length {S} must be divisible by chunk size {chunk_size}"
     NC = S // chunk_size
     L = chunk_size
 
@@ -77,7 +81,11 @@ def mlstm_chunkwise__parallel_fw_Hintra(
     if qk_scale is None:
         qk_scale = DHQK**-0.5
 
-    siz_b_DHQK = get_head_dim_block_size(head_dim=DHQK, min_block_size=64) if siz_b_DHQK is None else siz_b_DHQK
+    siz_b_DHQK = (
+        get_head_dim_block_size(head_dim=DHQK, min_block_size=64)
+        if siz_b_DHQK is None
+        else siz_b_DHQK
+    )
 
     if siz_b_DHHV is None:
         siz_b_DHHV = get_head_dim_block_size(head_dim=DHHV, min_block_size=128)

@@ -15,12 +15,20 @@ def torch_simple_gla(q, k, v, g, chunk_size=64):
     S = torch.zeros_like(kv)
 
     for i in range(1, g.shape[-2]):
-        S[:, :, i] = S[:, :, i - 1].clone() * g[:, :, i - 1, -1, None, None].exp() + kv[:, :, i - 1]
+        S[:, :, i] = (
+            S[:, :, i - 1].clone() * g[:, :, i - 1, -1, None, None].exp()
+            + kv[:, :, i - 1]
+        )
 
     inter = (q * g[..., None].exp()) @ S
     attn = q @ k.transpose(-1, -2)
     attn = attn * (g[..., None] - g[..., None, :]).exp()
-    attn = attn.masked_fill(torch.triu(torch.ones(chunk_size, chunk_size, dtype=bool, device=q.device), diagonal=1), 0)
+    attn = attn.masked_fill(
+        torch.triu(
+            torch.ones(chunk_size, chunk_size, dtype=bool, device=q.device), diagonal=1
+        ),
+        0,
+    )
     intra = attn @ v
     o = inter + intra
     return rearrange(o, "b h n c d -> b h (n c) d")

@@ -72,7 +72,9 @@ def mlstm_siging_parallel_bw(
 
     # compute the vecDeltaFbar values with dfbar = rev_cumsum((q*dq - k*dk).sum(-1))
     vecDeltaFbar_acc = jnp.sum((matQ * matDeltaQ - matK * matDeltaK), axis=-1)
-    vecDeltaFbar = jnp.flip(jnp.cumsum(jnp.flip(vecDeltaFbar_acc, axis=-1), axis=-1), axis=-1)
+    vecDeltaFbar = jnp.flip(
+        jnp.cumsum(jnp.flip(vecDeltaFbar_acc, axis=-1), axis=-1), axis=-1
+    )
     vecDeltaF = vecDeltaFbar * jax.nn.sigmoid(-vecF)
 
     vecDeltaI = vecDeltaIbar * jax.nn.sigmoid(-vecI)

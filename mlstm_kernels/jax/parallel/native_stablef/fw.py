@@ -49,7 +49,9 @@ def mlstm_parallel_fw(
     matS = (matQ @ matK.swapaxes(-2, -1)) * (DHQK**-0.5)  # (B, NH, S, S)
 
     matCtilde = matS * matD  # (B, NH, S, S)
-    vecN = jnp.maximum(jnp.abs(jnp.sum(matCtilde, axis=-1, keepdims=True)), jnp.exp(-vecM))  # (B, NH, S, 1)
+    vecN = jnp.maximum(
+        jnp.abs(jnp.sum(matCtilde, axis=-1, keepdims=True)), jnp.exp(-vecM)
+    )  # (B, NH, S, 1)
     # (B, NH, S, S)
     matC = matCtilde / (vecN + eps)
 

@@ -59,11 +59,15 @@ def mlstm_parallel_bw(
     matDeltaK = (matP.swapaxes(-2, -1) @ matQ) * (DHQK**-0.5)
 
     matCtilde = matS * matD
-    matDeltaV = matCtilde.swapaxes(-2, -1) @ (matDeltaHtilde / (vecN[:, :, :, None] + eps))
+    matDeltaV = matCtilde.swapaxes(-2, -1) @ (
+        matDeltaHtilde / (vecN[:, :, :, None] + eps)
+    )
 
     # compute the vecDeltaFbar values with dfbar = rev_cumsum((q*dq - k*dk).sum(-1))
     vecDeltaFbar_acc = jnp.sum((matQ * matDeltaQ - matK * matDeltaK), axis=-1)
-    vecDeltaFbar = jnp.flip(jnp.cumsum(jnp.flip(vecDeltaFbar_acc, axis=-1), axis=-1), axis=-1)
+    vecDeltaFbar = jnp.flip(
+        jnp.cumsum(jnp.flip(vecDeltaFbar_acc, axis=-1), axis=-1), axis=-1
+    )
     vecDeltaF = vecDeltaFbar * jax.nn.sigmoid(-vecF)
 
     return (

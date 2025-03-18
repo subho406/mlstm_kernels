@@ -117,7 +117,9 @@ def mlstm_parallel_fw_kernel(
     off_z = off_hz // H
     off_h = off_hz % H
     qkv_offset = off_z.to(tl.int64) * stride_qz + off_h.to(tl.int64) * stride_qh
-    ifmn_offset = off_z.to(tl.int64) * stride_ifmn_z + off_h.to(tl.int64) * stride_ifmn_h
+    ifmn_offset = (
+        off_z.to(tl.int64) * stride_ifmn_z + off_h.to(tl.int64) * stride_ifmn_h
+    )
 
     # block pointers
     # Note on order argument:

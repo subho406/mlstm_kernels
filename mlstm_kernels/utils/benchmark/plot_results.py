@@ -43,6 +43,7 @@ def rc_context_wrapper(func: Callable, **kwargs):
     ):
         return func(**kwargs)
 
+
 def get_rc_context():
     return mpl.rc_context(
         rc={
@@ -57,6 +58,7 @@ def get_rc_context():
             "lines.linewidth": LINEWIDTH,
         }
     )
+
 
 def savefig(fig, filename: str):
     dir = Path("./plots/")
@@ -618,7 +620,7 @@ def plot_runtime_results_fwbw(
     add_colname: bool = True,
 ) -> Figure:
     """Similar to `plot_runtime_results`, but plots two figures side by side.
-    
+
     Args:
         df_left: DataFrame with the data to plot on the left side.
         df_right: DataFrame with the data to plot on the right side.
@@ -640,7 +642,7 @@ def plot_runtime_results_fwbw(
         add_colname: If True, the column name is added to the group names. Defaults to True.
 
     Returns:
-        The figure object.    
+        The figure object.
     """
 
     f, (ax_left, ax_right) = plt.subplots(

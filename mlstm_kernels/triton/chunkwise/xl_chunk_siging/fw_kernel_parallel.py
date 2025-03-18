@@ -154,9 +154,11 @@ def mlstm_siging_chunkwise__parallel_fw_Hintra_kernel(
                         + tl.arange(0, siz_b_DHQK)
                     )
                     vecN_km1_val = tl.load(vecN_km1_ptr).to(tl.float32)
-                    
+
                     # accumulate vecN_inter (siz_b_LQ,1) = matQbar (siz_b_LQ, siz_b_DHQK) @ vecN_km1 (siz_b_DHQK,1)
-                    vecN_inter_acc += tl.sum(matQbar_val * vecN_km1_val[None, :], axis=1)
+                    vecN_inter_acc += tl.sum(
+                        matQbar_val * vecN_km1_val[None, :], axis=1
+                    )
 
         # load vecB_LKV (siz_B_LKV,)
         vecB_LKV_ptr = vecB_ptr + idx_b_LKV * siz_b_LKV + tl.arange(0, siz_b_LKV)
@@ -222,7 +224,6 @@ def mlstm_siging_chunkwise__parallel_fw_Hintra_kernel(
         # the value is not used in this case
         vecN_comb_denom_val = 1.0
         matH_comb_out_val = matH_comb_num_val
-
 
     # store matHout (size_b_LQ, siz_b_DHHV)
     matHout_ptr = tl.make_block_ptr(

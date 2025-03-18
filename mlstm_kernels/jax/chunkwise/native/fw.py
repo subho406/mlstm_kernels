@@ -66,7 +66,7 @@ def mlstm_chunkwise__recurrent_fw_C(
         num_chunks (int, optional): The number of chunks. Defaults to 1.
 
     Returns:
-        tuple[jax.Array, jax.Array, jax.Array]: The states of the C matrix, the n vector and the m_inter scalar. 
+        tuple[jax.Array, jax.Array, jax.Array]: The states of the C matrix, the n vector and the m_inter scalar.
             Shape (B, NH, (NC+1) * DHQK, DHHV), (B, NH, (NC+1) * DHQK), (B, NH, (NC+1)).
     """
 
@@ -86,9 +86,19 @@ def mlstm_chunkwise__recurrent_fw_C(
     #     scaMinter_states = jnp.zeros((B, NH, (NC + 1)), dtype=_dtype)
 
     # assign the initial states to the running states
-    matC_k = jnp.zeros((B, NH, DHQK, DHHV), dtype=_dtype) if matC_initial is None else matC_initial
-    vecN_k = jnp.zeros((B, NH, DHQK), dtype=_dtype) if vecN_initial is None else vecN_initial
-    scaM_inter_k = jnp.zeros((B, NH), dtype=_dtype) if scaMinter_initial is None else scaMinter_initial
+    matC_k = (
+        jnp.zeros((B, NH, DHQK, DHHV), dtype=_dtype)
+        if matC_initial is None
+        else matC_initial
+    )
+    vecN_k = (
+        jnp.zeros((B, NH, DHQK), dtype=_dtype) if vecN_initial is None else vecN_initial
+    )
+    scaM_inter_k = (
+        jnp.zeros((B, NH), dtype=_dtype)
+        if scaMinter_initial is None
+        else scaMinter_initial
+    )
     vecA = vecB[..., -1, None] - vecB + vecI
     scaG = vecB[..., -1]
     scaA_max = vecA.max(axis=-1)
@@ -123,7 +133,9 @@ def mlstm_chunkwise__recurrent_fw_C(
         scaGbar_k = jnp.exp(scaG_k + scaM_inter_k - scaM_inter_k_next)[:, :, None]
 
         # NOTE: no update in-place (i.e. +=) as this gives error for autograd backward
-        matC_k_next = scaGbar_k[..., None] * matC_k + matK_chunk_gated.swapaxes(-2, -1) @ (matV_chunk)
+        matC_k_next = scaGbar_k[..., None] * matC_k + matK_chunk_gated.swapaxes(
+            -2, -1
+        ) @ (matV_chunk)
 
         # n_k update
         vecN_k_next = scaGbar_k * vecN_k + matK_chunk_gated.swapaxes(-2, -1).sum(-1)
@@ -162,9 +174,11 @@ def mlstm_chunkwise__parallel_fw_H(
     chunk_size: int = 64,
     num_chunks: int = 1,
     eps: float = 1e-6,
-) -> tuple[jax.Array, jax.Array, jax.Array]:  # matH_out (B, NH, S, DHHV), vecN_out (B, NH, S), vecM_out (B, NH, S)
-    """This function computes the output of the mLSTM chunkwise formulation. 
-    It is the second part of the chunkwise mLSTM forward pass and combines the inter chunk contributions with 
+) -> tuple[
+    jax.Array, jax.Array, jax.Array
+]:  # matH_out (B, NH, S, DHHV), vecN_out (B, NH, S), vecM_out (B, NH, S)
+    """This function computes the output of the mLSTM chunkwise formulation.
+    It is the second part of the chunkwise mLSTM forward pass and combines the inter chunk contributions with
     the intra chunk contributions.
 
     Args:
@@ -182,13 +196,14 @@ def mlstm_chunkwise__parallel_fw_H(
         eps (float, optional): A small value to stabilize the computation. Defaults to 1e-6.
 
     Returns:
-        tuple[jax.Array, jax.Array, jax.Array]: The output of the mLSTM, the maximum state of the n vector and the maximum state of the m vector. 
+        tuple[jax.Array, jax.Array, jax.Array]: The output of the mLSTM, the maximum state of the n vector and the maximum state of the m vector.
             Shape (B, NH, S, DHHV), (B, NH, S), (B, NH, S).
     """
 
-
     NC, L = num_chunks, chunk_size
-    matC_k_states = rearrange(matC_states, "b nh (nc dhqk) dhv -> b nh nc dhqk dhv", nc=NC)
+    matC_k_states = rearrange(
+        matC_states, "b nh (nc dhqk) dhv -> b nh nc dhqk dhv", nc=NC
+    )
     vecN_k_states = rearrange(vecN_states, "b nh (nc dhqk) -> b nh nc dhqk", nc=NC)
     scaMinter_k_states = scaMinter_states
 
@@ -233,20 +248,28 @@ def mlstm_chunkwise__parallel_fw_H(
     vecBbar = jnp.exp(vecM_b_inter - vecM_k_combine)
     matQ_chunk_gated = matQ * vecBbar * qk_scale
 
-    matNumerator_common = matQ_chunk_gated @ matC_k_states + matM_chunk @ matV  # (B, NH, NC, L, DHHV)
+    matNumerator_common = (
+        matQ_chunk_gated @ matC_k_states + matM_chunk @ matV
+    )  # (B, NH, NC, L, DHHV)
 
     matM_chunk_sum = matM_chunk.sum(axis=-1, keepdims=True)  # (B, NH, NC, L, 1)
 
-    vecDenom_l_common = matQ_chunk_gated @ jnp.expand_dims(vecN_k_states, axis=-1) + matM_chunk_sum  # (B, NH, NC, L, 1)
+    vecDenom_l_common = (
+        matQ_chunk_gated @ jnp.expand_dims(vecN_k_states, axis=-1) + matM_chunk_sum
+    )  # (B, NH, NC, L, 1)
 
-    vecDenom_max_common = jnp.maximum(jnp.abs(vecDenom_l_common), jnp.exp(-vecM_k_combine))
+    vecDenom_max_common = jnp.maximum(
+        jnp.abs(vecDenom_l_common), jnp.exp(-vecM_k_combine)
+    )
 
     matH_k_chunk = matNumerator_common / (vecDenom_max_common + eps)
 
     matH_out = rearrange(matH_k_chunk, "b nh nc l dh -> b nh (nc l) dh")
 
     # we need the denominator and the overall max state for the backward pass
-    vecN_out = rearrange(vecDenom_max_common, "b nh nc l 1 -> b nh (nc l)")  # (B, NH, S)
+    vecN_out = rearrange(
+        vecDenom_max_common, "b nh nc l 1 -> b nh (nc l)"
+    )  # (B, NH, S)
     vecM_out = rearrange(vecM_k_combine, "b nh nc l 1 -> b nh (nc l)")  # (B, NH, S)
     return matH_out, vecN_out, vecM_out
 
@@ -279,7 +302,7 @@ def mlstm_chunkwise_fw(
     ),  # all_states (matC_states (B, NH, (NC+1) * DHQK, DHHV), vecN_states (B, NH, (NC+1) * DHQK), scaMinter_states (B, NH, (NC+1)))
 ]:
     """
-    Computes the forward pass of the mLSTM chunkwise formulation. 
+    Computes the forward pass of the mLSTM chunkwise formulation.
 
     Args:
         matQ (jax.Array): The query matrix Q. Shape (B, NH, S, DHQK).
@@ -299,10 +322,12 @@ def mlstm_chunkwise_fw(
     Returns:
         Returns the output of the mLSTM, the maximum state of the n vector and the maximum state of the m vector. Shapes are (B, NH, S, DHHV), (B, NH, S), (B, NH, S).
         If return_last_states is True, it also returns the last states of the mLSTM. Shapes are (B, NH, DHQK, DHHV), (B, NH, DHQK), (B, NH).
-        If return_all_states is True, it also returns all states of the mLSTM. Shapes are (B, NH, (NC+1) * DHQK, DHHV), (B, NH, (NC+1) * DHQK), (B, NH, (NC+1)).    
+        If return_all_states is True, it also returns all states of the mLSTM. Shapes are (B, NH, (NC+1) * DHQK, DHHV), (B, NH, (NC+1) * DHQK), (B, NH, (NC+1)).
     """
     B, NH, S, DHQK = matQ.shape
-    assert S % chunk_size == 0, f"Sequence length {S} is not divisible by chunk size {chunk_size}."
+    assert (
+        S % chunk_size == 0
+    ), f"Sequence length {S} is not divisible by chunk size {chunk_size}."
     NC = S // chunk_size
 
     vecI = rearrange(vecI, "b nh (nc l) -> b nh nc l", l=chunk_size)
@@ -386,7 +411,7 @@ def mlstm_chunkwise(
     jax.Array | tuple[jax.Array, tuple[jax.Array, jax.Array, jax.Array]]
 ):  # matH_out (B, NH, S, DHHV), optional(last_states (matC_states (B, NH, DHQK, DHHV), vecN_states (B, NH, DHQK), scaMinter_states (B, NH)))
     """
-    Computes the forward pass of the mLSTM chunkwise formulation. 
+    Computes the forward pass of the mLSTM chunkwise formulation.
 
     Args:
         matQ (jax.Array): The query matrix Q. Shape (B, NH, S, DHQK).

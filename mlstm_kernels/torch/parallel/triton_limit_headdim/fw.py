@@ -28,7 +28,9 @@ def mlstm_parallel_fw(
     HEAD_DIM_Q, HEAD_DIM_K = matQ.shape[-1], matK.shape[-1]
     # when v is in float8_e5m2 it is transposed.
     HEAD_DIM_V = matV.shape[-1]
-    assert HEAD_DIM_Q == HEAD_DIM_K and HEAD_DIM_K == HEAD_DIM_V, f"Q, K, V must have the same head dimension"
+    assert (
+        HEAD_DIM_Q == HEAD_DIM_K and HEAD_DIM_K == HEAD_DIM_V
+    ), f"Q, K, V must have the same head dimension"
     assert HEAD_DIM_K in {
         16,
         32,
@@ -38,7 +40,11 @@ def mlstm_parallel_fw(
     }, f"Only head dimensions 16, 32, 64, 128, 256 are supported, got {HEAD_DIM_K}"
 
     def grid(args):
-        return triton.cdiv(matQ.shape[2], args["BLOCK_Q"]), matQ.shape[0] * matQ.shape[1], 1
+        return (
+            triton.cdiv(matQ.shape[2], args["BLOCK_Q"]),
+            matQ.shape[0] * matQ.shape[1],
+            1,
+        )
 
     # fix grid for debugging
     # def grid(args):

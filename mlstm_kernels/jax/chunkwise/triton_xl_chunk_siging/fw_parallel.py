@@ -73,7 +73,9 @@ def mlstm_siging_chunkwise__parallel_fw_Hintra(
     B, NH, S, DHQK = matK.shape
     DHHV = matV.shape[-1]
 
-    assert S % chunk_size == 0, f"Sequence length {S} must be divisible by chunk size {chunk_size}"
+    assert (
+        S % chunk_size == 0
+    ), f"Sequence length {S} must be divisible by chunk size {chunk_size}"
     NC = S // chunk_size
     L = chunk_size
 
@@ -82,7 +84,11 @@ def mlstm_siging_chunkwise__parallel_fw_Hintra(
     if qk_scale is None:
         qk_scale = DHQK**-0.5
 
-    siz_b_DHQK = get_head_dim_block_size(head_dim=DHQK, min_block_size=64) if siz_b_DHQK is None else siz_b_DHQK
+    siz_b_DHQK = (
+        get_head_dim_block_size(head_dim=DHQK, min_block_size=64)
+        if siz_b_DHQK is None
+        else siz_b_DHQK
+    )
 
     if siz_b_DHHV is None:
         siz_b_DHHV = get_head_dim_block_size(head_dim=DHHV, min_block_size=128)

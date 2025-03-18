@@ -52,7 +52,9 @@ def mlstm_siging_parallel_bw(
 
     # intermediate delta-errors
     if normalize:
-        matDeltaC = matDeltaHtilde @ matV.transpose(-2, -1) / (vecN[:, :, :, None] + eps)
+        matDeltaC = (
+            matDeltaHtilde @ matV.transpose(-2, -1) / (vecN[:, :, :, None] + eps)
+        )
     else:
         matDeltaC = matDeltaHtilde @ matV.transpose(-2, -1)
 
@@ -69,9 +71,11 @@ def mlstm_siging_parallel_bw(
     matDeltaK = (matP.transpose(-2, -1) @ matQ) * (DHQK**-0.5)
 
     matCtilde = matS * matD
-    
+
     if normalize:
-        matDeltaV = matCtilde.transpose(-2, -1) @ (matDeltaHtilde / (vecN[:, :, :, None] + eps))
+        matDeltaV = matCtilde.transpose(-2, -1) @ (
+            matDeltaHtilde / (vecN[:, :, :, None] + eps)
+        )
     else:
         matDeltaV = matCtilde.transpose(-2, -1) @ matDeltaHtilde
 

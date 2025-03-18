@@ -41,7 +41,10 @@ def mlstm_siging_chunkwise_fw(
     | (
         tuple[jax.Array, jax.Array]
     ),  # last_states (matC_states (B, NH, DHQK, DHV), vecN_states (B, NH, DHQK))
-    None | (tuple[jax.Array, jax.Array]),  # all_states (matC_states (B, NH, (NC+1) * DHQK, DHV),
+    None
+    | (
+        tuple[jax.Array, jax.Array]
+    ),  # all_states (matC_states (B, NH, (NC+1) * DHQK, DHV),
     # vecN_states (B, NH, (NC+1) * DHQK))
 ]:
     """
@@ -74,8 +77,8 @@ def mlstm_siging_chunkwise_fw(
         eps: Small value to avoid division by zero. Defaults to 1e-6.
 
     Returns:
-        Tuple containing the output matrix H (shape (B, NH, S, DHV)), the N vector (shape (B, NH, S)). 
-        Optionally, it might contain last states (matC_states, vecN_states) and 
+        Tuple containing the output matrix H (shape (B, NH, S, DHV)), the N vector (shape (B, NH, S)).
+        Optionally, it might contain last states (matC_states, vecN_states) and
         optional all states (matC_states, vecN_states).
     """
     B, NH, S, DHQK = matQ.shape
@@ -148,4 +151,6 @@ def mlstm_siging_chunkwise_fw(
     else:
         ret_tuple += (None,)
 
-    return ret_tuple  # (matH_out, vecN_out, optional(last_states), optional(all_states))
+    return (
+        ret_tuple  # (matH_out, vecN_out, optional(last_states), optional(all_states))
+    )

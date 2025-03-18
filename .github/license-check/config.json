@@ -13,6 +13,7 @@
             "mlstm_kernels/baselines/flash_linear_attention/gla/recurrent_fuse.py",
             "mlstm_kernels/baselines/flash_linear_attention/simple_gla/__init__.py",
             "mlstm_kernels/baselines/flash_linear_attention/simple_gla/chunk.py",
+            "mlstm_kernels/baselines/lightning_attention/**",
             "**/*.md"
         ],
         "license": "./.github/license-check/header.txt"

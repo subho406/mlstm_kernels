@@ -1,3 +1,6 @@
+#  Copyright (c) NXAI GmbH.
+#  This software may be used and distributed according to the terms of the NXAI Community License Agreement.
+
 """Contains code to produce the paper figures for the xLSTM 7B paper"""
 
 import copy

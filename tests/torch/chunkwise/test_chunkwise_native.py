@@ -4,7 +4,9 @@
 import logging
 
 from mlstm_kernels.torch.chunkwise.native import mlstm_chunkwise__native_custbw
-from mlstm_kernels.torch.parallel.native_stablef import mlstm_parallel__native_stablef_custbw
+from mlstm_kernels.torch.parallel.native_stablef import (
+    mlstm_parallel__native_stablef_custbw,
+)
 
 import pytest
 import torch
@@ -19,7 +21,14 @@ TEST_FOLDER_NAME_PREFIX = "chunkwise-torch"
 @pytest.mark.skipif(not torch.cuda.is_available(), reason="No GPU available.")
 @pytest.mark.parametrize(["S", "B", "NH", "DHQK", "DHHV"], final_combinations)
 def test_native_chunkwise_torch_vs_native_parrallel_stablef_fp32(
-    test_session_folder, test_output_folder, mlstm_parallel_interface_test, S, B, NH, DHQK, DHHV
+    test_session_folder,
+    test_output_folder,
+    mlstm_parallel_interface_test,
+    S,
+    B,
+    NH,
+    DHQK,
+    DHHV,
 ):
     print(f"S{S}B{B}NH{NH}DHQK{DHQK}DHHV{DHHV}")
     mlstm_parallel_interface_test(
@@ -44,10 +53,10 @@ def test_native_chunkwise_torch_vs_native_parrallel_stablef_fp32(
         # save_output_tensors_dir=str(test_output_folder),
     )
 
+
 @pytest.mark.skipif(not torch.cuda.is_available(), reason="No GPU available.")
 def test_state_passing(mlstm_state_passing_test, state_passing_qkvif):
-
-    num_chunks = state_passing_qkvif[0].shape[2] // 64 # <- chunk size = 64
+    num_chunks = state_passing_qkvif[0].shape[2] // 64  # <- chunk size = 64
 
     mlstm_state_passing_test(
         kernel_fn=mlstm_chunkwise__native_custbw,

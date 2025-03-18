@@ -18,8 +18,8 @@ def _create_module_sequence_backend_registry() -> dict[str, dict[str, Callable]]
 def get_available_mlstm_kernels() -> list[str]:
     """
     Get a list of available mlstm sequence kernels.
-    These kernels process a sequence in the parallel or chunkwise parallel mode of the mLSTM. 
-    They do not support arbitrary sequence lengths. 
+    These kernels process a sequence in the parallel or chunkwise parallel mode of the mLSTM.
+    They do not support arbitrary sequence lengths.
     They are used for training and prefill processing during inference of the mLSTM during.
     """
     module_backend_registry = _create_module_sequence_backend_registry()
@@ -63,7 +63,7 @@ def get_mlstm_kernel(name: str) -> Callable:
 
 
 def get_available_mlstm_step_kernels() -> list[str]:
-    """Returns the available mlstm step kernels. 
+    """Returns the available mlstm step kernels.
     These kernels can be used to compute a single time step of the mLSTM, i.e. for generation.
     """
     from .recurrent import registry_step as mlstm_recurrent_step_registry

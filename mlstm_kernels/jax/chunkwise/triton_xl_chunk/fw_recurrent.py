@@ -66,8 +66,12 @@ def mlstm_chunkwise__recurrent_fw_C(
     assert S % L == 0, "Sequence length must be divisible by chunk size."
     NC = S // L
 
-    assert save_states_every_nth_chunk > 0, "save_states_every_nth_chunk must be positive."
-    assert save_states_every_nth_chunk <= NC, "save_states_every_nth_chunk must be <= NC."
+    assert (
+        save_states_every_nth_chunk > 0
+    ), "save_states_every_nth_chunk must be positive."
+    assert (
+        save_states_every_nth_chunk <= NC
+    ), "save_states_every_nth_chunk must be <= NC."
 
     assert is_power_of_2(
         save_states_every_nth_chunk
@@ -96,7 +100,9 @@ def mlstm_chunkwise__recurrent_fw_C(
         str_vecNinitial_DHQK = get_stride(vecN_initial, axis=2)
         str_scaMinterinitial_B_NH = get_stride(scaMinter_initial, axis=1)
     else:
-        assert matC_initial is None and vecN_initial is None and scaMinter_initial is None
+        assert (
+            matC_initial is None and vecN_initial is None and scaMinter_initial is None
+        )
         # Note: We need to pass empty arrays for the jax_triton.triton_call() to work.
         # triton_call() expects the first arguments to be the input arrays, and the last arguments
         # to be the output arrays.
@@ -118,9 +124,15 @@ def mlstm_chunkwise__recurrent_fw_C(
     num_chunks_saved = NC // save_states_every_nth_chunk
 
     # If the states are not provided, they are initialized to the correct shape in the jax-triton call.
-    matC_states = jax.ShapeDtypeStruct((B, NH, (num_chunks_saved + 1) * DHQK, DHHV), dtype=jnp.float32)
-    vecN_states = jax.ShapeDtypeStruct((B, NH, (num_chunks_saved + 1) * DHQK), dtype=jnp.float32)
-    scaMinter_states = jax.ShapeDtypeStruct((B, NH, (num_chunks_saved + 1)), dtype=jnp.float32)
+    matC_states = jax.ShapeDtypeStruct(
+        (B, NH, (num_chunks_saved + 1) * DHQK, DHHV), dtype=jnp.float32
+    )
+    vecN_states = jax.ShapeDtypeStruct(
+        (B, NH, (num_chunks_saved + 1) * DHQK), dtype=jnp.float32
+    )
+    scaMinter_states = jax.ShapeDtypeStruct(
+        (B, NH, (num_chunks_saved + 1)), dtype=jnp.float32
+    )
 
     # Shared kwargs for the triton call.
     grid = (num_b_DHQK, num_b_DHHV, B * NH)

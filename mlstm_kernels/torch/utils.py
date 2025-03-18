@@ -67,5 +67,6 @@ def to_numpy(tensor: torch.Tensor) -> np.ndarray:
 def tensor_or_none(x):
     return x if x is None else torch.tensor(x)
 
+
 def int_or_none(x):
     return x if x is None else int(x)

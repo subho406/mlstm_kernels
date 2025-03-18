@@ -40,7 +40,9 @@ def mlstm_chunkwise_bw(
     B, NH, S, DHQK = matQ.shape
     DHV = matV.shape[-1]
 
-    assert S % CHUNK_SIZE == 0, f"Sequence length {S} is not divisible by chunk size {CHUNK_SIZE}."
+    assert (
+        S % CHUNK_SIZE == 0
+    ), f"Sequence length {S} is not divisible by chunk size {CHUNK_SIZE}."
 
     NC = S // CHUNK_SIZE
 
@@ -112,9 +114,15 @@ def mlstm_chunkwise_bw(
         matQ=matQ, matK=matK, matDeltaQ=matDeltaQ, matDeltaK=matDeltaK, vecF=vecF
     )
 
-    matDeltaC_initial = matDeltaC_states[:, :, :DHQK, :] if matC_initial is not None else None
-    vecDeltaN_initial = torch.zeros_like(vecN_initial) if vecN_initial is not None else None
-    scaDeltaM_initial = torch.zeros_like(scaM_initial) if scaM_initial is not None else None
+    matDeltaC_initial = (
+        matDeltaC_states[:, :, :DHQK, :] if matC_initial is not None else None
+    )
+    vecDeltaN_initial = (
+        torch.zeros_like(vecN_initial) if vecN_initial is not None else None
+    )
+    scaDeltaM_initial = (
+        torch.zeros_like(scaM_initial) if scaM_initial is not None else None
+    )
 
     return (
         matDeltaQ,

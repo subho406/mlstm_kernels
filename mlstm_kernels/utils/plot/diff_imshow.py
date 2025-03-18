@@ -26,7 +26,9 @@ def convert_to_diff_imarray_torch(target, baseline=None):
                 baseline = baseline[0, ...]
             while target.ndim > 2:
                 target = target[0, ...]
-        imarr = (target.detach().float() - baseline.detach().float()).abs().cpu().numpy()
+        imarr = (
+            (target.detach().float() - baseline.detach().float()).abs().cpu().numpy()
+        )
     if imarr.ndim < 2:
         imarr = imarr[:, None]
     return imarr
@@ -141,7 +143,9 @@ def plot_numerical_diffs_per_batchhead(
         max_diff = np.max(np.abs(baseline[i, ...] - target[i, ...]))
         title_i = f"BH({i}):{title}|max_diff:{max_diff}"
         if rtol is not None and atol is not None:
-            allclose = np.allclose(baseline[i, ...], target[i, ...], rtol=rtol, atol=atol)
+            allclose = np.allclose(
+                baseline[i, ...], target[i, ...], rtol=rtol, atol=atol
+            )
             title_i += f"|allclose(atol={atol},rtol={rtol}):{allclose}"
         fig = plot_numerical_diffs_single(
             baseline=baseline[i, ...],

@@ -60,7 +60,9 @@ def mlstm_parallel_bw(
     matDeltaK = (matP.transpose(-2, -1) @ matQ) * (DHQK**-0.5)
 
     matCtilde = matS * matD
-    matDeltaV = matCtilde.transpose(-2, -1) @ (matDeltaHtilde / (vecN[:, :, :, None] + eps))
+    matDeltaV = matCtilde.transpose(-2, -1) @ (
+        matDeltaHtilde / (vecN[:, :, :, None] + eps)
+    )
 
     # compute the vecDeltaFbar values with dfbar = rev_cumsum((q*dq - k*dk).sum(-1))
     vecDeltaFbar_acc = (matQ * matDeltaQ - matK * matDeltaK).sum(-1)

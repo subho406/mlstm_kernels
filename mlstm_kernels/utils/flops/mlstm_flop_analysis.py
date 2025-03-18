@@ -18,7 +18,9 @@ from .mlstm_block_flop_counts import (
 )
 
 
-def get_mlstm_v1_fw_7B_flops(sequence_length: int, chunk_size: int, batch_size: int = 1):
+def get_mlstm_v1_fw_7B_flops(
+    sequence_length: int, chunk_size: int, batch_size: int = 1
+):
     num_heads_mlstm_v1 = {
         "7B_nh1": 1,
         "7B_nh2": 2,
@@ -48,7 +50,9 @@ def get_mlstm_v1_fw_7B_flops(sequence_length: int, chunk_size: int, batch_size: 
     return mlstm_v1_flop_computations
 
 
-def get_mlstm_v2_fw_7B_flops(sequence_length: int, chunk_size: int, batch_size: int = 1):
+def get_mlstm_v2_fw_7B_flops(
+    sequence_length: int, chunk_size: int, batch_size: int = 1
+):
     num_heads_mlstm_v2 = {
         "7B_nh1": 1,
         "7B_nh2": 2,
@@ -154,8 +158,12 @@ def plot_mlstm_v1_v2_flop_comparison(
     ax.grid(alpha=0.5)
     v1_color = "tab:blue"
     v2_color = "tab:red"
-    ax.plot(x_vals, total_flops_v1, label="Total FLOPs mLSTMv1", marker="o", color=v1_color)
-    ax.plot(x_vals, total_flops_v2, label="Total FLOPs mLSTMv2", marker="o", color=v2_color)
+    ax.plot(
+        x_vals, total_flops_v1, label="Total FLOPs mLSTMv1", marker="o", color=v1_color
+    )
+    ax.plot(
+        x_vals, total_flops_v2, label="Total FLOPs mLSTMv2", marker="o", color=v2_color
+    )
     if not plot_only_total_flops:
         ax.plot(
             x_vals,
@@ -285,7 +293,9 @@ def make_chunkwise_flop_chunksize_sweep(
 
     ax.set_xlabel("Chunk Size")
     ax.set_ylabel("FLOPs")
-    ax.set_title(f"FLOPs vs Chunk Size - Seq_len={seq_len}, dqk={dqk}, dv={dv}, Nh={Nh}")
+    ax.set_title(
+        f"FLOPs vs Chunk Size - Seq_len={seq_len}, dqk={dqk}, dv={dv}, Nh={Nh}"
+    )
     ax.grid(alpha=0.5)
     ax.legend()
     return fig
@@ -324,7 +334,9 @@ def make_chunkwise_flop_sequence_length_sweep(
             factor_max=factor_max,
         )
         flops_results_parallel.append([total_flops_p, fw_C_flops_p, fw_h_flops_p])
-        print(f"seq_len={seq_len}, chunkwise FLOPs={total_flops / 1e6:.2f}M, parallel FLOPs={total_flops_p / 1e6:.2f}M")
+        print(
+            f"seq_len={seq_len}, chunkwise FLOPs={total_flops / 1e6:.2f}M, parallel FLOPs={total_flops_p / 1e6:.2f}M"
+        )
 
     flop_results = np.array(flop_results)
     flops_results_parallel = np.array(flops_results_parallel)
@@ -342,7 +354,9 @@ def make_chunkwise_flop_sequence_length_sweep(
 
     ax.set_xlabel("Sequence Length")
     ax.set_ylabel("FLOPs")
-    ax.set_title(f"FLOPs vs Sequence Length - chunk_size={chunk_size}, dqk={dqk}, dv={dv}, Nh={Nh}")
+    ax.set_title(
+        f"FLOPs vs Sequence Length - chunk_size={chunk_size}, dqk={dqk}, dv={dv}, Nh={Nh}"
+    )
     ax.grid(alpha=0.5)
     ax.legend()
     return fig

@@ -22,6 +22,7 @@ LOGGER = logging.getLogger(__name__)
 
 TEST_FOLDER_NAME_PREFIX = "chunkwise-jax_xl_chunk_siging"
 
+
 @pytest.mark.parametrize(["S", "B", "NH", "DHQK", "DHHV"], final_combinations)
 @pytest.mark.parametrize("normalize", [True, False])
 def test_jax_native_chunkwise_vs_triton_xl_chunk_fp32(
@@ -29,7 +30,11 @@ def test_jax_native_chunkwise_vs_triton_xl_chunk_fp32(
 ):
     print(f"S{S}B{B}NH{NH}DHQK{DHQK}DHHV{DHHV}")
     mlstm_parallel_interface_test(
-        baseline_fn=partial(mlstm_siging_parallel__native_autograd, stable_fgate=True, normalize=normalize),
+        baseline_fn=partial(
+            mlstm_siging_parallel__native_autograd,
+            stable_fgate=True,
+            normalize=normalize,
+        ),
         target_fn=partial(mlstm_siging_chunkwise__xl_chunk, normalize=normalize),
         baseline_name=f"native_parallel_siging_stablef_norm{normalize}_autograd",
         target_name=f"triton_xl_chunk_siging_norm{normalize}",
@@ -41,7 +46,7 @@ def test_jax_native_chunkwise_vs_triton_xl_chunk_fp32(
         dtype=jnp.float32,
         atol_fw=3e-3,
         rtol_fw=5e-2,
-        atol_fwbw=0.2, # we need those high tolerances for the forget gate gradient Max absolute difference: 0.2168259
+        atol_fwbw=0.2,  # we need those high tolerances for the forget gate gradient Max absolute difference: 0.2168259
         rtol_fwbw=0.1,
         vmax=1e-3,
         test_folder_name_prefix=TEST_FOLDER_NAME_PREFIX,
@@ -50,17 +55,32 @@ def test_jax_native_chunkwise_vs_triton_xl_chunk_fp32(
         use_jit=True,
     )
 
+
 @pytest.mark.skipif(pytest.short_test, reason="Short test.")
 @pytest.mark.parametrize(["S", "B", "NH", "DHQK", "DHHV"], combinations_other_list)
 @pytest.mark.parametrize("normalize", [False])
 @pytest.mark.parametrize("chunk_size", [256])
 def test_jax_native_chunkwise_vs_triton_xl_chunk_other(
-    test_session_folder, mlstm_parallel_interface_test, S, B, NH, DHQK, DHHV, normalize, chunk_size,
+    test_session_folder,
+    mlstm_parallel_interface_test,
+    S,
+    B,
+    NH,
+    DHQK,
+    DHHV,
+    normalize,
+    chunk_size,
 ):
     print(f"S{S}B{B}NH{NH}DHQK{DHQK}DHHV{DHHV}")
     mlstm_parallel_interface_test(
-        baseline_fn=partial(mlstm_siging_parallel__native_autograd, stable_fgate=True, normalize=normalize),
-        target_fn=partial(mlstm_siging_chunkwise__xl_chunk, normalize=normalize, chunk_size=chunk_size),
+        baseline_fn=partial(
+            mlstm_siging_parallel__native_autograd,
+            stable_fgate=True,
+            normalize=normalize,
+        ),
+        target_fn=partial(
+            mlstm_siging_chunkwise__xl_chunk, normalize=normalize, chunk_size=chunk_size
+        ),
         baseline_name=f"native_parallel_siging_stablef_norm{normalize}_autograd",
         target_name=f"triton_xl_chunk_siging_norm{normalize}_cs{chunk_size}",
         S=S,
@@ -71,7 +91,7 @@ def test_jax_native_chunkwise_vs_triton_xl_chunk_other(
         dtype=jnp.float32,
         atol_fw=3e-3,
         rtol_fw=5e-2,
-        atol_fwbw=0.23, # we need those high tolerances for the forget gate gradient Max absolute difference: 0.2168259
+        atol_fwbw=0.23,  # we need those high tolerances for the forget gate gradient Max absolute difference: 0.2168259
         rtol_fwbw=0.1,
         vmax=1e-3,
         test_folder_name_prefix=TEST_FOLDER_NAME_PREFIX,
@@ -79,6 +99,7 @@ def test_jax_native_chunkwise_vs_triton_xl_chunk_other(
         add_fp64_baseline=False,
         use_jit=True,
     )
+
 
 # @pytest.mark.parametrize("normalize", [True, False])
 # def test_vs_torch_xl_chunk_siging(test_output_folder, normalize):

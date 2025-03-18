@@ -30,7 +30,9 @@ def compute_chunkwise_log_gates_vecB_vecA(
     # unstable vecA computation:
     # vecA = (vecB[..., -1, None] - vecB) + vecI  # (B, NH, NC, L)
     # stable vecA computation:
-    vecF_cumsum = jnp.flip(jnp.flip(vecF_logsig_chunked[..., 1:], axis=-1).cumsum(-1), axis=-1)
+    vecF_cumsum = jnp.flip(
+        jnp.flip(vecF_logsig_chunked[..., 1:], axis=-1).cumsum(-1), axis=-1
+    )
     vecA = (
         jnp.concat(
             [
@@ -42,6 +44,7 @@ def compute_chunkwise_log_gates_vecB_vecA(
         + vecI_chunked
     )  # (B, NH, NC, L)
     return vecB, vecA
+
 
 def compute_chunkwise_log_gates_vecB(
     vecF: jax.Array,  # (B, NH, S)
@@ -59,6 +62,7 @@ def compute_chunkwise_log_gates_vecB(
 
     return vecB
 
+
 def compute_gate_grads_vecDeltaI_vecDeltaF(
     matQ: jax.Array,
     matK: jax.Array,
@@ -66,7 +70,6 @@ def compute_gate_grads_vecDeltaI_vecDeltaF(
     matDeltaK: jax.Array,
     vecF: jax.Array,
 ) -> tuple[jax.Array, jax.Array]:
-    
     # postprocessing: compute deltaF and deltaI gradients
     # vecF = rearrange(vecF, "b nh nc l -> b nh (nc l)")
     # compute the vecDeltaFbar values with dfbar = rev_cumsum((q*dq - k*dk).sum(-1))
@@ -75,7 +78,7 @@ def compute_gate_grads_vecDeltaI_vecDeltaF(
     matDeltaQ = matDeltaQ.astype(jnp.float32)
     matDeltaK = matDeltaK.astype(jnp.float32)
     vecDeltaFbar_acc = ((matQ * matDeltaQ) - (matK * matDeltaK)).sum(-1)
-    # 
+    #
     # vecDeltaFbar = jnp.flip(jnp.cumsum(jnp.flip(vecDeltaFbar_acc, axis=-1).astype(jnp.float32), axis=-1), axis=-1)
     # vecDeltaF = vecDeltaFbar * jax.nn.sigmoid(-vecF)
     # align with limit_chunk kernel:

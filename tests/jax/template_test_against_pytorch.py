@@ -104,7 +104,6 @@ def check_jax_against_pytorch_reference(
             err_msg=f"Failed for {key}",
         )
 
-
     # We cannot test for correctness, since the losses have a random component
     # which is not reproducible between the two frameworks.
     # we would need to save and load the random component.

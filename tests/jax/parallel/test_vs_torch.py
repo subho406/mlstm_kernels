@@ -2,7 +2,9 @@
 #  This software may be used and distributed according to the terms of the NXAI Community License Agreement.
 
 from mlstm_kernels.jax.parallel.native import mlstm_parallel__native_autograd
-from mlstm_kernels.jax.parallel.native_stablef import mlstm_parallel__native_stablef_autograd
+from mlstm_kernels.jax.parallel.native_stablef import (
+    mlstm_parallel__native_stablef_autograd,
+)
 
 import jax
 import jax.numpy as jnp
@@ -10,9 +12,7 @@ import numpy as np
 import pytest
 
 
-def test_mlstm_parallel_jax_vs_torch(
-    torch_parallel_stablef_vs_unstablef_test_data
-):
+def test_mlstm_parallel_jax_vs_torch(torch_parallel_stablef_vs_unstablef_test_data):
     test_data = torch_parallel_stablef_vs_unstablef_test_data
     matQ = jnp.array(test_data["matQ"])
     matK = jnp.array(test_data["matK"])
@@ -26,9 +26,13 @@ def test_mlstm_parallel_jax_vs_torch(
     matH_jax_unstable = mlstm_parallel__native_autograd(matQ, matK, matV, vecI, vecF)
     matH_jax_unstable = jax.device_get(matH_jax_unstable)
 
-    np.testing.assert_allclose(matH_torch_unstable, matH_jax_unstable, atol=3e-3, rtol=6e-2)
+    np.testing.assert_allclose(
+        matH_torch_unstable, matH_jax_unstable, atol=3e-3, rtol=6e-2
+    )
 
-    matH_jax_stable = mlstm_parallel__native_stablef_autograd(matQ, matK, matV, vecI, vecF)
+    matH_jax_stable = mlstm_parallel__native_stablef_autograd(
+        matQ, matK, matV, vecI, vecF
+    )
     matH_jax_stable = jax.device_get(matH_jax_stable)
 
     np.testing.assert_allclose(matH_torch_stable, matH_jax_stable, atol=3e-3, rtol=6e-2)

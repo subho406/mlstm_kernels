@@ -84,7 +84,8 @@ def template_test_backend_module(
         h.shape == expected_h_shape
     ), f"H shape mismatch. Expected: {expected_h_shape}, got: {h.shape}"
 
-    assert (h.dtype == dtype), f"H dtype mismatch. Expected: {dtype}, got: {h.dtype}"
+    assert h.dtype == dtype, f"H dtype mismatch. Expected: {dtype}, got: {h.dtype}"
+
 
 @pytest.mark.parametrize(
     "B, NH, S, DHQK, DHHV, chunk_size",
@@ -222,7 +223,7 @@ def test_backend_module_train_with_padding(
         "triton",
     ],
 )
-@pytest.mark.parametrize("dtype", ["bfloat16", "float32","float16"])
+@pytest.mark.parametrize("dtype", ["bfloat16", "float32", "float16"])
 @pytest.mark.parametrize("inference_state_dtype", ["bfloat16", "float32"])
 @pytest.mark.parametrize("device", ["cuda"])
 def test_backend_module_inference(

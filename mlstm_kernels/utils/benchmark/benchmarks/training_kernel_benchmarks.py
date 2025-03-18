@@ -164,9 +164,9 @@ class mLSTMXLChunkSizeTuneBenchmark(mLSTMBenchmark):
     def _get_kernel_fn(self) -> Callable[[tuple[torch.Tensor, ...]], torch.Tensor]:
         from functools import partial
 
-        assert self.kernel_name == "mlstm_chunkwise__xl_chunk", (
-            "Only supports mlstm_chunkwise__xl_chunk kernel"
-        )
+        assert (
+            self.kernel_name == "mlstm_chunkwise__xl_chunk"
+        ), "Only supports mlstm_chunkwise__xl_chunk kernel"
 
         from mlstm_kernels.torch.chunkwise.triton_xl_chunk import (
             mlstm_chunkwise__xl_chunk,
@@ -288,10 +288,11 @@ class MambaKernelBenchmark(KernelBenchmarkInterface):
     - it is abit less than factor 2 slower and uses more than twice the gpu memory
     - both call the same _mamba_chunk_scan_combined_fwd kernel and receive the same input dims
       as well as the same chunk size, as well as the same dtypes
-    - Not clear what is going on, suspect there is something going on on Mamba side. 
+    - Not clear what is going on, suspect there is something going on on Mamba side.
     - Also tried varying the chunksizes [64, 128, 256 (default)], 128 is fastest for mamba2, 64 is fastest for mamba2_noconv
     - We report the faster results.
     """
+
     batch_size: int = None
     num_heads: int = None
     sequence_length: int = None
@@ -615,7 +616,7 @@ class LightningAttentionBenchmark(KernelBenchmarkInterface):
 
         assert self.head_dim_qk == self.head_dim_v, (
             "Lightning attention only supports equal head dimension for QK and V.",
-             f" Got: qk_dim {self.head_dim_qk}, v_dim {self.head_dim_v}"
+            f" Got: qk_dim {self.head_dim_qk}, v_dim {self.head_dim_v}",
         )
 
         q = torch.randn(

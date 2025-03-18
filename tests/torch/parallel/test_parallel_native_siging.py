@@ -36,7 +36,9 @@ def test_parallel_native_siging_stablef_normalized(
         baseline_fn=partial(
             mlstm_siging_parallel__native_autograd, stable_fgate=True, normalize=True
         ),
-        target_fn=partial(mlstm_siging_parallel__native_custbw, stable_fgate=True, normalize=True),
+        target_fn=partial(
+            mlstm_siging_parallel__native_custbw, stable_fgate=True, normalize=True
+        ),
         baseline_name="parallel_siging_stable_normalized_autograd",
         target_name="parallel_siging_stable_normalized_custbw",
         S=S,
@@ -56,6 +58,7 @@ def test_parallel_native_siging_stablef_normalized(
         save_output_tensors_dir=str(test_output_folder),
     )
 
+
 @pytest.mark.skipif(not torch.cuda.is_available(), reason="No GPU available.")
 @pytest.mark.parametrize(["S", "B", "NH", "DHQK", "DHHV"], final_combinations)
 def test_parallel_native_siging_stablef_unnormalized(
@@ -73,7 +76,9 @@ def test_parallel_native_siging_stablef_unnormalized(
         baseline_fn=partial(
             mlstm_siging_parallel__native_autograd, stable_fgate=True, normalize=False
         ),
-        target_fn=partial(mlstm_siging_parallel__native_custbw, stable_fgate=True, normalize=False),
+        target_fn=partial(
+            mlstm_siging_parallel__native_custbw, stable_fgate=True, normalize=False
+        ),
         baseline_name="parallel_siging_stable_unnormalized_autograd",
         target_name="parallel_siging_stable_unnormalized_custbw",
         S=S,
@@ -92,4 +97,3 @@ def test_parallel_native_siging_stablef_unnormalized(
         add_fp64_baseline=False,
         save_output_tensors_dir=str(test_output_folder),
     )
-

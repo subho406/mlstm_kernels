@@ -62,8 +62,12 @@ def mlstm_chunkwise__recurrent_bw_dC(
     assert S % L == 0, "S must be divisible by chunk_size."
     NC = S // L
 
-    assert save_states_every_nth_chunk > 0, "save_states_every_nth_chunk must be positive."
-    assert save_states_every_nth_chunk <= NC, "save_states_every_nth_chunk must be <= NC."
+    assert (
+        save_states_every_nth_chunk > 0
+    ), "save_states_every_nth_chunk must be positive."
+    assert (
+        save_states_every_nth_chunk <= NC
+    ), "save_states_every_nth_chunk must be <= NC."
 
     assert is_power_of_2(
         save_states_every_nth_chunk
@@ -117,9 +121,15 @@ def mlstm_chunkwise__recurrent_bw_dC(
         str_matDeltaH_DHHV=get_stride(matDeltaH, axis=3),
         str_vecN_out_B_NH=get_stride(vecN_out, axis=1),
         str_vecN_out_S=get_stride(vecN_out, axis=2),
-        str_matDeltaC_last_B_NH=get_stride(matDeltaC_last, axis=1) if USE_LAST_STATE else 0,
-        str_matDeltaC_last_DHQK=get_stride(matDeltaC_last, axis=2) if USE_LAST_STATE else 0,
-        str_matDeltaC_last_DHHV=get_stride(matDeltaC_last, axis=3) if USE_LAST_STATE else 0,
+        str_matDeltaC_last_B_NH=get_stride(matDeltaC_last, axis=1)
+        if USE_LAST_STATE
+        else 0,
+        str_matDeltaC_last_DHQK=get_stride(matDeltaC_last, axis=2)
+        if USE_LAST_STATE
+        else 0,
+        str_matDeltaC_last_DHHV=get_stride(matDeltaC_last, axis=3)
+        if USE_LAST_STATE
+        else 0,
         str_matDeltaC_states_B_NH=get_stride(matDeltaC_states, axis=1),
         str_matDeltaC_states_NCDHQK=get_stride(matDeltaC_states, axis=2),
         str_matDeltaC_states_DHHV=get_stride(matDeltaC_states, axis=3),

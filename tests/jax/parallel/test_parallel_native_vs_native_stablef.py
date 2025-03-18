@@ -4,7 +4,9 @@
 import logging
 
 from mlstm_kernels.jax.parallel.native import mlstm_parallel__native_autograd
-from mlstm_kernels.jax.parallel.native_stablef import mlstm_parallel__native_stablef_autograd
+from mlstm_kernels.jax.parallel.native_stablef import (
+    mlstm_parallel__native_stablef_autograd,
+)
 
 import jax
 import jax.numpy as jnp
@@ -19,7 +21,14 @@ TEST_FOLDER_NAME_PREFIX = "parallel-jax-native"
 
 @pytest.mark.parametrize(["S", "B", "NH", "DHQK", "DHHV"], final_combinations)
 def test_parallel_native_vs_native_stablef_fp32(
-    test_session_folder, test_output_folder, mlstm_parallel_interface_test, S, B, NH, DHQK, DHHV
+    test_session_folder,
+    test_output_folder,
+    mlstm_parallel_interface_test,
+    S,
+    B,
+    NH,
+    DHQK,
+    DHHV,
 ):
     print(f"S{S}B{B}NH{NH}DHQK{DHQK}DHHV{DHHV}")
     mlstm_parallel_interface_test(

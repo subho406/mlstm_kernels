@@ -17,9 +17,11 @@ from mlstm_kernels.utils.benchmark.utils import setup_output_folder
 DEBUG = True
 
 
-def _head_dim_benchmark(output_folder: Path, half_qkdim=False, batch_size: int = 1, debug: bool = False):
+def _head_dim_benchmark(
+    output_folder: Path, half_qkdim=False, batch_size: int = 1, debug: bool = False
+):
     ### head dimension benchmark 7B
-    head_dims_v = [64, 128, 256, 512, 1024] # , 2048]
+    head_dims_v = [64, 128, 256, 512, 1024]  # , 2048]
     embedding_dim = 4096
     num_heads = [embedding_dim // head_dim for head_dim in head_dims_v]
     if half_qkdim:
@@ -37,8 +39,8 @@ vary_params:
   head_dim_v: {head_dims_v}
 fixed_params:
   batch_size: {batch_size}
-  rep: {2500 if not debug else 10} 
-  warmup: {500 if not debug else 10} 
+  rep: {2500 if not debug else 10}
+  warmup: {500 if not debug else 10}
 
 x_axis_param: "head_dim_v"
 
@@ -84,25 +86,21 @@ benchmark_name: {bench_name}
     run_and_record_benchmarks(cfg, create_inference_kernel_benchmark, output_folder)
 
 
-
-def _batch_size_benchmark(
-        output_folder: Path,
-        debug: bool = False):
+def _batch_size_benchmark(output_folder: Path, debug: bool = False):
     ### head dimension benchmark 7B
     embedding_dim = 4096
     num_heads = 8
     head_dim_v = embedding_dim // num_heads
-    head_dim_qk = embedding_dim // num_heads //2
-    
+    head_dim_qk = embedding_dim // num_heads // 2
 
     cfg_yaml = f"""
 vary_type: sequence
 vary_params:
   batch_size: [1, 2, 4, 8, 16, 32, 64, 128, 256, 512, 1024]
 fixed_params:
- 
-  rep: {250 if not debug else 10} 
-  warmup: {50 if not debug else 10} 
+
+  rep: {250 if not debug else 10}
+  warmup: {50 if not debug else 10}
 
 x_axis_param: "batch_size"
 
@@ -181,12 +179,10 @@ benchmark_name: constant_tokens_sequence
     run_and_record_benchmarks(cfg, create_inference_kernel_benchmark, output_folder)
 
 
-
-
-
 def run_multiple_benchmarks(
-    output_dir: str = "./outputs_kernel_benchmarks", output_folder_suffix: str = "",
-    debug: bool = False
+    output_dir: str = "./outputs_kernel_benchmarks",
+    output_folder_suffix: str = "",
+    debug: bool = False,
 ):
     output_folder = setup_output_folder(output_dir, name_suffix=output_folder_suffix)
 
@@ -195,6 +191,7 @@ def run_multiple_benchmarks(
     # _head_dim_benchmark(output_folder, half_qkdim=False, batch_size=8, debug=debug)
     # _head_dim_benchmark(output_folder, half_qkdim=True, batch_size=8, debug=debug)
     _batch_size_benchmark(output_folder, debug=debug)
+
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
@@ -205,8 +202,8 @@ if __name__ == "__main__":
         help="Suffix that is appended to the output folder of the benchmark results.",
     )
     parser.add_argument(
-      "--debug",
-      action="store_true",
+        "--debug",
+        action="store_true",
     )
 
     args = parser.parse_args()

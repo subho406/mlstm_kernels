@@ -23,15 +23,14 @@ ChunkwiseKernelType = Literal[
     "chunkwise--native_custbw",
     "chunkwise--triton_limit_chunk",
     "chunkwise--triton_xl_chunk",
+    "chunkwise--triton_xl_chunk_siging",
     "parallel--native_autograd",
     "parallel--native_custbw",
     "parallel--native_stablef_autograd",
     "parallel--native_stablef_custbw",
     "parallel--triton_limit_headdim",
 ]
-SequenceKernelType = Literal[
-    "native_sequence__native", "native_sequence__triton"
-]
+SequenceKernelType = Literal["native_sequence__native", "native_sequence__triton"]
 StepKernelType = Literal["native", "triton"]
 
 DtypeType = Literal["float32", "bfloat16", "float16"]

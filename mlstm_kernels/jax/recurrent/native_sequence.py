@@ -61,13 +61,15 @@ def _mlstm_recurrent_sequence_loop_fw(
         Hidden states tensor of shape (B, NH, S, DHV) if `return_last_states` is False.
         Tuple of hidden states tensor and tuple of last states tensors if `return_last_states` is True.
     """
-    
+
     B, NH, S, DHQK = matQ.shape
     DHV = matV.shape[-1]
     dtype = matQ.dtype
 
     if matC_initial is not None:
-        assert vecN_initial is not None and scaM_initial is not None, "Initial states must be provided together."
+        assert (
+            vecN_initial is not None and scaM_initial is not None
+        ), "Initial states must be provided together."
         assert scaM_initial.axis() == 2, "Initial states must be 2D."
         matC_state, vecN_state, vecM_state = (
             matC_initial,
@@ -230,7 +232,7 @@ def mlstm_recurrent_sequence__triton_step_fused_fw(
     Returns:
         Hidden states tensor of shape (B, NH, S, DHV) if `return_last_states` is False.
         Tuple of hidden states tensor and tuple of last states tensors if `return_last_states` is True.
-    """    
+    """
 
     ret_tuple = _mlstm_recurrent_sequence_loop_fw(
         mlstm_step_fn=mlstm_recurrent_step__triton_fw,

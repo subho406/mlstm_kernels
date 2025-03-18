@@ -28,7 +28,7 @@ def mlstm_siging_chunkwise_fw(
     qk_scale: float = None,
     return_last_states: bool = False,
     return_all_states: bool = False,
-    normalize: bool = True, # whether to normalize the combination matrix C
+    normalize: bool = True,  # whether to normalize the combination matrix C
     chunk_size: int = 128,
     chunk_size_inter: int | None = None,
     chunk_size_intra: int | None = None,
@@ -134,4 +134,6 @@ def mlstm_siging_chunkwise_fw(
     else:
         ret_tuple += (None,)
 
-    return ret_tuple  # (matH_out, vecN_out, optional(last_states), optional(all_states))
+    return (
+        ret_tuple  # (matH_out, vecN_out, optional(last_states), optional(all_states))
+    )

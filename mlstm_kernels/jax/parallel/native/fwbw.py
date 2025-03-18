@@ -7,6 +7,7 @@ Jax.
 
 mLSTM forward and backward pass. Parallel formulation.
 """
+
 from collections.abc import Callable
 
 import jax
@@ -46,7 +47,7 @@ def mlstm_parallel__native_autograd(
         return_last_states: Whether to return the last states of the mLSTM.
         eps: The epsilon value to use for numerical stability.
     Returns:
-        The output of the mLSTM computation. 
+        The output of the mLSTM computation.
     """
 
     assert c_initial is None, "c_initial is not supported"
@@ -64,11 +65,21 @@ def mlstm_parallel__native_autograd(
     )
     return matH
 
+
 def _mlstm_parallel_fwbw_generator(
     autocast_kernel_dtype: jnp.dtype = jnp.bfloat16,
     eps: float = 1e-6,
 ) -> Callable[
-    [jax.Array, jax.Array, jax.Array, jax.Array, jax.Array, jax.Array, jax.Array, jax.Array],
+    [
+        jax.Array,
+        jax.Array,
+        jax.Array,
+        jax.Array,
+        jax.Array,
+        jax.Array,
+        jax.Array,
+        jax.Array,
+    ],
     tuple[jax.Array, jax.Array, jax.Array, jax.Array],
 ]:
     """
@@ -103,12 +114,35 @@ def _mlstm_parallel_fwbw_generator(
     ) -> tuple[jax.Array, jax.Array, jax.Array, jax.Array]:
         B, NH, S, DHQK = matQ.shape
         # Verify shapes to prevent errors in the kernels.
-        assert matK.shape == (B, NH, S, DHQK), f"matK shape {matK.shape} does not match matQ shape {matQ.shape}."
-        assert matV.shape[:-1] == (B, NH, S), f"matV shape {matV.shape} does not match matQ shape {matQ.shape}."
-        assert vecI.shape == (B, NH, S), f"vecI shape {vecI.shape} does not match matQ shape {matQ.shape}."
-        assert vecF.shape == (B, NH, S), f"vecF shape {vecF.shape} does not match matQ shape {matQ.shape}."
+        assert matK.shape == (
+            B,
+            NH,
+            S,
+            DHQK,
+        ), f"matK shape {matK.shape} does not match matQ shape {matQ.shape}."
+        assert matV.shape[:-1] == (
+            B,
+            NH,
+            S,
+        ), f"matV shape {matV.shape} does not match matQ shape {matQ.shape}."
+        assert vecI.shape == (
+            B,
+            NH,
+            S,
+        ), f"vecI shape {vecI.shape} does not match matQ shape {matQ.shape}."
+        assert vecF.shape == (
+            B,
+            NH,
+            S,
+        ), f"vecF shape {vecF.shape} does not match matQ shape {matQ.shape}."
         # Cast to autocast_kernel_dtype. Exclude vecF as it is automatically upcasted to float32 in kernels.
-        orig_dtypes = {"q": matQ.dtype, "k": matK.dtype, "v": matV.dtype, "i": vecI.dtype, "f": vecF.dtype}
+        orig_dtypes = {
+            "q": matQ.dtype,
+            "k": matK.dtype,
+            "v": matV.dtype,
+            "i": vecI.dtype,
+            "f": vecF.dtype,
+        }
         matQ = matQ.astype(autocast_kernel_dtype)
         matK = matK.astype(autocast_kernel_dtype)
         matV = matV.astype(autocast_kernel_dtype)
@@ -127,7 +161,14 @@ def _mlstm_parallel_fwbw_generator(
         def backward(
             grad_list: tuple[jax.Array, jax.Array, jax.Array],
         ) -> tuple[
-            jax.Array, jax.Array, jax.Array, jax.Array, jax.Array, jax.Array | None, jax.Array | None, jax.Array | None
+            jax.Array,
+            jax.Array,
+            jax.Array,
+            jax.Array,
+            jax.Array,
+            jax.Array | None,
+            jax.Array | None,
+            jax.Array | None,
         ]:
             """Backward function with reverse function signature of forward."""
             # Unpack the gradients.
@@ -183,7 +224,14 @@ def _get_parallel_fwbw_kernel(autocast_kernel_dtype: jnp.dtype, **kwargs) -> Cal
         A function that computes the forward pass of the mLSTM chunkwise formulation, which custom gradients for the
         backward pass. See _mlstm_parallel_fwbw_generator for the function signature.
     """
-    if autocast_kernel_dtype in ["float32", "float16", "bfloat16", jnp.float32, jnp.float16, jnp.bfloat16]:
+    if autocast_kernel_dtype in [
+        "float32",
+        "float16",
+        "bfloat16",
+        jnp.float32,
+        jnp.float16,
+        jnp.bfloat16,
+    ]:
         return _mlstm_parallel_fwbw_generator(autocast_kernel_dtype, **kwargs)
     else:
         raise ValueError(f"Unsupported kernel dtype {autocast_kernel_dtype}.")
@@ -225,7 +273,7 @@ def mlstm_parallel__native_custbw(
 
 
     Returns:
-        The output of the mLSTM computation. 
+        The output of the mLSTM computation.
     """
 
     assert c_initial is None, "c_initial is not supported"
@@ -233,7 +281,9 @@ def mlstm_parallel__native_custbw(
     assert m_initial is None, "m_initial is not supported"
     assert return_last_states is False, "return_last_states is not supported"
 
-    _mlstm_parallel_fwbw = _get_parallel_fwbw_kernel(autocast_kernel_dtype=autocast_kernel_dtype, eps=eps)
+    _mlstm_parallel_fwbw = _get_parallel_fwbw_kernel(
+        autocast_kernel_dtype=autocast_kernel_dtype, eps=eps
+    )
 
     matH, _, _ = _mlstm_parallel_fwbw(q, k, v, i, f)
     return matH

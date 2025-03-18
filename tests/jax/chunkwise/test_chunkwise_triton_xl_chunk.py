@@ -38,7 +38,7 @@ def test_jax_native_chunkwise_vs_triton_xl_chunk_fp32(
         dtype=jnp.float32,
         atol_fw=3e-3,
         rtol_fw=5e-2,
-        atol_fwbw=2e-1, # we need those high tolerances for the forget gate gradient Max absolute difference: 0.2168259
+        atol_fwbw=2e-1,  # we need those high tolerances for the forget gate gradient Max absolute difference: 0.2168259
         rtol_fwbw=1e-2,
         vmax=1e-3,
         test_folder_name_prefix=TEST_FOLDER_NAME_PREFIX,
@@ -46,6 +46,8 @@ def test_jax_native_chunkwise_vs_triton_xl_chunk_fp32(
         add_fp64_baseline=False,
         use_jit=True,
     )
+
+
 @pytest.mark.skipif(pytest.short_test, reason="Short test.")
 @pytest.mark.parametrize(["S", "B", "NH", "DHQK", "DHHV"], combinations_other_list)
 def test_jax_native_chunkwise_vs_triton_xl_chunk_other(
@@ -65,7 +67,7 @@ def test_jax_native_chunkwise_vs_triton_xl_chunk_other(
         dtype=jnp.float32,
         atol_fw=3e-3,
         rtol_fw=5e-2,
-        atol_fwbw=2e-1, # we need those high tolerances for the forget gate gradient Max absolute difference: 0.2168259
+        atol_fwbw=2e-1,  # we need those high tolerances for the forget gate gradient Max absolute difference: 0.2168259
         rtol_fwbw=1e-2,
         vmax=1e-3,
         test_folder_name_prefix=TEST_FOLDER_NAME_PREFIX,
@@ -101,4 +103,6 @@ def test_mlstm_chunkwise_state_passing(
     """Compare single forward vs chunked one with states passed between steps."""
     # Repeat the inputs to have longer sequence length.
     default_qkvif = jax.tree.map(lambda x: jnp.repeat(x, 2, axis=2), default_qkvif)
-    mlstm_state_passing_test(mlstm_kernel, *default_qkvif, num_chunks=4, rtol=5e-2, atol=5e-3)
+    mlstm_state_passing_test(
+        mlstm_kernel, *default_qkvif, num_chunks=4, rtol=5e-2, atol=5e-3
+    )

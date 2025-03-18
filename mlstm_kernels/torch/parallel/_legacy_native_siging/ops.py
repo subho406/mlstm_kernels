@@ -1,7 +1,12 @@
+#  Copyright (c) NXAI GmbH.
+#  This software may be used and distributed according to the terms of the NXAI Community License Agreement.
+
 import torch
 
 
-def compute_normalizer(matrix: torch.Tensor, normalization_mode: str, max_val: torch.Tensor = None) -> torch.Tensor:
+def compute_normalizer(
+    matrix: torch.Tensor, normalization_mode: str, max_val: torch.Tensor = None
+) -> torch.Tensor:
     """Compute the normalizers for the (BxNHxSxS) matrix. The normalizer is a (BxNHSx1) vector.
     'maxval' is used for the stabilized version of 'max_abs_sum_C_1' normalization mode.
 
@@ -24,7 +29,11 @@ def compute_normalizer(matrix: torch.Tensor, normalization_mode: str, max_val: t
     elif normalization_mode == "abs_sum_C":
         return matrix.sum(dim=-1, keepdim=True).abs()
     elif normalization_mode == "max_abs_sum_C_1":
-        mval = max_val if max_val is not None else torch.tensor(1.0, dtype=matrix.dtype, device=matrix.device)
+        mval = (
+            max_val
+            if max_val is not None
+            else torch.tensor(1.0, dtype=matrix.dtype, device=matrix.device)
+        )
         return torch.maximum(matrix.sum(dim=-1, keepdim=True).abs(), mval)
     else:
         raise ValueError(
@@ -42,16 +51,23 @@ def qkdecmask_normalize_parallel(
     # careful: do not do inplace operation of variables that are used in the computation graph
 
     normalizer = (
-        compute_normalizer(matrix=C_matrix, normalization_mode=normalization_mode, max_val=max_val)
+        compute_normalizer(
+            matrix=C_matrix, normalization_mode=normalization_mode, max_val=max_val
+        )
         + eps
         + normalizer_offset
     )  # (B, NH, S, 1)
-    C_matrix_normalized = C_matrix / normalizer  # (B, NH, S, S) = (B, NH, S, S) / (B, NH, S, 1)
+    C_matrix_normalized = (
+        C_matrix / normalizer
+    )  # (B, NH, S, S) = (B, NH, S, S) / (B, NH, S, 1)
     return C_matrix_normalized
 
 
 def qs_normalizer_recurrent(
-    qz_dotproduct: torch.Tensor, normalization_mode: str, eps: float = 1e-6, max_val: torch.Tensor = None
+    qz_dotproduct: torch.Tensor,
+    normalization_mode: str,
+    eps: float = 1e-6,
+    max_val: torch.Tensor = None,
 ) -> torch.Tensor:
     if normalization_mode in ["sum_C"]:
         r_denom = qz_dotproduct + eps
@@ -61,11 +77,15 @@ def qs_normalizer_recurrent(
         mval = (
             max_val
             if max_val is not None
-            else torch.tensor(1.0, dtype=qz_dotproduct.dtype, device=qz_dotproduct.device)
+            else torch.tensor(
+                1.0, dtype=qz_dotproduct.dtype, device=qz_dotproduct.device
+            )
         )
         r_denom = torch.maximum(qz_dotproduct.abs(), mval) + eps
     else:
-        raise ValueError(f"normalization_mode must be one of ['sum_C', 'abs_sum_C'], got {normalization_mode}")
+        raise ValueError(
+            f"normalization_mode must be one of ['sum_C', 'abs_sum_C'], got {normalization_mode}"
+        )
     return r_denom
 
 
@@ -120,13 +140,21 @@ def build_forget_gate_matrix(
             per_timestep_fg_gate_vals >= 0.0
         ).all(), f"per_timestep_fg_gate_vals must be larger than or equal to 0.0, got {per_timestep_fg_gate_vals}"
     batch_size, num_heads, context_length, _ = per_timestep_fg_gate_vals.shape
-    if lower_triangular_matrix is None or context_length < lower_triangular_matrix.size(-1):
+    if lower_triangular_matrix is None or context_length < lower_triangular_matrix.size(
+        -1
+    ):
         ltr = torch.tril(
-            torch.ones((context_length, context_length), dtype=torch.bool, device=per_timestep_fg_gate_vals.device)
+            torch.ones(
+                (context_length, context_length),
+                dtype=torch.bool,
+                device=per_timestep_fg_gate_vals.device,
+            )
         )
     else:
         ltr = lower_triangular_matrix
-    assert ltr.dtype == torch.bool, f"lower_triangular_matrix must be of dtype bool, got {ltr.dtype}"
+    assert (
+        ltr.dtype == torch.bool
+    ), f"lower_triangular_matrix must be of dtype bool, got {ltr.dtype}"
     # * Slow version: loop over the context length and construct columns of the decay matrix
     # dec_ma_temp = per_timestep_fg_gate_vals.transpose(-2, -1).repeat(1, 1, context_length, 1)
     # dec_ma_temp = dec_ma_temp.log() + eps  # transform to log space
@@ -147,7 +175,9 @@ def build_forget_gate_matrix(
     if per_time_step_decay_vals_in_logspace:
         log_timestep_decay_vals = per_timestep_fg_gate_vals
     else:
-        log_timestep_decay_vals = (per_timestep_fg_gate_vals + eps).log()  # per_timestep_fg_gate_vals.log() + eps
+        log_timestep_decay_vals = (
+            per_timestep_fg_gate_vals + eps
+        ).log()  # per_timestep_fg_gate_vals.log() + eps
     ts_cumsum = torch.cat(
         [
             torch.zeros((batch_size, num_heads, 1, 1), dtype=dtype, device=device),

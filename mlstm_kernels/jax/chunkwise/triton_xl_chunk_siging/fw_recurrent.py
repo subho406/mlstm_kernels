@@ -64,8 +64,12 @@ def mlstm_siging_chunkwise__recurrent_fw_C(
     assert S % L == 0, "Sequence length must be divisible by chunk size."
     NC = S // L
 
-    assert save_states_every_nth_chunk > 0, "save_states_every_nth_chunk must be positive."
-    assert save_states_every_nth_chunk <= NC, "save_states_every_nth_chunk must be <= NC."
+    assert (
+        save_states_every_nth_chunk > 0
+    ), "save_states_every_nth_chunk must be positive."
+    assert (
+        save_states_every_nth_chunk <= NC
+    ), "save_states_every_nth_chunk must be <= NC."
 
     assert is_power_of_2(
         save_states_every_nth_chunk
@@ -113,8 +117,12 @@ def mlstm_siging_chunkwise__recurrent_fw_C(
     num_chunks_saved = NC // save_states_every_nth_chunk
 
     # If the states are not provided, they are initialized to the correct shape in the jax-triton call.
-    matC_states = jax.ShapeDtypeStruct((B, NH, (num_chunks_saved + 1) * DHQK, DHHV), dtype=jnp.float32)
-    vecN_states = jax.ShapeDtypeStruct((B, NH, (num_chunks_saved + 1) * DHQK), dtype=jnp.float32)
+    matC_states = jax.ShapeDtypeStruct(
+        (B, NH, (num_chunks_saved + 1) * DHQK, DHHV), dtype=jnp.float32
+    )
+    vecN_states = jax.ShapeDtypeStruct(
+        (B, NH, (num_chunks_saved + 1) * DHQK), dtype=jnp.float32
+    )
 
     # Shared kwargs for the triton call.
     grid = (num_b_DHQK, num_b_DHHV, B * NH)

@@ -4,8 +4,13 @@
 import logging
 from pathlib import Path
 
-from mlstm_kernels.jax.parallel.native_stablef import mlstm_parallel__native_stablef_autograd
-from mlstm_kernels.jax.recurrent.native_sequence_scan import mlstm_recurrent_sequence__native_fw, mlstm_recurrent_sequence__triton_step_fused_fw
+from mlstm_kernels.jax.parallel.native_stablef import (
+    mlstm_parallel__native_stablef_autograd,
+)
+from mlstm_kernels.jax.recurrent.native_sequence_scan import (
+    mlstm_recurrent_sequence__native_fw,
+    mlstm_recurrent_sequence__triton_step_fused_fw,
+)
 
 import jax
 import jax.numpy as jnp
@@ -16,6 +21,7 @@ from ...conftest import final_combinations
 LOGGER = logging.getLogger(__name__)
 
 TEST_FOLDER_NAME_PREFIX = "recurrent_sequence-jax__native"
+
 
 @pytest.mark.parametrize(["S", "B", "NH", "DHQK", "DHHV"], final_combinations)
 def test_native_recurrent_sequence_native_step_vs_native_parallel_stablef_fp32(
@@ -33,7 +39,7 @@ def test_native_recurrent_sequence_native_step_vs_native_parallel_stablef_fp32(
         DHQK=DHQK,
         DHHV=DHHV,
         dtype=jnp.float32,
-        atol_fw=1.1e-2, # Max absolute difference: 0.01150007
+        atol_fw=1.1e-2,  # Max absolute difference: 0.01150007
         rtol_fw=5e-2,
         atol_fwbw=2e-2,
         rtol_fwbw=5e-2,
@@ -44,6 +50,7 @@ def test_native_recurrent_sequence_native_step_vs_native_parallel_stablef_fp32(
         use_jit=False,
         run_backward=False,
     )
+
 
 @pytest.mark.parametrize(["S", "B", "NH", "DHQK", "DHHV"], final_combinations)
 def test_native_recurrent_sequence_triton_step_fused_vs_native_parallel_stablef_fp32(
@@ -61,7 +68,7 @@ def test_native_recurrent_sequence_triton_step_fused_vs_native_parallel_stablef_
         DHQK=DHQK,
         DHHV=DHHV,
         dtype=jnp.float32,
-        atol_fw=1.1e-2, #Max absolute difference: 0.0114983
+        atol_fw=1.1e-2,  # Max absolute difference: 0.0114983
         rtol_fw=5e-2,
         atol_fwbw=2e-2,
         rtol_fwbw=5e-2,

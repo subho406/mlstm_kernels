@@ -3,8 +3,12 @@
 
 import logging
 
-from mlstm_kernels.torch.parallel.native_stablef import mlstm_parallel__native_stablef_autograd
-from mlstm_kernels.torch.recurrent.native_sequence import mlstm_recurrent_sequence__native_fw
+from mlstm_kernels.torch.parallel.native_stablef import (
+    mlstm_parallel__native_stablef_autograd,
+)
+from mlstm_kernels.torch.recurrent.native_sequence import (
+    mlstm_recurrent_sequence__native_fw,
+)
 
 import pytest
 import torch

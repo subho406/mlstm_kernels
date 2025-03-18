@@ -52,10 +52,11 @@ def measure_runtime(
     ), f"return_mode must be one of {typing.get_args(ReturnModes)}"
     import torch
     from torch.profiler import record_function
+
     if profiler is not None:
-        assert isinstance(profiler, torch.profiler.profiler.profile), (
-            f"profiler must be a torch.profiler.profile object, but got {type(profiler)}."
-        )
+        assert isinstance(
+            profiler, torch.profiler.profiler.profile
+        ), f"profiler must be a torch.profiler.profile object, but got {type(profiler)}."
 
     device = torch.device(device) if device is not None else None
 
@@ -106,7 +107,9 @@ def measure_runtime(
     for i in range(n_repeat):
         LOGGER.debug(f"Benchmark iteration {i}")
         if profiler is not None:
-            LOGGER.debug(f"Profiler step {profiler.step_num}, Profiler Action {profiler.current_action}")
+            LOGGER.debug(
+                f"Profiler step {profiler.step_num}, Profiler Action {profiler.current_action}"
+            )
         with record_function(f"main_iter_{i}"):
             # we don't want `fn` to accumulate gradient values
             # if it contains a backward pass. So we clear the

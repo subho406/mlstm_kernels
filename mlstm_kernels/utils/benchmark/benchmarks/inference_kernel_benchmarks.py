@@ -86,7 +86,6 @@ class mLSTMStepKernelBenchmark(KernelBenchmarkInterface):
         return get_available_mlstm_step_kernels()
 
 
-
 @dataclass
 class MambaStepKernelBenchmark(KernelBenchmarkInterface):
     batch_size: int = None
@@ -100,7 +99,9 @@ class MambaStepKernelBenchmark(KernelBenchmarkInterface):
         # see: https://github.com/state-spaces/mamba/blob/
         # 442fab4b1fd5226c1b5939b37d91ede430b5d1ae/mamba_ssm/ops/triton/selective_state_update.py#L204
         if self.kernel_name == "mamba2":
-            state = torch.randn(self.batch_size, self.num_heads, self.head_dim_v, self.head_dim_qk)
+            state = torch.randn(
+                self.batch_size, self.num_heads, self.head_dim_v, self.head_dim_qk
+            )
             x = torch.randn(self.batch_size, self.num_heads, self.head_dim_v)
             dt = torch.randn(self.batch_size, self.num_heads, self.head_dim_v)
             A = torch.randn(self.num_heads, self.head_dim_v, self.head_dim_qk)
@@ -110,7 +111,9 @@ class MambaStepKernelBenchmark(KernelBenchmarkInterface):
             z = torch.randn(self.batch_size, self.num_heads, self.head_dim_v)
             dt_bias = torch.randn(self.num_heads, self.head_dim_v)
         elif self.kernel_name == "mamba":
-            state = torch.randn(self.batch_size, self.num_heads*self.head_dim_v, self.head_dim_qk)
+            state = torch.randn(
+                self.batch_size, self.num_heads * self.head_dim_v, self.head_dim_qk
+            )
             x = torch.randn(self.batch_size, self.num_heads * self.head_dim_v)
             dt = torch.randn(self.batch_size, self.num_heads * self.head_dim_v)
             A = torch.randn(self.num_heads * self.head_dim_v, self.head_dim_qk)
@@ -120,7 +123,9 @@ class MambaStepKernelBenchmark(KernelBenchmarkInterface):
             z = torch.randn(self.batch_size, self.num_heads * self.head_dim_v)
             dt_bias = torch.randn(self.num_heads * self.head_dim_v)
         else:
-            raise ValueError(f"Bad kernel name {self.kernel_name} not in {self.available_kernels()}")
+            raise ValueError(
+                f"Bad kernel name {self.kernel_name} not in {self.available_kernels()}"
+            )
         return state, x, dt, A, B, C, D, z, dt_bias
 
     def _get_kernel_fn(self) -> Callable[[tuple[torch.Tensor, ...]], torch.Tensor]:
@@ -137,22 +142,22 @@ class MambaStepKernelBenchmark(KernelBenchmarkInterface):
         inputs = self._get_input_tensors()
 
         inputs = [
-            x.to(device=self.device, dtype=torch_dtype) if i not in [0, 3, 6]
+            x.to(device=self.device, dtype=torch_dtype)
+            if i not in [0, 3, 6]
             else x.to(device=self.device)
-            for i, x in enumerate(inputs)]
+            for i, x in enumerate(inputs)
+        ]
         self.kernel_inputs = inputs
 
         kernel_fn = self._get_kernel_fn()
-        
+
         def benchmark_fn() -> None:
             output = kernel_fn(*self.kernel_inputs)
 
         self.benchmark_fn = benchmark_fn
 
     def available_kernels(self) -> list[str]:
-        
         return ["mamba", "mamba2"]
-
 
 
 @dataclass
@@ -170,7 +175,7 @@ class FlashLinearAttentionStepKernelBenchmark(KernelBenchmarkInterface):
             (self.batch_size, self.num_heads, self.head_dim_qk, self.head_dim_v),
             dtype=torch.float32,
         )
-        
+
         q = torch.randn(
             (self.batch_size, 1, self.num_heads, self.head_dim_qk), dtype=torch.float32
         )
@@ -181,11 +186,22 @@ class FlashLinearAttentionStepKernelBenchmark(KernelBenchmarkInterface):
             (self.batch_size, 1, self.num_heads, self.head_dim_v), dtype=torch.float32
         )
         if self.kernel_name == "fused_recurrent_gla":
-            g = torch.randn((self.batch_size, 1, self.num_heads, self.head_dim_qk), dtype=torch.float32) + 4.5
+            g = (
+                torch.randn(
+                    (self.batch_size, 1, self.num_heads, self.head_dim_qk),
+                    dtype=torch.float32,
+                )
+                + 4.5
+            )
         elif self.kernel_name == "fused_recurrent_simple_gla":
-            g = torch.randn((self.batch_size, 1, self.num_heads), dtype=torch.float32) + 4.5
+            g = (
+                torch.randn((self.batch_size, 1, self.num_heads), dtype=torch.float32)
+                + 4.5
+            )
         else:
-            raise ValueError(f"Bad kernel name {self.kernel_name} not in {self.available_kernels()}")
+            raise ValueError(
+                f"Bad kernel name {self.kernel_name} not in {self.available_kernels()}"
+            )
 
         return c_old, q, k, v, g
 
@@ -198,15 +214,30 @@ class FlashLinearAttentionStepKernelBenchmark(KernelBenchmarkInterface):
         def kernel_fn(q, k, v, f, initial_state):
             if self.kernel_name == "fused_recurrent_gla":
                 return fused_recurrent_gla(
-                    q, k, v, f, gv=None, scale=None,
-                    initial_state=initial_state, output_final_state=True)
+                    q,
+                    k,
+                    v,
+                    f,
+                    gv=None,
+                    scale=None,
+                    initial_state=initial_state,
+                    output_final_state=True,
+                )
             elif self.kernel_name == "fused_recurrent_simple_gla":
                 return fused_recurrent_simple_gla(
-                    q, k, v, g=f, scale=None,
-                    initial_state=initial_state, output_final_state=True)
+                    q,
+                    k,
+                    v,
+                    g=f,
+                    scale=None,
+                    initial_state=initial_state,
+                    output_final_state=True,
+                )
             else:
-                raise ValueError(f"Bad kernel name {self.kernel_name} not in {self.available_kernels()}")
-        
+                raise ValueError(
+                    f"Bad kernel name {self.kernel_name} not in {self.available_kernels()}"
+                )
+
         if self.use_torch_compile:
             kernel_fn = torch.compile(kernel_fn)
         return kernel_fn
@@ -220,7 +251,7 @@ class FlashLinearAttentionStepKernelBenchmark(KernelBenchmarkInterface):
         self.kernel_inputs = inputs
 
         kernel_fn = self._get_kernel_fn()
-        
+
         def benchmark_fn() -> None:
             output = kernel_fn(*self.kernel_inputs)
 
@@ -230,14 +261,12 @@ class FlashLinearAttentionStepKernelBenchmark(KernelBenchmarkInterface):
         return ["fused_recurrent_gla", "fused_recurrent_simple_gla"]
 
 
-
 def create_inference_kernel_benchmark(
     kernel_spec: KernelSpec, param_dict: dict[str, Any]
 ) -> KernelBenchmarkInterface:
     mlstm_step_kernel_benchmark = mLSTMStepKernelBenchmark()
     fla_step_kernel_benchmark = FlashLinearAttentionStepKernelBenchmark()
     mamba_step_kernel_benchmark = MambaStepKernelBenchmark()
-
 
     if kernel_spec.kernel_name in mlstm_step_kernel_benchmark.available_kernels():
         benchmark = mlstm_step_kernel_benchmark

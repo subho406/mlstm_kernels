@@ -24,7 +24,9 @@ def mlstm_chunkwise__parallel_fw_H(
     CHUNK_SIZE: int = 64,
     NUM_CHUNKS: int = 1,
     EPS: float = 1e-6,
-) -> tuple[torch.Tensor, torch.Tensor]:  # matH_out (B, NH, S, DHHV), vecN_out (B, NH, S)
+) -> tuple[
+    torch.Tensor, torch.Tensor
+]:  # matH_out (B, NH, S, DHHV), vecN_out (B, NH, S)
     """This function defines the grid and block sizes for the kernel launch and calls the kernel."""
     B, NH, S, DHQK = matK.shape
     DHHV = matV.shape[-1]

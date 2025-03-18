@@ -64,7 +64,9 @@ def mlstm_chunkwise_fw(
         scaMinter_states).
     """
     B, NH, S, DHQK = matQ.shape
-    assert S % CHUNK_SIZE == 0, f"Sequence length {S} is not divisible by chunk size {CHUNK_SIZE}."
+    assert (
+        S % CHUNK_SIZE == 0
+    ), f"Sequence length {S} is not divisible by chunk size {CHUNK_SIZE}."
     NC = S // CHUNK_SIZE
 
     vecI = vecI.reshape(B, NH, NC, CHUNK_SIZE)

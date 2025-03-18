@@ -33,7 +33,14 @@ def mlstm_chunkwise_bw(
     EPS: float = 1e-6,
     reduce_slicing: bool = False,
 ) -> tuple[
-    jax.Array, jax.Array, jax.Array, jax.Array, jax.Array, jax.Array | None, jax.Array | None, jax.Array | None
+    jax.Array,
+    jax.Array,
+    jax.Array,
+    jax.Array,
+    jax.Array,
+    jax.Array | None,
+    jax.Array | None,
+    jax.Array | None,
 ]:  # matDeltaQ, matDeltaK, matDeltaV, vecDeltaI, vecDeltaF, matDeltaC_initial, vecDeltaN_initial, scaDeltaM_initial
     """
     Computes the backward pass of the mLSTM chunkwise formulation.
@@ -78,7 +85,9 @@ def mlstm_chunkwise_bw(
     """
     B, NH, S, DHQK = matQ.shape
 
-    assert S % CHUNK_SIZE == 0, f"Sequence length {S} is not divisible by chunk size {CHUNK_SIZE}."
+    assert (
+        S % CHUNK_SIZE == 0
+    ), f"Sequence length {S} is not divisible by chunk size {CHUNK_SIZE}."
 
     NC = S // CHUNK_SIZE
 
@@ -161,9 +170,15 @@ def mlstm_chunkwise_bw(
     # vecDeltaI = (matV * matDeltaV).sum(-1)
     vecDeltaI = (matK * matDeltaK).sum(axis=-1)
 
-    matDeltaC_initial = matDeltaC_states[:, :, :DHQK, :] if matC_initial is not None else None
-    vecDeltaN_initial = jnp.zeros_like(vecN_initial) if vecN_initial is not None else None
-    scaDeltaM_initial = jnp.zeros_like(scaM_initial) if scaM_initial is not None else None
+    matDeltaC_initial = (
+        matDeltaC_states[:, :, :DHQK, :] if matC_initial is not None else None
+    )
+    vecDeltaN_initial = (
+        jnp.zeros_like(vecN_initial) if vecN_initial is not None else None
+    )
+    scaDeltaM_initial = (
+        jnp.zeros_like(scaM_initial) if scaM_initial is not None else None
+    )
 
     return (
         matDeltaQ,

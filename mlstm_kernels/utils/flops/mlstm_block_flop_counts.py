@@ -14,7 +14,15 @@ def count_flops_fw_C(L, Nc, dqk, dv, Nh, factor_exp, factor_max, factor_mask) ->
     return (
         Nc
         * Nh
-        * (3 + 3 * L + factor_max + factor_exp * (1 + 2 * L) + 2 * dqk * dv + dqk + L * (4 * dqk * dv + 7 * dqk))
+        * (
+            3
+            + 3 * L
+            + factor_max
+            + factor_exp * (1 + 2 * L)
+            + 2 * dqk * dv
+            + dqk
+            + L * (4 * dqk * dv + 7 * dqk)
+        )
     )
 
 
@@ -31,9 +39,15 @@ def count_flops_fw_H(L, Nc, dqk, dv, Nh, factor_exp, factor_max, factor_mask) ->
     )
 
 
-def count_flops_mlstm_chunkwise_fw(L, Nc, dqk, dv, Nh, factor_exp, factor_max, factor_mask) -> tuple[int, int, int]:
-    flops_fw_C = count_flops_fw_C(L, Nc, dqk, dv, Nh, factor_exp, factor_max, factor_mask)
-    flops_fw_H = count_flops_fw_H(L, Nc, dqk, dv, Nh, factor_exp, factor_max, factor_mask)
+def count_flops_mlstm_chunkwise_fw(
+    L, Nc, dqk, dv, Nh, factor_exp, factor_max, factor_mask
+) -> tuple[int, int, int]:
+    flops_fw_C = count_flops_fw_C(
+        L, Nc, dqk, dv, Nh, factor_exp, factor_max, factor_mask
+    )
+    flops_fw_H = count_flops_fw_H(
+        L, Nc, dqk, dv, Nh, factor_exp, factor_max, factor_mask
+    )
     flops_fw_total = flops_fw_C + flops_fw_H
     return flops_fw_total, flops_fw_C, flops_fw_H
 
@@ -80,10 +94,19 @@ def count_flops_mlstm_v1_layer_fw(
     )
     ln_flops = count_ln_flops(d) + count_ln_flops(dv)
     skip_flops = S * d
-    return qkvif_flops + out_proj + ogate_flops + mlstm_cell_flops[0] + ln_flops + skip_flops
+    return (
+        qkvif_flops
+        + out_proj
+        + ogate_flops
+        + mlstm_cell_flops[0]
+        + ln_flops
+        + skip_flops
+    )
 
 
-def count_flops_ffn_layer_fw(S, d, pf, factor_gelu=1, count_ln_flops: Callable[[int], int] = _count_ln_flops) -> int:
+def count_flops_ffn_layer_fw(
+    S, d, pf, factor_gelu=1, count_ln_flops: Callable[[int], int] = _count_ln_flops
+) -> int:
     upproj_flops = 2 * S * d * d * pf + S * d * pf * factor_gelu
     downproj_flops = 2 * S * d * d * pf
     ln_flops = count_ln_flops(d)
@@ -126,7 +149,9 @@ def count_flops_mlstm_v1_block_fw(
     )
     total_flops = mlstm_v1_layer_flops + ffn_layer_flops
     if return_detailed_flops:
-        return total_flops, dict(mlstm_v1_layer_flops=mlstm_v1_layer_flops, ffn_layer_flops=ffn_layer_flops)
+        return total_flops, dict(
+            mlstm_v1_layer_flops=mlstm_v1_layer_flops, ffn_layer_flops=ffn_layer_flops
+        )
     total_linear_layer_flops = ffn_layer_flops
     total_mlstm_flops = mlstm_v1_layer_flops
     return total_flops, total_linear_layer_flops, total_mlstm_flops
@@ -154,9 +179,13 @@ def count_flops_mlstm_v2_block_fw(
     **kwargs,
 ):
     linear_layer_flops = 6 * S * d * d * pf + S * d * pf * factor_swish
-    qkv_proj_flops = 2 * pf * d * (2 * S * qk_block_size * qk_pf + S * v_block_size * v_pf)
+    qkv_proj_flops = (
+        2 * pf * d * (2 * S * qk_block_size * qk_pf + S * v_block_size * v_pf)
+    )
     conv1d_flops = (
-        2 * conv1d_kernel_size * (S + conv1d_kernel_size - 1) * pf * d + S * pf * d + S * pf * d * factor_swish
+        2 * conv1d_kernel_size * (S + conv1d_kernel_size - 1) * pf * d
+        + S * pf * d
+        + S * pf * d * factor_swish
     )
     skip_ln_mlstm_flops = 3 * S * d * pf * v_pf + count_ln_flops(d * pf * v_pf)
     skip_ln_linear_layer_flops = S * d + count_ln_flops(d)
@@ -219,9 +248,13 @@ def count_fw_flops(
         flop_computations = [flop_computations]
     for flop_comp in flop_computations:
         if flop_comp.model_type == "mlstm_v1":
-            total_flops, linear_layer_flops, mlstm_other_flops = count_flops_mlstm_v1_block_fw(**flop_comp.model_config)
+            total_flops, linear_layer_flops, mlstm_other_flops = (
+                count_flops_mlstm_v1_block_fw(**flop_comp.model_config)
+            )
         elif flop_comp.model_type == "mlstm_v2":
-            total_flops, linear_layer_flops, mlstm_other_flops = count_flops_mlstm_v2_block_fw(**flop_comp.model_config)
+            total_flops, linear_layer_flops, mlstm_other_flops = (
+                count_flops_mlstm_v2_block_fw(**flop_comp.model_config)
+            )
         else:
             raise ValueError(f"Model type {flop_comp.model_type} not supported")
 
@@ -305,7 +338,10 @@ def get_mlstm_v1_fw_flops(
 
 
 def get_mlstm_v2_fw_flops(
-    sequence_length: int, chunk_size: int, batch_size: int = 1, multiply_by_2: bool = True
+    sequence_length: int,
+    chunk_size: int,
+    batch_size: int = 1,
+    multiply_by_2: bool = True,
 ) -> dict[str, FLOPsComputation]:
     # num heads mlstm v2
     num_heads_mlstm_v2 = {
@@ -333,7 +369,8 @@ def get_mlstm_v2_fw_flops(
                 "S": sequence_length,
                 "d": embedding_dims[model_tag],
                 "Nh": num_heads_mlstm_v2[model_tag],
-                "dqk": (embedding_dims[model_tag] * pf) // num_heads_mlstm_v2[model_tag],
+                "dqk": (embedding_dims[model_tag] * pf)
+                // num_heads_mlstm_v2[model_tag],
                 "dv": (embedding_dims[model_tag] * pf) // num_heads_mlstm_v2[model_tag],
                 "qk_block_size": qk_block_size,
                 "qk_pf": qk_pf,
@@ -345,18 +382,34 @@ def get_mlstm_v2_fw_flops(
                 **flop_factors,
             },
         )
-        mlstm_v2_flop_computations[model_tag] = count_fw_flops(flopcomp, multiply_by_2=multiply_by_2)
+        mlstm_v2_flop_computations[model_tag] = count_fw_flops(
+            flopcomp, multiply_by_2=multiply_by_2
+        )
     return mlstm_v2_flop_computations
 
 
 def _get_mlstm_fw_flop_dict(
-    mlstm_func: Callable, sequence_length: int, chunk_size: int, multiply_by_2: bool = False
+    mlstm_func: Callable,
+    sequence_length: int,
+    chunk_size: int,
+    multiply_by_2: bool = False,
 ) -> dict[str, tuple[int, int, int]]:
-    flop_res_dict = mlstm_func(sequence_length=sequence_length, chunk_size=chunk_size, multiply_by_2=multiply_by_2)
+    flop_res_dict = mlstm_func(
+        sequence_length=sequence_length,
+        chunk_size=chunk_size,
+        multiply_by_2=multiply_by_2,
+    )
 
-    flop_count_dict = {k: (v.total_flops, v.linear_layer_flops, v.mlstm_other_flops) for k, v in flop_res_dict.items()}
+    flop_count_dict = {
+        k: (v.total_flops, v.linear_layer_flops, v.mlstm_other_flops)
+        for k, v in flop_res_dict.items()
+    }
     return flop_count_dict
 
 
-get_mlstm_v1_fw_flop_dict = partial(_get_mlstm_fw_flop_dict, mlstm_func=get_mlstm_v1_fw_flops)
-get_mlstm_v2_fw_flop_dict = partial(_get_mlstm_fw_flop_dict, mlstm_func=get_mlstm_v2_fw_flops)
+get_mlstm_v1_fw_flop_dict = partial(
+    _get_mlstm_fw_flop_dict, mlstm_func=get_mlstm_v1_fw_flops
+)
+get_mlstm_v2_fw_flop_dict = partial(
+    _get_mlstm_fw_flop_dict, mlstm_func=get_mlstm_v2_fw_flops
+)

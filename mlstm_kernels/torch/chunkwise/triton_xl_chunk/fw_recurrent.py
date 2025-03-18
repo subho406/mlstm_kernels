@@ -32,8 +32,12 @@ def mlstm_chunkwise__recurrent_fw_C(
     assert S % L == 0, "Sequence length must be divisible by chunk size."
     NC = S // L
 
-    assert save_states_every_nth_chunk > 0, "save_states_every_nth_chunk must be positive."
-    assert save_states_every_nth_chunk <= NC, "save_states_every_nth_chunk must be <= NC."
+    assert (
+        save_states_every_nth_chunk > 0
+    ), "save_states_every_nth_chunk must be positive."
+    assert (
+        save_states_every_nth_chunk <= NC
+    ), "save_states_every_nth_chunk must be <= NC."
 
     assert is_power_of_2(
         save_states_every_nth_chunk
@@ -85,7 +89,9 @@ def mlstm_chunkwise__recurrent_fw_C(
         device=matK.device,
         dtype=torch.float32,
     )
-    scaMinter_states = torch.empty(B, NH, (num_chunks_saved + 1), device=matK.device, dtype=torch.float32)
+    scaMinter_states = torch.empty(
+        B, NH, (num_chunks_saved + 1), device=matK.device, dtype=torch.float32
+    )
 
     grid = (num_b_DHQK, num_b_DHHV, B * NH)
     mlstm_chunkwise__recurrent_fw_C_kernel[grid](

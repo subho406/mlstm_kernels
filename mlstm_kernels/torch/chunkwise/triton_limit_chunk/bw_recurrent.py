@@ -39,7 +39,9 @@ def mlstm_chunkwise__recurrent_bw_dC(
 
     USE_LAST_STATE = matDeltaC_last is not None
 
-    matDeltaC_states = torch.zeros((B, NH, (NC + 1) * DHQK, DHHV), dtype=torch.float32, device=_device)
+    matDeltaC_states = torch.zeros(
+        (B, NH, (NC + 1) * DHQK, DHHV), dtype=torch.float32, device=_device
+    )
 
     siz_b_DHQK = get_head_dim_block_size(head_dim=DHQK, min_block_size=64)
     siz_b_DHHV = get_head_dim_block_size(head_dim=DHHV, min_block_size=64)

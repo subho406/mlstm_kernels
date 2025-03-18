@@ -80,15 +80,21 @@ def _get_parallel_fwbw_kernel(
 ) -> Callable:
     if autocast_kernel_dtype == torch.float32:
         return _mlstm_siging_parallel_fwbw_generator(
-            autocast_kernel_dtype=torch.float32, stable_fgate=stable_fgate, normalize=normalize
+            autocast_kernel_dtype=torch.float32,
+            stable_fgate=stable_fgate,
+            normalize=normalize,
         )
     elif autocast_kernel_dtype == torch.float16:
         return _mlstm_siging_parallel_fwbw_generator(
-            autocast_kernel_dtype=torch.float16, stable_fgate=stable_fgate, normalize=normalize
+            autocast_kernel_dtype=torch.float16,
+            stable_fgate=stable_fgate,
+            normalize=normalize,
         )
     elif autocast_kernel_dtype == torch.bfloat16:
         return _mlstm_siging_parallel_fwbw_generator(
-            autocast_kernel_dtype=torch.bfloat16, stable_fgate=stable_fgate, normalize=normalize
+            autocast_kernel_dtype=torch.bfloat16,
+            stable_fgate=stable_fgate,
+            normalize=normalize,
         )
     else:
         raise ValueError(f"Unsupported autocast_kernel_dtype: {autocast_kernel_dtype}")
@@ -149,8 +155,10 @@ def mlstm_siging_parallel__native_custbw(
     assert return_last_states is False, "return_last_states is not supported"
 
     _mlstm_parallel_fwbw = _get_parallel_fwbw_kernel(
-        autocast_kernel_dtype=autocast_kernel_dtype, stable_fgate=stable_fgate, normalize=normalize
+        autocast_kernel_dtype=autocast_kernel_dtype,
+        stable_fgate=stable_fgate,
+        normalize=normalize,
     )
 
-    matH, _= _mlstm_parallel_fwbw.apply(q, k, v, i, f, eps)
+    matH, _ = _mlstm_parallel_fwbw.apply(q, k, v, i, f, eps)
     return matH

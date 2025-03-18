@@ -4,7 +4,7 @@
 kernel_colors = {
     "torch_flashattn": "#165b89",
     "torch_cudnn": "#439ebd",
-    "flashattn3": '#80a8b3',
+    "flashattn3": "#80a8b3",
     "mamba2_noconv": "#d08814",
     "mamba2": "#d08814",
     "mamba": "#ffd449",
@@ -35,151 +35,151 @@ kernel_labels = {
 style_dict = {
     # FWBW
     "chunkwise--triton_limit_chunk__bfloat16__fwbw__cs-64_nh-8_hdv-512_hdq-256": {
-        "color": kernel_colors['triton_limit_chunk'],
-        "label": kernel_labels['triton_limit_chunk'],
+        "color": kernel_colors["triton_limit_chunk"],
+        "label": kernel_labels["triton_limit_chunk"],
     },
     "chunkwise--triton_xl_chunk__bfloat16__fwbw__cs-128_nh-8_hdv-512_hdq-256": {
-        "color": kernel_colors['triton_xl_chunk'],
-        "label": kernel_labels['triton_xl_chunk'],
+        "color": kernel_colors["triton_xl_chunk"],
+        "label": kernel_labels["triton_xl_chunk"],
     },
     "chunkwise--native_custbw____bfloat16__fwbw__cs-128_nh-8_hdv-512_hdq-256": {
-        "color": kernel_colors['torch_native'],
-        "label": kernel_labels['torch_native'],
+        "color": kernel_colors["torch_native"],
+        "label": kernel_labels["torch_native"],
     },
     "chunkwise--native_custbw____bfloat16__fwbw__cs-256_nh-8_hdv-512_hdq-256": {
-        "color": kernel_colors['torch_native'],
-        "label": kernel_labels['torch_native'],
+        "color": kernel_colors["torch_native"],
+        "label": kernel_labels["torch_native"],
     },
     "chunkwise--native_custbw____bfloat16__fwbw__cs-64_nh-8_hdv-512_hdq-256": {
-        "color": kernel_colors['torch_native'],
-        "label": kernel_labels['torch_native'],
+        "color": kernel_colors["torch_native"],
+        "label": kernel_labels["torch_native"],
     },
     "chunkwise--native_autograd____bfloat16__fwbw__cs-256_nh-8_hdv-512_hdq-256": {
-        "color": kernel_colors['torch_native'],
-        "label": kernel_labels['torch_native'],
+        "color": kernel_colors["torch_native"],
+        "label": kernel_labels["torch_native"],
     },
     "chunk_gla____bfloat16__fwbw__nh-8_hdv-512_hdq-256": {
-        "color": kernel_colors['chunk_gla'],
-        "label": kernel_labels['chunk_gla'],
+        "color": kernel_colors["chunk_gla"],
+        "label": kernel_labels["chunk_gla"],
     },
     "fused_chunk_gla__bfloat16__fwbw__nh-8_hdv-512_hdq-256": {
-        "color": kernel_colors['fused_chunk_gla'],
-        "label": kernel_labels['fused_chunk_gla'],
+        "color": kernel_colors["fused_chunk_gla"],
+        "label": kernel_labels["fused_chunk_gla"],
     },
     "chunk_simple_gla__bfloat16__fwbw__nh-8_hdv-512_hdq-256": {
-        "color": kernel_colors['chunk_simple_gla'],
-        "label": kernel_labels['chunk_simple_gla'],
+        "color": kernel_colors["chunk_simple_gla"],
+        "label": kernel_labels["chunk_simple_gla"],
     },
     "mamba____bfloat16__fwbw__nh-1_hdv-8192_hdq-16": {
-        "color": kernel_colors['mamba'],
-        "label": kernel_labels['mamba'],
+        "color": kernel_colors["mamba"],
+        "label": kernel_labels["mamba"],
     },
     "mamba2____bfloat16__fwbw__nh-128_hdv-64_hdq-64": {
-        "color": kernel_colors['mamba2'],
-        "label": kernel_labels['mamba2'],
+        "color": kernel_colors["mamba2"],
+        "label": kernel_labels["mamba2"],
     },
     "mamba2_noconv____bfloat16__fwbw__nh-128_hdv-64_hdq-64": {
-        "color": kernel_colors['mamba2_noconv'],
-        "label": kernel_labels['mamba2_noconv'],
+        "color": kernel_colors["mamba2_noconv"],
+        "label": kernel_labels["mamba2_noconv"],
     },
     "flashattn3____bfloat16__fwbw__nh-32_hdv-128_hdq-128": {
-        "color": kernel_colors['flashattn3'],
-        "label": kernel_labels['flashattn3'],
+        "color": kernel_colors["flashattn3"],
+        "label": kernel_labels["flashattn3"],
     },
     "torch_flash__bfloat16__fwbw__nh-32_hdq-128_hdv-128": {
-        "color": kernel_colors['torch_flashattn'],
-        "label": kernel_labels['torch_flashattn'],
+        "color": kernel_colors["torch_flashattn"],
+        "label": kernel_labels["torch_flashattn"],
     },
     "torch_cudnn__bfloat16__fwbw__nh-32_hdq-128_hdv-128": {
-        "color": kernel_colors['torch_cudnn'],
-        "label": kernel_labels['torch_cudnn'],
+        "color": kernel_colors["torch_cudnn"],
+        "label": kernel_labels["torch_cudnn"],
     },
     # FW
     "chunkwise--triton_limit_chunk__bfloat16__fw__cs-64_nh-8_hdv-512_hdq-256": {
-        "color": kernel_colors['triton_limit_chunk'],
-        "label": kernel_labels['triton_limit_chunk'],
+        "color": kernel_colors["triton_limit_chunk"],
+        "label": kernel_labels["triton_limit_chunk"],
     },
     "chunkwise--triton_xl_chunk__bfloat16__fw__cs-128_nh-8_hdv-512_hdq-256": {
-        "color": kernel_colors['triton_xl_chunk'],
-        "label": kernel_labels['triton_xl_chunk'],
+        "color": kernel_colors["triton_xl_chunk"],
+        "label": kernel_labels["triton_xl_chunk"],
     },
     "chunkwise--native_custbw____bfloat16__fw__cs-128_nh-8_hdv-512_hdq-256": {
-        "color": kernel_colors['torch_native'],
-        "label": kernel_labels['torch_native'],
+        "color": kernel_colors["torch_native"],
+        "label": kernel_labels["torch_native"],
     },
     "chunkwise--native_custbw____bfloat16__fw__cs-256_nh-8_hdv-512_hdq-256": {
-        "color": kernel_colors['torch_native'],
-        "label": kernel_labels['torch_native'],
+        "color": kernel_colors["torch_native"],
+        "label": kernel_labels["torch_native"],
     },
     "chunkwise--native_custbw____bfloat16__fw__cs-64_nh-8_hdv-512_hdq-256": {
-        "color": kernel_colors['torch_native'],
-        "label": kernel_labels['torch_native'],
+        "color": kernel_colors["torch_native"],
+        "label": kernel_labels["torch_native"],
     },
     "chunkwise--native_autograd____bfloat16__fw__cs-256_nh-8_hdv-512_hdq-256": {
-        "color": kernel_colors['torch_native'],
-        "label": kernel_labels['torch_native'],
+        "color": kernel_colors["torch_native"],
+        "label": kernel_labels["torch_native"],
     },
     "chunk_gla____bfloat16__fw__nh-8_hdv-512_hdq-256": {
-        "color": kernel_colors['chunk_gla'],
-        "label": kernel_labels['chunk_gla'],
+        "color": kernel_colors["chunk_gla"],
+        "label": kernel_labels["chunk_gla"],
     },
     "fused_chunk_gla__bfloat16__fw__nh-8_hdv-512_hdq-256": {
-        "color": kernel_colors['fused_chunk_gla'],
-        "label": kernel_labels['fused_chunk_gla'],
+        "color": kernel_colors["fused_chunk_gla"],
+        "label": kernel_labels["fused_chunk_gla"],
     },
     "chunk_simple_gla__bfloat16__fw__nh-8_hdv-512_hdq-256": {
-        "color": kernel_colors['chunk_simple_gla'],
-        "label": kernel_labels['chunk_simple_gla'],
+        "color": kernel_colors["chunk_simple_gla"],
+        "label": kernel_labels["chunk_simple_gla"],
     },
     "mamba____bfloat16__fw__nh-1_hdv-8192_hdq-16": {
-        "color": kernel_colors['mamba'],
-        "label": kernel_labels['mamba'],
+        "color": kernel_colors["mamba"],
+        "label": kernel_labels["mamba"],
     },
     "mamba2____bfloat16__fw__nh-128_hdv-64_hdq-64": {
-        "color": kernel_colors['mamba2'],
-        "label": kernel_labels['mamba2'],
+        "color": kernel_colors["mamba2"],
+        "label": kernel_labels["mamba2"],
     },
     "mamba2_noconv____bfloat16__fw__nh-128_hdv-64_hdq-64": {
-        "color": kernel_colors['mamba2_noconv'],
-        "label": kernel_labels['mamba2_noconv'],
+        "color": kernel_colors["mamba2_noconv"],
+        "label": kernel_labels["mamba2_noconv"],
     },
     "flashattn3____bfloat16__fw__nh-32_hdv-128_hdq-128": {
-        "color": kernel_colors['flashattn3'],
-        "label": kernel_labels['flashattn3'],
+        "color": kernel_colors["flashattn3"],
+        "label": kernel_labels["flashattn3"],
     },
     "torch_flash__bfloat16__fw__nh-32_hdq-128_hdv-128": {
-        "color": kernel_colors['torch_flashattn'],
-        "label": kernel_labels['torch_flashattn'],
+        "color": kernel_colors["torch_flashattn"],
+        "label": kernel_labels["torch_flashattn"],
     },
     "torch_cudnn__bfloat16__fw__nh-32_hdq-128_hdv-128": {
-        "color": kernel_colors['torch_cudnn'],
-        "label": kernel_labels['torch_cudnn'],
+        "color": kernel_colors["torch_cudnn"],
+        "label": kernel_labels["torch_cudnn"],
     },
     # Generation
     "triton_fused__bfloat16__fw__nh-8_hdv-512_hdq-256": {
-        "color": kernel_colors['triton_xl_chunk'],
-        "label": kernel_labels['triton_xl_chunk'],
+        "color": kernel_colors["triton_xl_chunk"],
+        "label": kernel_labels["triton_xl_chunk"],
     },
     "triton_fused__float32__fw__nh-8_hdv-512_hdq-256": {
-        "color": kernel_colors['triton_limit_chunk'],
-        "label": kernel_labels['triton_limit_chunk'],
+        "color": kernel_colors["triton_limit_chunk"],
+        "label": kernel_labels["triton_limit_chunk"],
     },
     "native____bfloat16__fw__nh-8_hdv-512_hdq-256": {
-        "color": kernel_colors['triton_limit_chunk'],
-        "label": kernel_labels['triton_limit_chunk'],
+        "color": kernel_colors["triton_limit_chunk"],
+        "label": kernel_labels["triton_limit_chunk"],
     },
     "native____float32__fw__nh-8_hdv-512_hdq-256": {
-        "color": kernel_colors['triton_limit_chunk'],
-        "label": kernel_labels['triton_limit_chunk'],
+        "color": kernel_colors["triton_limit_chunk"],
+        "label": kernel_labels["triton_limit_chunk"],
     },
     "fused_recurrent_gla____bfloat16__fw__nh-8_hdv-512_hdq-256": {
-        "color": kernel_colors['fused_chunk_gla'],
-        "label": kernel_labels['fused_chunk_gla'],
-    }
+        "color": kernel_colors["fused_chunk_gla"],
+        "label": kernel_labels["fused_chunk_gla"],
+    },
 }
 
 # col_order_fwbw = [
-    
+
 #     "chunkwise--triton_xl_chunk__bfloat16__fwbw__cs-128_nh-8_hdv-512_hdq-256",
 #     "chunkwise--triton_limit_chunk__bfloat16__fwbw__cs-64_nh-8_hdv-512_hdq-256",
 #     # "chunkwise--native_custbw____bfloat16__fwbw__cs-128_nh-8_hdv-512_hdq-256",
@@ -207,7 +207,7 @@ col_order_fwbw = [
     "chunk_gla____bfloat16__fwbw__nh-8_hdv-512_hdq-256",
     # "fused_chunk_gla__bfloat16__fwbw__nh-8_hdv-512_hdq-256",
     # "chunk_simple_gla__bfloat16__fwbw__nh-8_hdv-512_hdq-256",
-    # "mamba2_noconv____bfloat16__fwbw__nh-64_hdv-64_hdq-64", 
+    # "mamba2_noconv____bfloat16__fwbw__nh-64_hdv-64_hdq-64",
     "chunkwise--triton_limit_chunk__bfloat16__fwbw__cs-64_nh-8_hdv-512_hdq-256",
     "chunkwise--triton_xl_chunk__bfloat16__fwbw__cs-128_nh-8_hdv-512_hdq-256",
     # "chunkwise--native_custbw____bfloat16__fwbw__cs-128_nh-8_hdv-512_hdq-256",
@@ -277,5 +277,4 @@ col_order_gen = [
     "mamba2____bfloat16__fw__nh-128_hdv-64_hdq-64",
     "fused_recurrent_gla____bfloat16__fw__nh-8_hdv-512_hdq-256",
     # "fused_recurrent_simple_gla____bfloat16__fw__nh-8_hdv-512_hdq-256",
-
 ]

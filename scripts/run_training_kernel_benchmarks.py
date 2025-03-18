@@ -15,7 +15,7 @@ from mlstm_kernels.utils.benchmark.run_benchmark import run_and_record_benchmark
 from mlstm_kernels.utils.benchmark.utils import setup_output_folder
 
 mlstm_triton_kernel_specs = """
-  #? this kernel supports only head dimensions up to 256 
+  #? this kernel supports only head dimensions up to 256
   # and head dim qk must be equal to head dim v
   # - kernel_name: "parallel--triton_limit_headdim"
   #   fwbw: {fwbw}
@@ -25,7 +25,7 @@ mlstm_triton_kernel_specs = """
   #     head_dim_v: {head_dim_v}
   #     head_dim_qk: {head_dim_v}
 
-    
+
   #### limit_chunk
   #? chunk size 64 is optimal
   - kernel_name: "chunkwise--triton_limit_chunk"
@@ -74,7 +74,7 @@ mlstm_triton_kernel_specs = """
       num_heads: {num_heads}
       head_dim_v: {head_dim_v}
       head_dim_qk: {head_dim_qk}
-  
+
   - kernel_name: "chunkwise--triton_xl_chunk"
     dtype: bfloat16
     fwbw: {fwbw}
@@ -220,7 +220,7 @@ def headdim_benchmark_mlstm_triton(
     batch_size: int = 4,
     debug: bool = False,
 ):
-    head_dims_v = [32, 64, 128, 256, 512, 1024] # 2048 yields illegal memory access
+    head_dims_v = [32, 64, 128, 256, 512, 1024]  # 2048 yields illegal memory access
     embedding_dim = 4096
     batch_size = batch_size if batch_size is not None else 4
     num_heads = [embedding_dim // head_dim for head_dim in head_dims_v]
@@ -247,7 +247,7 @@ fixed_params:
 
 x_axis_param: "head_dim_v"
 
-kernel_specs: 
+kernel_specs:
   #### limit_chunk
   #? chunk size 64 is optimal
   - kernel_name: "chunkwise--triton_limit_chunk"
@@ -284,7 +284,7 @@ kernel_specs:
     fwbw: {fwbw}
     additional_params:
       chunk_size: 256
-  
+
   - kernel_name: "chunkwise--triton_xl_chunk"
     dtype: bfloat16
     fwbw: {fwbw}
@@ -331,6 +331,7 @@ benchmark_name: {bench_name}
 
     run_and_record_benchmarks(cfg, create_training_kernel_benchmark, output_folder)
 
+
 def headdim_benchmark_fla(
     output_folder: Path,
     fwbw: bool = True,
@@ -339,7 +340,12 @@ def headdim_benchmark_fla(
     batch_size: int | None = 4,
     debug: bool = False,
 ):
-    head_dims_v = [128, 256, 512, 1024] #[256, 512, 1024, 2048] #[32, 64, 128, 256, 512, 1024, 2048]
+    head_dims_v = [
+        128,
+        256,
+        512,
+        1024,
+    ]  # [256, 512, 1024, 2048] #[32, 64, 128, 256, 512, 1024, 2048]
     embedding_dim = 4096
     batch_size = batch_size if batch_size is not None else 4
     num_heads = [embedding_dim // head_dim for head_dim in head_dims_v]
@@ -366,7 +372,7 @@ fixed_params:
 
 x_axis_param: "head_dim_v"
 
-kernel_specs: 
+kernel_specs:
   - kernel_name: "chunk_gla"
     dtype: bfloat16
     use_torch_compile: False
@@ -411,7 +417,7 @@ def consttoken_benchmark_mlstm_triton(
     head_dim_v = embedding_dim // num_heads
     head_dim_qk = embedding_dim // num_heads
     if half_qkdim:
-        head_dim_qk = half_qkdim // 2
+        head_dim_qk = head_dim_qk // 2
     sequence_lengths = list(map(lambda i: 1 << i, range(*sequence_length_limits)))
     batch_sizes = list(
         map(
@@ -482,7 +488,7 @@ fixed_params:
   rep: {30 if not debug else 10}
   warmup: {10 if not debug else 3}
   result_aggregation: "median"
-  
+
 x_axis_param: "sequence_length"
 
 kernel_specs: {fla_kernel_specs.format(fwbw=fwbw, num_heads=num_heads, head_dim_v=head_dim_v, head_dim_qk=head_dim_qk)}
@@ -497,6 +503,7 @@ benchmark_name: fla_constant_tokens_sequence_{"fwbw" if fwbw else "fw"}
 
     run_and_record_benchmarks(cfg, create_training_kernel_benchmark, output_folder)
 
+
 def consttoken_benchmark_lightning_attn2(
     output_folder: Path,
     fwbw: bool = True,
@@ -509,7 +516,7 @@ def consttoken_benchmark_lightning_attn2(
 
     This benchmark uses head dimensions as they would be used in a 7B model (i.e. embedding dimension 4096).
 
-    Notes: 
+    Notes:
     - Lightning attention does not support different head dimensions for qk and v.
     - It only supports head dimensions up to 128, i.e. num_heads = 32 or 64
     """
@@ -535,10 +542,10 @@ fixed_params:
   rep: {30 if not debug else 10}
   warmup: {10 if not debug else 3}
   result_aggregation: "median"
-  
+
 x_axis_param: "sequence_length"
 
-kernel_specs: 
+kernel_specs:
   - kernel_name: "lightning_attn2"
     dtype: bfloat16
     fwbw: {fwbw}
@@ -590,7 +597,7 @@ fixed_params:
   rep: {30 if not debug else 10}
   warmup: {10 if not debug else 3}
   result_aggregation: "median"
-  
+
 x_axis_param: "sequence_length"
 
 kernel_specs:
@@ -713,8 +720,8 @@ def consttoken_benchmark_flashattn(
     """
     embedding_dim = 4096
     num_heads = 32
-    head_dim_v = embedding_dim // num_heads # 128
-    head_dim_qk = embedding_dim // num_heads # 128
+    head_dim_v = embedding_dim // num_heads  # 128
+    head_dim_qk = embedding_dim // num_heads  # 128
     sequence_lengths = list(map(lambda i: 1 << i, range(*sequence_length_limits)))
     batch_sizes = list(
         map(
@@ -733,7 +740,7 @@ fixed_params:
   warmup: {25 if not debug else 3}
   rep: {100 if not debug else 5}
   result_aggregation: "median"
-  
+
 x_axis_param: "sequence_length"
 
 kernel_specs:
@@ -794,10 +801,18 @@ def run_multiple_benchmarks(
 
         if consttoken_benchmark == "mlstm_triton":
             consttoken_benchmark_mlstm_triton(
-                output_folder, fwbw=True, debug=debug, num_heads=num_heads, half_qkdim=half_qkdim
+                output_folder,
+                fwbw=True,
+                debug=debug,
+                num_heads=num_heads,
+                half_qkdim=half_qkdim,
             )
             consttoken_benchmark_mlstm_triton(
-                output_folder, fwbw=False, debug=debug, num_heads=num_heads, half_qkdim=half_qkdim
+                output_folder,
+                fwbw=False,
+                debug=debug,
+                num_heads=num_heads,
+                half_qkdim=half_qkdim,
             )
         elif consttoken_benchmark == "fla":
             consttoken_benchmark_fla(
@@ -833,17 +848,33 @@ def run_multiple_benchmarks(
 
         if headdim_benchmark == "mlstm_triton":
             headdim_benchmark_mlstm_triton(
-                output_folder, fwbw=True, debug=debug, half_qkdim=half_qkdim, batch_size=batch_size
+                output_folder,
+                fwbw=True,
+                debug=debug,
+                half_qkdim=half_qkdim,
+                batch_size=batch_size,
             )
             headdim_benchmark_mlstm_triton(
-                output_folder, fwbw=False, debug=debug, half_qkdim=half_qkdim, batch_size=batch_size
+                output_folder,
+                fwbw=False,
+                debug=debug,
+                half_qkdim=half_qkdim,
+                batch_size=batch_size,
             )
         elif headdim_benchmark == "fla":
             headdim_benchmark_fla(
-                output_folder, fwbw=True, debug=debug, half_qkdim=half_qkdim, batch_size=batch_size
+                output_folder,
+                fwbw=True,
+                debug=debug,
+                half_qkdim=half_qkdim,
+                batch_size=batch_size,
             )
             headdim_benchmark_fla(
-                output_folder, fwbw=False, debug=debug, half_qkdim=half_qkdim, batch_size=batch_size
+                output_folder,
+                fwbw=False,
+                debug=debug,
+                half_qkdim=half_qkdim,
+                batch_size=batch_size,
             )
         else:
             raise ValueError(f"Unknown headdim benchmark: {headdim_benchmark}")

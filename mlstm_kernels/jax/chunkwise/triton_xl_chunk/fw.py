@@ -42,7 +42,10 @@ def mlstm_chunkwise_fw(
     | (
         tuple[jax.Array, jax.Array, jax.Array]
     ),  # last_states (matC_states (B, NH, DHQK, DHV), vecN_states (B, NH, DHQK), scaMinter_states (B, NH))
-    None | (tuple[jax.Array, jax.Array, jax.Array]),  # all_states (matC_states (B, NH, (NC+1) * DHQK, DHV),
+    None
+    | (
+        tuple[jax.Array, jax.Array, jax.Array]
+    ),  # all_states (matC_states (B, NH, (NC+1) * DHQK, DHV),
     # vecN_states (B, NH, (NC+1) * DHQK), scaMinter_states (B, NH, (NC+1)))
 ]:
     """
@@ -95,7 +98,9 @@ def mlstm_chunkwise_fw(
     if qk_scale is None:
         qk_scale = DHQK**-0.5
 
-    save_states_every_nth_chunk = kernel_chunk_params.chunk_size_intra // kernel_chunk_params.chunk_size_inter
+    save_states_every_nth_chunk = (
+        kernel_chunk_params.chunk_size_intra // kernel_chunk_params.chunk_size_inter
+    )
 
     # materialize the  C_k, n_k, m_k states for each chunk
     matC_all, vecN_all, scaM_all = mlstm_chunkwise__recurrent_fw_C(
