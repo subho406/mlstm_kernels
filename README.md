@@ -2,7 +2,7 @@
 
 <img src="./res/Figure_1-7.svg" width="350px" alt="xLSTM Figure 1"> <img src="./res/Figure 2 - paper.svg" width="400px" alt="xLSTM Figure 1">
 
->Paper: TODO
+>Paper: [https://arxiv.org/abs/2503.14376](https://arxiv.org/abs/2503.14376)
 >
 >Authors: Maximilian Beck, Korbinian Pöppel, Phillip Lippe, Sepp Hochreiter
 
@@ -270,11 +270,11 @@ Please cite our papers if you use this codebase, or otherwise find our work valu
 @article{beck:25tfla,
   title        = {{Tiled Flash Linear Attention}: More Efficient Linear RNN and xLSTM Kernels},
   author       = {Maximilian Beck and Korbinian Pöppel and Phillip Lippe and Sepp Hochreiter},
-  year         = {2024},
-  volume       = {XXX},
+  year         = {2025},
+  volume       = {2503.14376},
   journal      = {arXiv},
   primaryclass = {cs.LG},
-  url          = {XXX}
+  url          = {https://arxiv.org/abs/2503.14376}
 }
 
 @article{beck:25xlstm7b,
