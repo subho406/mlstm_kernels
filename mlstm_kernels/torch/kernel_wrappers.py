@@ -153,7 +153,6 @@ def wrap_chunkwise__arbitrary_sequence_length(
             LOGGER.debug(
                 f"Final: Recurrent step mode: compute last state for seq[{seq_len_start_idx}:{S}], remaining_seq_len={remaining_seq_len}"
             ) if enable_logging else None
-            # we use here matK as q as this kernel does not need a query, since we do not care about the outputs only about the last state
             h_out, (c_state, n_state, m_state) = mlstm_sequence_kernel(
                 q=q[..., seq_len_start_idx:S, :].contiguous(),
                 k=k[..., seq_len_start_idx:S, :].contiguous(),
