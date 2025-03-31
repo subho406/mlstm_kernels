@@ -11,8 +11,8 @@ from typing import Literal
 from dacite import from_dict
 from omegaconf import OmegaConf
 
-from mlstm_kernels.utils.benchmark.benchmarks.huggingface_model_benchmark import (
-    create_hf_model_benchmark,
+from mlstm_kernels.utils.benchmark.benchmarks.vllm_model_benchmark import (
+    create_vllm_model_benchmark,
 )
 from mlstm_kernels.utils.benchmark.param_handling import BenchmarkConfig
 from mlstm_kernels.utils.benchmark.run_benchmark import run_and_record_benchmarks
@@ -48,9 +48,9 @@ kernel_specs:
   # Note: not implemented for xlstm.xlstm_large
   # - model_name: "xlstm.xlstm_large"
   #   weight_dtype: {weight_dtype}
-  #   use_torch_compile_model: True
+  #   use_torch_compile_model: False
   #   additional_params:
-  #     use_cuda_graphs_generate: True
+  #     use_cuda_graphs_generate: False
   #     use_cuda_graphs_model: False
 
   #     use_torch_compile_generate: False
@@ -68,38 +68,38 @@ kernel_specs:
   #     chunk_size: 128
   #     autocast_kernel_dtype: bfloat16
 
-  - model_name: "xlstm"
-    weight_dtype: {weight_dtype}
-    use_torch_compile_model: True
-    additional_params:
-      use_cuda_graphs_generate: True
-      use_cuda_graphs_model: False
+  # - model_name: "xlstm"
+  #   weight_dtype: {weight_dtype}
+  #   use_torch_compile_model: False
+  #   additional_params:
+  #     use_cuda_graphs_generate: False
+  #     use_cuda_graphs_model: False
 
-      inference_state_dtype: bfloat16
-      embedding_dim: 4096
-      num_heads: 8
-      num_blocks: 32 #3 #32
-      vocab_size: 50304
-      weight_mode: "fused"
+  #     inference_state_dtype: bfloat16
+  #     embedding_dim: 4096
+  #     num_heads: 8
+  #     num_blocks: 32 #3 #32
+  #     vocab_size: 50304
+  #     weight_mode: "fused"
 
-      chunkwise_kernel: chunkwise--triton_xl_chunk
-      sequence_kernel: native_sequence__triton
-      step_kernel: triton
+  #     chunkwise_kernel: chunkwise--triton_xl_chunk
+  #     sequence_kernel: native_sequence__triton
+  #     step_kernel: triton
 
-      chunk_size: 128
-      autocast_kernel_dtype: bfloat16
+  #     chunk_size: 128
+  #     autocast_kernel_dtype: bfloat16
 
   # Note: we can use torch.compile for llama models since we use a static cache
   - model_name: "llama2"
     weight_dtype: {weight_dtype}
-    use_torch_compile_model: True
+    use_torch_compile_model: False
     additional_params:
       use_cuda_graphs_generate: False
       use_cuda_graphs_model: False
 
   - model_name: "llama3"
     weight_dtype: {weight_dtype}
-    use_torch_compile_model: True
+    use_torch_compile_model: False
     additional_params:
       use_cuda_graphs_generate: False
       use_cuda_graphs_model: False
@@ -110,14 +110,14 @@ kernel_specs:
     weight_dtype: {weight_dtype}
     use_torch_compile_model: False
     additional_params:
-      use_cuda_graphs_generate: True
+      use_cuda_graphs_generate: False # True
       use_cuda_graphs_model: False
 
   - model_name: "falcon_mamba"
     weight_dtype: {weight_dtype}
     use_torch_compile_model: False
     additional_params:
-      use_cuda_graphs_generate: True
+      use_cuda_graphs_generate: False # True
       use_cuda_graphs_model: False
 
 
@@ -129,7 +129,7 @@ benchmark_name: "hf_7B_throughput__pfl{prefill_length}_gl{generation_length}_tc{
     )
     run_and_record_benchmarks(
         cfg,
-        create_hf_model_benchmark,
+        create_vllm_model_benchmark,
         output_folder,
         benchmark_type="model",
         setup_model_on_every_param_combination=False,
@@ -146,13 +146,13 @@ def _generation_time_benchmark(
     cfg_yaml = f"""
 vary_type: grid
 vary_params:
-  generation_length: [64, 128, 512, 1024, 2048, 4096, 8192, 16384]
+  generation_length: [64, 128, 256, 512, 1024, 2048, 4096, 8192, 16384]
 fixed_params:
   batch_size: {batch_size}
   prefill_length: {prefill_length}
 
   rep: 1
-  warmup: 1
+  warmup: 2
   benchmark_fn_context_manager: "inference_mode"
 
 x_axis_param: "generation_length"
@@ -160,7 +160,7 @@ x_axis_param: "generation_length"
 kernel_specs:
   # - model_name: "xlstm.xlstm_large"
   #   weight_dtype: {weight_dtype}
-  #   use_torch_compile_model: True
+  #   use_torch_compile_model: False
   #   additional_params:
   #     use_cuda_graphs_generate: False
   #     use_cuda_graphs_model: True
@@ -180,40 +180,40 @@ kernel_specs:
   #     chunk_size: 128
   #     autocast_kernel_dtype: bfloat16
 
-  - model_name: "xlstm"
-    weight_dtype: {weight_dtype}
-    use_torch_compile_model: True
-    additional_params:
-      use_cuda_graphs_generate: False
-      use_cuda_graphs_model: True
+  # - model_name: "xlstm"
+  #   weight_dtype: {weight_dtype}
+  #   use_torch_compile_model: False
+  #   additional_params:
+  #     use_cuda_graphs_generate: False
+  #     use_cuda_graphs_model: True
 
-      inference_state_dtype: bfloat16
-      embedding_dim: 4096
-      num_heads: 8
-      num_blocks: 32 #3 #32
-      vocab_size: 50304
-      weight_mode: "fused"
+  #     inference_state_dtype: bfloat16
+  #     embedding_dim: 4096
+  #     num_heads: 8
+  #     num_blocks: 32 #3 #32
+  #     vocab_size: 50304
+  #     weight_mode: "fused"
 
-      chunkwise_kernel: chunkwise--triton_xl_chunk
-      sequence_kernel: native_sequence__triton
-      step_kernel: triton
+  #     chunkwise_kernel: chunkwise--triton_xl_chunk
+  #     sequence_kernel: native_sequence__triton
+  #     step_kernel: triton
 
-      chunk_size: 128
-      autocast_kernel_dtype: bfloat16
+  #     chunk_size: 128
+  #     autocast_kernel_dtype: bfloat16
 
   # Note: we can use torch.compile for llama models since we use a static cache
   # Cuda graphs on model are not supported for llama models, yet.
   # When applying cuda_graph on generate not much difference was observed.
   - model_name: "llama2"
     weight_dtype: {weight_dtype}
-    use_torch_compile_model: True
+    use_torch_compile_model: False
     additional_params:
       use_cuda_graphs_generate: False
       use_cuda_graphs_model: False
 
   - model_name: "llama3"
     weight_dtype: {weight_dtype}
-    use_torch_compile_model: True
+    use_torch_compile_model: False
     additional_params:
       use_cuda_graphs_generate: False
       use_cuda_graphs_model: False
@@ -225,14 +225,14 @@ kernel_specs:
     use_torch_compile_model: False
     additional_params:
       use_cuda_graphs_generate: False
-      use_cuda_graphs_model: True
+      use_cuda_graphs_model: False # True
 
   - model_name: "falcon_mamba"
     weight_dtype: {weight_dtype}
     use_torch_compile_model: False
     additional_params:
       use_cuda_graphs_generate: False
-      use_cuda_graphs_model: True
+      use_cuda_graphs_model: False # True
 
 benchmark_name: "hf_7B_generation_time__pfl{prefill_length}_bs{batch_size}_tc{use_torch_compile_model}_weightdtype{weight_dtype}"
 """
@@ -243,7 +243,7 @@ benchmark_name: "hf_7B_generation_time__pfl{prefill_length}_bs{batch_size}_tc{us
     LOGGER.info(f"Running benchmark with config:\n{pprint.pformat(cfg)}")
     run_and_record_benchmarks(
         cfg,
-        create_hf_model_benchmark,
+        create_vllm_model_benchmark,
         output_folder,
         benchmark_type="model",
         setup_model_on_every_param_combination=False,
@@ -273,26 +273,26 @@ fixed_params:
 x_axis_param: "prefill_length"
 
 kernel_specs:
-  - model_name: "xlstm"
-    weight_dtype: {weight_dtype}
-    use_torch_compile_model: {use_torch_compile_model}
-    additional_params:
-      use_cuda_graphs_generate: True
-      use_cuda_graphs_model: False
+  # - model_name: "xlstm"
+  #   weight_dtype: {weight_dtype}
+  #   use_torch_compile_model: {use_torch_compile_model}
+  #   additional_params:
+  #     use_cuda_graphs_generate: False
+  #     use_cuda_graphs_model: False
 
-      inference_state_dtype: bfloat16
-      embedding_dim: 4096
-      num_heads: 8
-      num_blocks: 32 #3 #32
-      vocab_size: 50304
-      weight_mode: "fused"
+  #     inference_state_dtype: bfloat16
+  #     embedding_dim: 4096
+  #     num_heads: 8
+  #     num_blocks: 32 #3 #32
+  #     vocab_size: 50304
+  #     weight_mode: "fused"
 
-      chunkwise_kernel: chunkwise--triton_xl_chunk
-      sequence_kernel: native_sequence__triton
-      step_kernel: triton
+  #     chunkwise_kernel: chunkwise--triton_xl_chunk
+  #     sequence_kernel: native_sequence__triton
+  #     step_kernel: triton
 
-      chunk_size: 128
-      autocast_kernel_dtype: bfloat16
+  #     chunk_size: 128
+  #     autocast_kernel_dtype: bfloat16
 
   # - model_name: "xlstm.xlstm_large"
   #   weight_dtype: {weight_dtype}
@@ -300,7 +300,7 @@ kernel_specs:
   #   additional_params:
   #     use_torch_compile_generate: False
 
-  #     use_cuda_graphs_generate: True
+  #     use_cuda_graphs_generate: False
   #     use_cuda_graphs_model: False
 
   #     inference_state_dtype: bfloat16
@@ -340,7 +340,7 @@ kernel_specs:
 
   # - model_name: "xlstm.xlstm_large"
   #   weight_dtype: {weight_dtype}
-  #   use_torch_compile_model: True
+  #   use_torch_compile_model: False
   #   additional_params:
   #     use_torch_compile_generate: False
 
@@ -363,31 +363,31 @@ kernel_specs:
 
   - model_name: "llama2"
     weight_dtype: {weight_dtype}
-    use_torch_compile_model: True
-    additional_params:
-      use_cuda_graphs_generate: True
-      use_cuda_graphs_model: False
-
-  - model_name: "llama3"
-    weight_dtype: {weight_dtype}
-    use_torch_compile_model: True
-    additional_params:
-      use_cuda_graphs_generate: True
-      use_cuda_graphs_model: False
-
-  - model_name: "llama2"
-    weight_dtype: {weight_dtype}
-    use_torch_compile_model: True
+    use_torch_compile_model: False
     additional_params:
       use_cuda_graphs_generate: False
       use_cuda_graphs_model: False
 
   - model_name: "llama3"
     weight_dtype: {weight_dtype}
-    use_torch_compile_model: True
+    use_torch_compile_model: False
     additional_params:
       use_cuda_graphs_generate: False
       use_cuda_graphs_model: False
+
+  # - model_name: "llama2"
+  #   weight_dtype: {weight_dtype}
+  #   use_torch_compile_model: False
+  #   additional_params:
+  #     use_cuda_graphs_generate: False
+  #     use_cuda_graphs_model: False
+
+  # - model_name: "llama3"
+  #   weight_dtype: {weight_dtype}
+  #   use_torch_compile_model: False
+  #   additional_params:
+  #     use_cuda_graphs_generate: False
+  #     use_cuda_graphs_model: False
 
   # Note: this should work, but not tested extensively for torch.compile and cuda graphs
   # - model_name: "ministral8b"
@@ -403,22 +403,15 @@ kernel_specs:
     weight_dtype: {weight_dtype}
     use_torch_compile_model: False
     additional_params:
-      use_cuda_graphs_generate: True
+      use_cuda_graphs_generate: False # True
       use_cuda_graphs_model: False
 
-  - model_name: "codestral_mamba"
-    weight_dtype: {weight_dtype}
-    use_torch_compile_model: False
-    additional_params:
-      use_cuda_graphs_generate: False
-      use_cuda_graphs_model: False
-
-  - model_name: "falcon_mamba"
-    weight_dtype: {weight_dtype}
-    use_torch_compile_model: False
-    additional_params:
-      use_cuda_graphs_generate: True
-      use_cuda_graphs_model: False
+  # - model_name: "codestral_mamba"
+  #   weight_dtype: {weight_dtype}
+  #   use_torch_compile_model: False
+  #   additional_params:
+  #     use_cuda_graphs_generate: False
+  #     use_cuda_graphs_model: False
 
   - model_name: "falcon_mamba"
     weight_dtype: {weight_dtype}
@@ -426,6 +419,13 @@ kernel_specs:
     additional_params:
       use_cuda_graphs_generate: False
       use_cuda_graphs_model: False
+
+  # - model_name: "falcon_mamba"
+  #   weight_dtype: {weight_dtype}
+  #   use_torch_compile_model: False
+  #   additional_params:
+  #     use_cuda_graphs_generate: False
+  #     use_cuda_graphs_model: False
 
   # - model_name: "zamba2"
   #   weight_dtype: {weight_dtype}
@@ -443,7 +443,7 @@ benchmark_name: "hf_7B_timtofirsttok__bs{batch_size}_gl{generation_length}_tc{us
     LOGGER.info(f"Running benchmark with config:\n{pprint.pformat(cfg)}")
     run_and_record_benchmarks(
         cfg,
-        create_hf_model_benchmark,
+        create_vllm_model_benchmark,
         output_folder,
         benchmark_type="model",
         setup_model_on_every_param_combination=False,

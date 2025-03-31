@@ -81,6 +81,7 @@ def run_model_benchmarks(
     setup_model_on_every_param_combination: bool = False,
     profiler=None,
     output_folder: Path = None,
+    run_garbage_collection: bool = True,
 ) -> pd.DataFrame:
     """Runs the different model configurations and summarizes the results in a DataFrame.
     This differs from the kernel benchmark in that way that the two loops are switched.
@@ -131,15 +132,17 @@ def run_model_benchmarks(
             )
             if setup_model_on_every_param_combination:
                 del benchmark
-            gc.collect()
-            torch.cuda.empty_cache()
+            if run_garbage_collection:
+                gc.collect()
+                torch.cuda.empty_cache()
             if output_folder is not None:
                 result_df = pd.DataFrame(results)
                 result_df.to_csv(output_folder / "results.csv")
 
         del benchmark
-        gc.collect()
-        torch.cuda.empty_cache()
+        if run_garbage_collection:
+            gc.collect()
+            torch.cuda.empty_cache()
 
     LOGGER.info("Finished all benchmarks.")
     return pd.DataFrame(results)
