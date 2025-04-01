@@ -171,6 +171,32 @@ def read_ttf_data():
     return ttft_1_plot_df, ttft_100_plot_df
 
 
+def read_ttf_vllm_data():
+    with open("notebooks/plots_7B_model_benchmark/ttft_raw_data_vllm.p", "rb") as f:
+        raw_data = pickle.load(f)
+
+    ttft_1_df = raw_data["ttft_1"]
+    ttft_100_df = raw_data["ttft_100"]
+
+    selected_columns = {
+        "llama3": "R--llama3__ampdt-bfloat16__wdt-bfloat16__ucgg-False_ucgm-False_vllm",
+        "llama2": "R--llama2__ampdt-bfloat16__wdt-bfloat16__ucgg-False_ucgm-False_vllm",
+        "falcon_mamba": "R--falcon_mamba__ampdt-bfloat16__wdt-bfloat16__ucgg-False_ucgm-False_vllm",
+        "codestral_mamba": "R--codestral_mamba__ampdt-bfloat16__wdt-bfloat16__ucgg-False_ucgm-False_vllm",
+        "xlstm": "R--xlstm__tcm__ampdt-bfloat16__wdt-bfloat16__ucgg-True_ucgm-False_isd-bfloat16_ed-4096_nh-8_nb-32_vs-50304_wm-fused_ck-chunkwise--triton_xl_chunk_sk-native_sequence__triton_step_fused_sk-triton_fused_cs-128_akd-bfloat16",
+    }
+
+    ttft_1_plot_df = select_columns(
+        ttft_1_df, selected_columns, keep_col_regex=".*prefill.*"
+    )
+
+    ttft_100_plot_df = select_columns(
+        ttft_100_df, selected_columns, keep_col_regex=".*prefill.*"
+    )
+
+    return ttft_1_plot_df, ttft_100_plot_df
+
+
 def read_gen_data():
     with open("notebooks/plots_7B_model_benchmark/gen_time_mem_data.p", "rb") as f:
         raw_data = pickle.load(f)
@@ -753,8 +779,42 @@ def create_ttf_plot(figsize_2plots_per_col, legend_args):
         x_axis_vals=x_axis_vals,
         x_label="Prefill Length [Tokens]",
         y_labels=y_labels,
+        y_lims=[[0., 1.], [0., 4.]],
         legend_args=legend_args,
         filename="ttfs",
+    )
+
+
+def create_ttf_vllm_plot(figsize_2plots_per_col, legend_args):
+    # Read in data
+    ttf1_1_plot_df, ttf100_1_plot_df = read_ttf_vllm_data()
+
+    # Specify the x-axis parameter and the y-axis labels
+    x_axis_param = "prefill_length"
+    y_labels = ["Time to First Token [s]", "Time to First 100 Tokens [s]"]
+
+    # Collect x and y values
+    x_axis_vals = []
+    y_axis_val_dfs = []
+    for df in [ttf1_1_plot_df, ttf100_1_plot_df]:
+        x_axis_vals.append(df[f"P--{x_axis_param}"])
+
+        exclude_regex = "P--.*|Unnamed.*"
+        y_axis_val_df = df.drop(df.filter(regex=exclude_regex, axis=1).columns, axis=1)
+        # Use seconds instead of milliseconds for TTF plots
+        df = y_axis_val_df * 1e-3
+        y_axis_val_dfs.append(df)
+
+    # Plot the figures
+    plot_dfs(
+        dfs=y_axis_val_dfs,
+        figsize=figsize_2plots_per_col,
+        x_axis_vals=x_axis_vals,
+        x_label="Prefill Length [Tokens]",
+        y_labels=y_labels,
+        y_lims=[[0., 1.], [0., 4.]],
+        legend_args=legend_args,
+        filename="ttfs_vllm",
     )
 
 
@@ -1154,6 +1214,7 @@ def create_bias_ablation_plot(figsize, legend_args):
 def plot_paper_figures():
     switches_for_plots = {
         "ttf": True, # False,
+        "ttf_vllm": True, # False,
         "gen": True, # False,
         "gentime": True,
         "tps": True, # False,
@@ -1183,6 +1244,10 @@ def plot_paper_figures():
 
     if switches_for_plots["ttf"]:
         create_ttf_plot(figsize_2plots_per_col, legend_args)
+
+    if switches_for_plots["ttf_vllm"]:
+        create_ttf_vllm_plot(figsize_2plots_per_col, legend_args)
+
 
     # 2. Produce the generation time and generation memory plots
     if switches_for_plots["gen"]:
