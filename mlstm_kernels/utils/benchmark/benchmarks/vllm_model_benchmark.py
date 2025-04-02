@@ -2,23 +2,17 @@
 #  This software may be used and distributed according to the terms of the NXAI Community License Agreement.
 
 import contextlib
-import inspect
 import logging
 import typing
 from dataclasses import dataclass
-from functools import partial
 from typing import Any, Literal
 
 import torch
 import torch._dynamo.cache_size
-import vllm
-from transformers import GenerationConfig, StaticCache
 from vllm import LLM, SamplingParams
 
 from ..cuda_graphs import (
-    compile_kwargs_with_cuda_graphs,
     compile_with_cuda_graphs,
-    tree_map,
 )
 from ..param_handling import ModelSpec
 from .interface import BenchmarkFnContextManagerCfgType, ModelBenchmarkInterface
@@ -140,22 +134,6 @@ class VLLMModelBenchmark(ModelBenchmarkInterface):
 
         return model_config
 
-    # def get_hf_model_torch_compile_config(self, model_name: str) -> dict:
-    #     hf_model_torch_compile_config = {
-    #         "llama2": dict(disable=True),
-    #         "llama3": dict(dynamic=False, fullgraph=True, mode="reduce-overhead"),
-    #         "ministral8b": dict(dynamic=False, fullgraph=True, mode="reduce-overhead"),
-    #         "codestral_mamba": dict(
-    #             dynamic=False, fullgraph=False, mode="reduce-overhead"
-    #         ),
-    #         "xlstm": dict(dynamic=False, fullgraph=False, mode="default"),
-    #         "falcon_mamba": dict(disable=True),
-    #         "zamba2": dict(
-    #             dynamic=False, fullgraph=False, mode="reduce-overhead"
-    #         ),  # same as mamba2
-    #     }
-    #     return hf_model_torch_compile_config[model_name]
-
     def setup_model(self) -> None:
         self.hf_model_config = self.get_hf_model_config(self.model_name)
 
@@ -166,109 +144,6 @@ class VLLMModelBenchmark(ModelBenchmarkInterface):
 
         LOGGER.info(f"Setting up model: {self.model}")
         LOGGER.info(f"Model config: {self.hf_model_config}")
-
-        # def count_num_params(model):
-        #     return sum(p.numel() for p in model.parameters())
-
-        # LOGGER.info(f"Model number of parameters: {count_num_params(self.model)}")
-
-        # self.model.generation_config.cache_implementation = "static"
-
-        # forward_before_compilation = self.model.forward
-        # if self.use_torch_compile_model:
-        #     LOGGER.info("Compiling model with torch compile.")
-        #     torch._logging.set_logs(dynamo=logging.INFO)
-        #     self.model.forward = torch.compile(
-        #         forward_before_compilation,
-        #         dynamic=False,
-        #         fullgraph=False,
-        #         mode="default",
-        #     )
-        #     if (
-        #         self.model_name in ["xlstm", "falcon_mamba"]
-        #         and not self.use_cuda_graphs_model
-        #     ):
-        #         old_forward = self.model.forward
-
-        #         def new_forward(
-        #             input_ids: torch.LongTensor,
-        #             attention_mask: torch.Tensor | None = None,
-        #             **kwargs,
-        #         ):
-        #             # Remove attention mask from forward call, which differ in sizes.
-        #             del attention_mask
-        #             # Copy input_ids to avoid different stride arguments, which cause recompilation.
-        #             input_ids = torch.view_copy(input_ids, input_ids.shape)
-        #             # Debugging
-        #             out = old_forward(input_ids=input_ids, **kwargs)
-        #             return out
-
-        #         new_forward.__signature__ = inspect.signature(old_forward)
-        #         self.model.forward = new_forward
-
-        # if self.use_cuda_graphs_model:
-        #     # TODO: As it is set up here we cannot change the batch size after model setup, because
-        #     # the graph is generated with a fixed batch size.
-        #     LOGGER.info("Setting up model with CUDA graphs.")
-        #     assert (
-        #         self.model_name
-        #         in [
-        #             "xlstm",
-        #             "falcon_mamba",
-        #             "codestral_mamba",
-        #         ]
-        #     ), "CUDA graphs are only supported for the xlstm, falcon_mamba and codestral_mamba models."
-        #     # Set up one graph with the model forward call.
-        #     # 1) infer cache structure by a single forward call.
-        #     graph_input_ids = torch.zeros(
-        #         (self.batch_size, 1), dtype=torch.long, device=torch.device(self.device)
-        #     )
-        #     # 1.1) set cache position fixed, as different per model.
-        #     if self.model_name == "xlstm":
-        #         cache_position = None
-        #     elif self.model_name in ["falcon_mamba", "codestral_mamba"]:
-        #         cache_position = torch.arange(
-        #             0,
-        #             self.hf_model_config.conv_kernel,
-        #             device=torch.device(self.device),
-        #         )
-        #     else:
-        #         raise ValueError(
-        #             f"Model {self.model_name} not supported for CUDA graphs."
-        #         )
-        #     with torch.inference_mode():
-        #         output = forward_before_compilation(
-        #             input_ids=graph_input_ids,
-        #             cache_params=None,
-        #             use_cache=True,
-        #             return_dict=True,
-        #         )
-        #         graph_cache_params = tree_map(
-        #             lambda x: torch.zeros_like(x) if isinstance(x, torch.Tensor) else x,
-        #             output["cache_params"],
-        #         )
-        #         # 2) compile the model with the cache structure.
-        #         _, fn_graph_call = compile_kwargs_with_cuda_graphs(
-        #             fn=partial(
-        #                 self.model.forward,
-        #                 cache_position=cache_position,
-        #                 use_cache=True,
-        #                 return_dict=True,
-        #             ),
-        #             inputs={
-        #                 "input_ids": graph_input_ids,
-        #                 "cache_params": graph_cache_params,
-        #             },
-        #             warmups=self.cuda_graphs_warmups,
-        #         )
-
-        #     # 3) Set the model forward to the graph.
-        #     def new_forward(input_ids: torch.LongTensor, cache_params=None, **kwargs):
-        #         return fn_graph_call(input_ids=input_ids, cache_params=cache_params)
-
-        #     # Set signature to the original forward signature for HF checks.
-        #     new_forward.__signature__ = inspect.signature(self.model.forward)
-        #     self.model.forward = new_forward
 
         if self.use_torch_compile_generate:
             LOGGER.warning(
@@ -346,30 +221,9 @@ class VLLMModelBenchmark(ModelBenchmarkInterface):
                         outputs is not None
                     ), "Forward pass did not return any output."
 
-        # if self.use_cuda_graphs_generate:
-        #     LOGGER.info("Setting up benchmark with CUDA graphs on benchmark function.")
-        #     try:
-        #         graph = compile_with_cuda_graphs(benchmark_fn, self.cuda_graphs_warmups)
-        #         self.benchmark_fn = lambda: graph.replay()
-        #     except (torch.OutOfMemoryError, AssertionError, RuntimeError) as e:
-        #         # We want to catch all errors that might occur if batch size is too large.
-        #         # These include IllegalMemory access, Assertion errors for block sizes, etc.
-        #         error = e
-        #         LOGGER.warning(
-        #             f"Encountered Error while setting up cuda graph for benchmark fn: {e}"
-        #         )
-
-        #         def bench_error_fn():
-        #             # We raise the error in the benchmark, to make sure it is caught and reported.
-        #             raise error
-
-        #         self.benchmark_fn = bench_error_fn
-        # else:
         self.benchmark_fn = benchmark_fn
 
     def _setup_generate_benchmark(self):
-        # we need to input a first token to pass the batch size to huggingface
-        # generate()
         if self.prefill_length == 0:
             self.prefill_length = 1
 
@@ -397,16 +251,6 @@ class VLLMModelBenchmark(ModelBenchmarkInterface):
 
         benchmark_fn_context_manager = self._get_benchmark_fn_context_manager()
 
-        # CUDA graphs do not allow for CPU tensors to be forwarded to GPU within the graph; needs to be pushed
-        # to the GPU before the graph is created.
-        pad_token_id = None
-        bos_token_id = torch.tensor(
-            1, dtype=torch.long, device=torch.device(self.device)
-        )
-        eos_token_id = torch.tensor(
-            2, dtype=torch.long, device=torch.device(self.device)
-        )
-
         def benchmark_fn():
             with torch.nn.attention.sdpa_kernel(
                 torch.nn.attention.SDPBackend.CUDNN_ATTENTION
@@ -414,18 +258,7 @@ class VLLMModelBenchmark(ModelBenchmarkInterface):
                 with benchmark_fn_context_manager():
                     # Use static cache for Transformer models for compile support.
                     generate_kwargs = {}
-                    # if self.model_name in ["llama2", "llama3"]:
-                    #     generate_kwargs["past_key_values"] = StaticCache(
-                    #         config=self.hf_model_config,
-                    #         batch_size=self.batch_size,
-                    #         max_cache_len=self.prefill_length
-                    #         + self.generation_length
-                    #         - 1,
-                    #         device=torch.device(self.device),
-                    #         dtype=self.model.dtype,
-                    #     )
                     outputs = self.model.generate(
-                        # prompts=[vllm.inputs.TokensPrompt(prompt_token_ids=self.prefill_tokens)],
                         prompt_token_ids=self.prefill_tokens.cpu().numpy().tolist(),
                         sampling_params = SamplingParams(
                             min_tokens=self.generation_length,
@@ -434,23 +267,10 @@ class VLLMModelBenchmark(ModelBenchmarkInterface):
                             detokenize=False,
                             temperature=0.,
                         ),
-                        # generation_config=GenerationConfig(
-                        #     max_new_tokens=self.generation_length,
-                        #     min_new_tokens=self.generation_length,
-                        #     do_sample=False,
-                        #     pad_token_id=pad_token_id,
-                        #     bos_token_id=bos_token_id,
-                        #     eos_token_id=eos_token_id,
-                        # ),
-                        # use_cache=True,
                         **generate_kwargs,
                     )
             
-            # assert (
-            #     outputs.shape
-            #     == (self.batch_size, self.prefill_length + self.generation_length)
-            # ), f"Unexpected output shape: {outputs.shape}, expected: {(self.batch_size, self.prefill_length + self.generation_length)}"
-
+        
         if self.use_cuda_graphs_generate:
             LOGGER.info("Setting up benchmark with CUDA graphs on benchmark function.")
             try:

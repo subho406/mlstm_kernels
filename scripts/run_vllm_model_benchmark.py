@@ -535,5 +535,5 @@ if __name__ == "__main__":
     )
 
 # Run commands:
-# PYTHONPATH=. python scripts/run_hf_model_benchmark.py --benchmark ttft --folder_suffix version_0
-# PYTHONPATH=. python scripts/run_hf_model_benchmark.py --benchmark gen_time --folder_suffix version_0
+# PYTHONPATH=. python scripts/run_vllm_model_benchmark.py --benchmark ttft --folder_suffix version_0
+# PYTHONPATH=. python scripts/run_vllm_model_benchmark.py --benchmark gen_time --folder_suffix version_0
