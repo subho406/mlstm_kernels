@@ -9,6 +9,7 @@ from transformers.models.xlstm import xLSTMConfig
 from transformers.models.zamba import ZambaConfig
 
 ministral8b_config = {
+    "_name_or_path": "mistralai/Ministral-8B-Instruct-2410",
     "architectures": ["MistralForCausalLM"],
     "attention_dropout": 0.0,
     "bos_token_id": 1,
@@ -34,7 +35,7 @@ ministral8b_config = {
 }
 
 codestral_mamba_config = {
-    "_name_or_path": "/raid/pablo/codestral-hf-good/",
+    "_name_or_path": "mistralai/Mamba-Codestral-7B-v0.1", # "/raid/pablo/codestral-hf-good/",
     "architectures": ["Mamba2ForCausalLM"],
     "bos_token_id": 0,
     "chunk_size": 256,
@@ -98,6 +99,7 @@ llama_2_config = {
 }
 
 llama_3_1_config = {
+    "_name_or_path": "meta-llama/Llama-3.1-8B",
     "architectures": ["LlamaForCausalLM"],
     "attention_bias": False,
     "attention_dropout": 0.0,
@@ -131,7 +133,7 @@ llama_3_1_config = {
 }
 
 falcon_mamba_config = {
-    "_name_or_path": "./",
+    "_name_or_path": "tiiuae/Falcon-Mamba-7b",
     "architectures": ["FalconMambaForCausalLM"],
     "bos_token_id": 0,
     "conv_kernel": 4,

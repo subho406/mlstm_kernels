@@ -11,6 +11,7 @@ from typing import Any, Literal
 
 import torch
 import torch._dynamo.cache_size
+
 from transformers import GenerationConfig, StaticCache
 
 from ..cuda_graphs import (
@@ -397,6 +398,11 @@ class HFModelBenchmark(ModelBenchmarkInterface):
         eos_token_id = torch.tensor(
             2, dtype=torch.long, device=torch.device(self.device)
         )
+        # these needed to be added to make it work (again?) in the latest cuda-graph-enabled transformers branch
+        self.model.generation_config.pad_token_id = pad_token_id
+        self.model.generation_config.bos_token_id = bos_token_id
+        self.model.generation_config.eos_token_id = eos_token_id
+        
 
         def benchmark_fn():
             with torch.nn.attention.sdpa_kernel(

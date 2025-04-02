@@ -171,6 +171,32 @@ def read_ttf_data():
     return ttft_1_plot_df, ttft_100_plot_df
 
 
+def read_ttf_vllm_data():
+    with open("notebooks/plots_7B_model_benchmark/ttft_raw_data_vllm.p", "rb") as f:
+        raw_data = pickle.load(f)
+
+    ttft_1_df = raw_data["ttft_1"]
+    ttft_100_df = raw_data["ttft_100"]
+
+    selected_columns = {
+        "llama3": "R--llama3__ampdt-bfloat16__wdt-bfloat16__ucgg-False_ucgm-False_vllm",
+        "llama2": "R--llama2__ampdt-bfloat16__wdt-bfloat16__ucgg-False_ucgm-False_vllm",
+        "falcon_mamba": "R--falcon_mamba__ampdt-bfloat16__wdt-bfloat16__ucgg-False_ucgm-False_vllm",
+        "codestral_mamba": "R--codestral_mamba__ampdt-bfloat16__wdt-bfloat16__ucgg-False_ucgm-False_vllm",
+        "xlstm": "R--xlstm__tcm__ampdt-bfloat16__wdt-bfloat16__ucgg-True_ucgm-False_isd-bfloat16_ed-4096_nh-8_nb-32_vs-50304_wm-fused_ck-chunkwise--triton_xl_chunk_sk-native_sequence__triton_step_fused_sk-triton_fused_cs-128_akd-bfloat16",
+    }
+
+    ttft_1_plot_df = select_columns(
+        ttft_1_df, selected_columns, keep_col_regex=".*prefill.*"
+    )
+
+    ttft_100_plot_df = select_columns(
+        ttft_100_df, selected_columns, keep_col_regex=".*prefill.*"
+    )
+
+    return ttft_1_plot_df, ttft_100_plot_df
+
+
 def read_gen_data():
     with open("notebooks/plots_7B_model_benchmark/gen_time_mem_data.p", "rb") as f:
         raw_data = pickle.load(f)
@@ -204,6 +230,58 @@ def read_gen_data():
     return gen_time_plot_df, gen_mem_plot_df
 
 
+def read_gen_data2():
+    # with open("notebooks/plots_7B_model_benchmark/gen_time_mem_data.p", "rb") as f:
+    #     raw_data = pickle.load(f)
+
+    with open("notebooks/plots_7B_model_benchmark/gen_time_mem_data_vllm.p", "rb") as f:
+        raw_data_vllm = pickle.load(f)
+
+    # gen_mem_df = raw_data["gen_mem_gb"]
+    # gen_time_df = raw_data["gen_time_seconds"]
+    gen_time_vllm_df = raw_data_vllm["gen_time_seconds"]
+
+
+    selected_columns_runtime = {
+        "llama3": "R--llama3__tcm__ampdt-bfloat16__wdt-bfloat16__ucgg-False_ucgm-False",
+        "llama2": "R--llama2__tcm__ampdt-bfloat16__wdt-bfloat16__ucgg-False_ucgm-False",
+        "falcon_mamba": "R--falcon_mamba__ampdt-bfloat16__wdt-bfloat16__ucgg-False_ucgm-True",
+        "codestral_mamba": "R--codestral_mamba__ampdt-bfloat16__wdt-bfloat16__ucgg-False_ucgm-True",
+        "xlstm": "R--xlstm__tcm__ampdt-bfloat16__wdt-bfloat16__ucgg-False_ucgm-True_isd-bfloat16_ed-4096_nh-8_nb-32_vs-50304_wm-fused_ck-chunkwise--triton_xl_chunk_sk-native_sequence__triton_step_fused_sk-triton_fused_cs-128_akd-bfloat16",
+    }
+
+    selected_columns_runtime_vllm = {
+        "llama3": "R--llama3__ampdt-bfloat16__wdt-bfloat16__ucgg-False_ucgm-False_vllm",
+        "llama2": "R--llama2__ampdt-bfloat16__wdt-bfloat16__ucgg-False_ucgm-False_vllm",
+        "falcon_mamba": "R--falcon_mamba__ampdt-bfloat16__wdt-bfloat16__ucgg-False_ucgm-False_vllm",
+        "codestral_mamba": "R--codestral_mamba__ampdt-bfloat16__wdt-bfloat16__ucgg-False_ucgm-False_vllm",
+        "xlstm": "R--xlstm__tcm__ampdt-bfloat16__wdt-bfloat16__ucgg-False_ucgm-True_isd-bfloat16_ed-4096_nh-8_nb-32_vs-50304_wm-fused_ck-chunkwise--triton_xl_chunk_sk-native_sequence__triton_step_fused_sk-triton_fused_cs-128_akd-bfloat16",
+    }
+
+    # selected_columns_memory = {
+    #     "llama2": "M--llama2__tcm__ampdt-bfloat16__wdt-bfloat16__ucgg-False_ucgm-False",
+    #     "llama3": "M--llama3__tcm__ampdt-bfloat16__wdt-bfloat16__ucgg-False_ucgm-False",
+    #     "falcon_mamba": "M--falcon_mamba__ampdt-bfloat16__wdt-bfloat16__ucgg-False_ucgm-True",
+    #     "codestral_mamba": "M--codestral_mamba__ampdt-bfloat16__wdt-bfloat16__ucgg-False_ucgm-True",
+    #     "xlstm": "M--xlstm__tcm__ampdt-bfloat16__wdt-bfloat16__ucgg-False_ucgm-True_isd-bfloat16_ed-4096_nh-8_nb-32_vs-50304_wm-fused_ck-chunkwise--triton_xl_chunk_sk-native_sequence__triton_step_fused_sk-triton_fused_cs-128_akd-bfloat16",
+    # }
+
+    gen_time_plot_df = select_columns(
+        gen_time_vllm_df, selected_columns_runtime, keep_col_regex=".*generation.*"
+    )
+
+    gen_time_vllm_plot_df = select_columns(
+        gen_time_vllm_df, selected_columns_runtime_vllm, keep_col_regex=".*generation.*"
+    )
+
+    # gen_mem_plot_df = select_columns(
+    #     gen_mem_df, selected_columns_memory, keep_col_regex=".*generation.*"
+    # )
+
+    return gen_time_plot_df, gen_time_vllm_plot_df  # , gen_mem_plot_df
+
+
+
 def read_tokens_per_second_data():
     with open("notebooks/plots_7B_model_benchmark/ttft_raw_data.p", "rb") as f:
         raw_data = pickle.load(f)
@@ -224,8 +302,51 @@ def read_tokens_per_second_data():
     return token_per_sec_plot_df
 
 
+
+
+def read_tokens_per_second_data_vllm():
+    with open("notebooks/plots_7B_model_benchmark/ttft_raw_data_vllm.p", "rb") as f:
+        raw_data = pickle.load(f)
+
+    token_per_sec_df = raw_data["token_per_sec"]
+
+    selected_columns = {
+        "llama3": "R--llama3__tcm__ampdt-bfloat16__wdt-bfloat16__ucgg-True_ucgm-False",
+        "llama2": "R--llama2__tcm__ampdt-bfloat16__wdt-bfloat16__ucgg-True_ucgm-False",
+        "falcon_mamba": "R--falcon_mamba__ampdt-bfloat16__wdt-bfloat16__ucgg-True_ucgm-False",
+        "codestral_mamba": "R--codestral_mamba__ampdt-bfloat16__wdt-bfloat16__ucgg-True_ucgm-False",
+        "xlstm": "R--xlstm__tcm__ampdt-bfloat16__wdt-bfloat16__ucgg-True_ucgm-False_isd-bfloat16_ed-4096_nh-8_nb-32_vs-50304_wm-fused_ck-chunkwise--triton_xl_chunk_sk-native_sequence__triton_step_fused_sk-triton_fused_cs-128_akd-bfloat16",
+    }
+
+    selected_columns_vllm = {
+        "llama3": "R--llama3__ampdt-bfloat16__wdt-bfloat16__ucgg-False_ucgm-False_vllm",
+        "llama2": "R--llama2__ampdt-bfloat16__wdt-bfloat16__ucgg-False_ucgm-False_vllm",
+        "falcon_mamba": "R--falcon_mamba__ampdt-bfloat16__wdt-bfloat16__ucgg-False_ucgm-False_vllm",
+        "codestral_mamba": "R--codestral_mamba__ampdt-bfloat16__wdt-bfloat16__ucgg-False_ucgm-False_vllm",
+        "xlstm": "R--xlstm__tcm__ampdt-bfloat16__wdt-bfloat16__ucgg-True_ucgm-False_isd-bfloat16_ed-4096_nh-8_nb-32_vs-50304_wm-fused_ck-chunkwise--triton_xl_chunk_sk-native_sequence__triton_step_fused_sk-triton_fused_cs-128_akd-bfloat16",
+    }
+
+    token_per_sec_plot_df = select_columns(
+        token_per_sec_df, selected_columns, keep_col_regex=".*prefill.*"
+    )
+
+    token_per_sec_plot_vllm_df = select_columns(
+        token_per_sec_df, selected_columns_vllm, keep_col_regex=".*prefill.*"
+    )
+
+    return token_per_sec_plot_df, token_per_sec_plot_vllm_df
+
+
+
 def read_forward_throughput_data():
     with open("notebooks/plots_7B_model_benchmark/throughput_df.p", "rb") as f:
+        plot_throughput_df = pickle.load(f)
+
+    return plot_throughput_df
+
+
+def read_forward_throughput_vllm_data():
+    with open("notebooks/plots_7B_model_benchmark/throughput_vllm_df.p", "rb") as f:
         plot_throughput_df = pickle.load(f)
 
     return plot_throughput_df
@@ -658,8 +779,42 @@ def create_ttf_plot(figsize_2plots_per_col, legend_args):
         x_axis_vals=x_axis_vals,
         x_label="Prefill Length [Tokens]",
         y_labels=y_labels,
+        y_lims=[[0., 1.], [0., 4.]],
         legend_args=legend_args,
         filename="ttfs",
+    )
+
+
+def create_ttf_vllm_plot(figsize_2plots_per_col, legend_args):
+    # Read in data
+    ttf1_1_plot_df, ttf100_1_plot_df = read_ttf_vllm_data()
+
+    # Specify the x-axis parameter and the y-axis labels
+    x_axis_param = "prefill_length"
+    y_labels = ["Time to First Token [s]", "Time to First 100 Tokens [s]"]
+
+    # Collect x and y values
+    x_axis_vals = []
+    y_axis_val_dfs = []
+    for df in [ttf1_1_plot_df, ttf100_1_plot_df]:
+        x_axis_vals.append(df[f"P--{x_axis_param}"])
+
+        exclude_regex = "P--.*|Unnamed.*"
+        y_axis_val_df = df.drop(df.filter(regex=exclude_regex, axis=1).columns, axis=1)
+        # Use seconds instead of milliseconds for TTF plots
+        df = y_axis_val_df * 1e-3
+        y_axis_val_dfs.append(df)
+
+    # Plot the figures
+    plot_dfs(
+        dfs=y_axis_val_dfs,
+        figsize=figsize_2plots_per_col,
+        x_axis_vals=x_axis_vals,
+        x_label="Prefill Length [Tokens]",
+        y_labels=y_labels,
+        y_lims=[[0., 1.], [0., 4.]],
+        legend_args=legend_args,
+        filename="ttfs_vllm",
     )
 
 
@@ -693,6 +848,37 @@ def create_generation_time_and_memory_plot(figsize_2plots_per_col, legend_args):
     )
 
 
+def create_generation_time_plot(figsize_2plot_per_col,  legend_args):
+    # Read in data
+    gen_time_plot_df, gen_time_vllm_plot_df = read_gen_data2()
+
+    # Specify the x-axis parameter and the y-axis labels
+    x_axis_param = "generation_length"
+    y_labels = ["Generation Time [s]", "Generation Time (VLLM) [s]"]
+
+    # Collect x and y values
+    x_axis_vals = []
+    y_axis_val_dfs = []
+    for df in [gen_time_plot_df, gen_time_vllm_plot_df]: # , gen_mem_plot_df]:
+        x_axis_vals.append(df[f"P--{x_axis_param}"])
+
+        exclude_regex = "P--.*|Unnamed.*"
+        y_axis_val_df = df.drop(df.filter(regex=exclude_regex, axis=1).columns, axis=1)
+        y_axis_val_dfs.append(y_axis_val_df)
+
+    # Plot the figures
+    plot_dfs(
+        dfs=y_axis_val_dfs,
+        figsize=figsize_2plot_per_col,
+        x_axis_vals=x_axis_vals,
+        x_label="Generation Length [Tokens]",
+        y_labels=y_labels,
+        y_lims=[[0, 500], [0, 500]],
+        legend_args=legend_args,
+        filename="generationtime",
+    )
+
+
 def create_single_throughput_plot(figsize_1plot_per_col, legend_args):
     # Read in data
     token_per_sec_plot_df = read_tokens_per_second_data()
@@ -721,6 +907,40 @@ def create_single_throughput_plot(figsize_1plot_per_col, legend_args):
         legend_args=legend_args,
         filename="tokens_per_sec",
     )
+
+
+def create_throughput_vllm_plot(figsize_2plot_per_col, legend_args):
+    # Read in data
+    token_per_sec_plot_df, token_per_sec_plot_vllm_df = read_tokens_per_second_data_vllm()
+
+    # Specify the x-axis parameter and the y-axis labels
+    x_axis_param = "prefill_length"
+    y_labels = ["Tokens per Second", "Tokens per Second (VLLM)"]
+
+    # Collect x and y values
+    x_axis_vals = []
+    y_axis_val_dfs = []
+    for df in [token_per_sec_plot_df, token_per_sec_plot_vllm_df]:
+        x_axis_vals.append(df[f"P--{x_axis_param}"])
+
+        exclude_regex = "P--.*|Unnamed.*"
+        y_axis_val_df = df.drop(df.filter(regex=exclude_regex, axis=1).columns, axis=1)
+        y_axis_val_dfs.append(y_axis_val_df)
+
+    # Plot the figures
+    plot_dfs(
+        dfs=y_axis_val_dfs,
+        figsize=figsize_2plot_per_col,
+        x_axis_vals=x_axis_vals,
+        x_label="Prefill Length [Tokens]",
+        y_labels=y_labels,
+        y_lims=[[0, 200], [0, 200]],
+        legend_args=legend_args,
+        filename="tokens_per_sec_vllm",
+    )
+
+
+
 
 
 def create_forward_throughput_barplot(
@@ -752,6 +972,51 @@ def create_forward_throughput_barplot(
         savefig(fig=f, filename=filename)
     else:
         plt.show()
+
+
+def create_forward_throughput_vllm_barplot(
+    figsize_1plot_per_col, legend_args, filename=None
+):
+    # Read in data
+    forward_throughput_df = read_forward_throughput_vllm_data()
+    forward_throughput_df = forward_throughput_df.rename(columns={
+        "R--llama3__ampdt-bfloat16__wdt-bfloat16__ucgg-False_ucgm-False_vllm": "llama3",
+        "R--codestral_mamba__ampdt-bfloat16__wdt-bfloat16__ucgg-False_ucgm-False_vllm": "codestral_mamba",
+        "R--falcon_mamba__ampdt-bfloat16__wdt-bfloat16__ucgg-False_ucgm-False_vllm": "falcon_mamba",
+        "R--llama2__ampdt-bfloat16__wdt-bfloat16__ucgg-False_ucgm-False_vllm": "llama2",
+        "R--xlstm__tcm__ampdt-bfloat16__wdt-bfloat16__ucgg-True_ucgm-False_isd-bfloat16_ed-4096_nh-8_nb-32_vs-50304_wm-fused_ck-chunkwise--triton_xl_chunk_sk-native_sequence__triton_step_fused_sk-triton_fused_cs-128_akd-bfloat16": "xlstm",
+        "P--batch_size": "BS",
+        "P--prefill_length": "CTX",
+
+    })
+
+    # Switch columns such that the ordering of the models is the same as in the other plots.
+    forward_throughput_df = forward_throughput_df[
+        ["BS", "CTX", "llama3", "llama2", "falcon_mamba", "codestral_mamba", "xlstm"]
+    ]
+
+    forward_throughput_df[["llama3", "llama2", "falcon_mamba", "codestral_mamba", "xlstm"]] = forward_throughput_df[["llama3", "llama2", "falcon_mamba", "codestral_mamba", "xlstm"]].round(0)
+
+    f = create_runtime_bar_plot(
+        data_df=forward_throughput_df,
+        group_col_names=["BS", "CTX"],
+        bar_label_font_size=8,
+        style_dict=style_dict,
+        figsize=figsize_1plot_per_col,
+        x_label="Tokens",
+        y_label="Tokens per Second",
+        fmt=lambda x: "{:.0f}".format(x) if x > 0 else "NA",
+        yticks=[10000, 20000, 30000, 40000, 50000],
+        legend_args=legend_args,
+    )
+
+    f.tight_layout()
+
+    if filename is not None:
+        savefig(fig=f, filename=filename)
+    else:
+        plt.show()
+
 
 
 def create_ruler_main_plot(figsize_1plot_per_col, legend_args):
@@ -948,15 +1213,19 @@ def create_bias_ablation_plot(figsize, legend_args):
 
 def plot_paper_figures():
     switches_for_plots = {
-        "ttf": False,
-        "gen": False,
-        "tps": False,
-        "ft": False,
+        "ttf": True, # False,
+        "ttf_vllm": True, # False,
+        "gen": True, # False,
+        "gentime": True,
+        "tps": True, # False,
+        "tps_all": True, # False,
+        "ft": True, # False,
+        "ft_all": True, # False,
         "ruler_main": False,
         "ruler_abl": False,
         "scheduler": False,
         "softcap": False,
-        "rmsnorm": True,
+        "rmsnorm": False,
         "bias": False,
     }
     # 1. Produce the 2-plots-per-ICML column figures TTF1, TTF100 and generation time, generation memory.
@@ -976,10 +1245,18 @@ def plot_paper_figures():
     if switches_for_plots["ttf"]:
         create_ttf_plot(figsize_2plots_per_col, legend_args)
 
+    if switches_for_plots["ttf_vllm"]:
+        create_ttf_vllm_plot(figsize_2plots_per_col, legend_args)
+
+
     # 2. Produce the generation time and generation memory plots
     if switches_for_plots["gen"]:
         create_generation_time_and_memory_plot(figsize_2plots_per_col, legend_args)
 
+    if switches_for_plots["gentime"]:
+        create_generation_time_plot(figsize_2plots_per_col, legend_args)
+
+    
     # 3. Produce the single throughput plot.
     # This plot is a single plot per column figure,
     # so the aspect ratio is different. Double the height of the 2-plots-per-column figure and subtract 2 to make
@@ -1001,6 +1278,10 @@ def plot_paper_figures():
     if switches_for_plots["tps"]:
         create_single_throughput_plot(figsize_1plot_per_col, legend_args)
 
+    if switches_for_plots["tps_all"]:
+        create_throughput_vllm_plot(figsize_2plots_per_col, legend_args)
+
+
     # 4. Produce the forward throughput barplot.
     # This plot is also a single plot per column figure but the barplot needs more height to look good
     figsize_1plot_per_col = (
@@ -1020,6 +1301,11 @@ def plot_paper_figures():
     if switches_for_plots["ft"]:
         create_forward_throughput_barplot(
             figsize_1plot_per_col, legend_args, filename="forward_throughput"
+        )
+
+    if switches_for_plots["ft_all"]:
+        create_forward_throughput_vllm_barplot(
+            figsize_1plot_per_col, legend_args, filename="forward_throughput_all"
         )
 
     # 5. Produce RULER plots
