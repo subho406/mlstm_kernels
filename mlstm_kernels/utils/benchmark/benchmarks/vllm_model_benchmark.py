@@ -258,7 +258,7 @@ class VLLMModelBenchmark(ModelBenchmarkInterface):
                 with benchmark_fn_context_manager():
                     # Use static cache for Transformer models for compile support.
                     generate_kwargs = {}
-                    outputs = self.model.generate(
+                    _ = self.model.generate(
                         prompt_token_ids=self.prefill_tokens.cpu().numpy().tolist(),
                         sampling_params = SamplingParams(
                             min_tokens=self.generation_length,
@@ -270,27 +270,7 @@ class VLLMModelBenchmark(ModelBenchmarkInterface):
                         **generate_kwargs,
                     )
             
-        
-        if self.use_cuda_graphs_generate:
-            LOGGER.info("Setting up benchmark with CUDA graphs on benchmark function.")
-            try:
-                graph = compile_with_cuda_graphs(benchmark_fn, self.cuda_graphs_warmups)
-                self.benchmark_fn = lambda: graph.replay()
-            except (torch.OutOfMemoryError, AssertionError, RuntimeError) as e:
-                # We want to catch all errors that might occur if batch size is too large.
-                # These include IllegalMemory access, Assertion errors for block sizes, etc.
-                error = e
-                LOGGER.warning(
-                    f"Encountered Error while setting up cuda graph for benchmark fn: {e}"
-                )
-
-                def bench_error_fn():
-                    # We raise the error in the benchmark, to make sure it is caught and reported.
-                    raise error
-
-                self.benchmark_fn = bench_error_fn
-        else:
-            self.benchmark_fn = benchmark_fn
+        self.benchmark_fn = benchmark_fn
 
     def available_kernels(self) -> list[str]:
         hf_models = list(self.get_hf_model_registry().keys())
