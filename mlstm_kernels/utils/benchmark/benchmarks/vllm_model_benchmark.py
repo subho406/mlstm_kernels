@@ -120,20 +120,6 @@ class VLLMModelBenchmark(ModelBenchmarkInterface):
 
         LOGGER.debug("Setup benchmark done.")
 
-    def _get_benchmark_fn_context_manager(self):
-        assert self.benchmark_fn_context_manager in typing.get_args(
-            BenchmarkFnContextManagerCfgType
-        ), f"Invalid benchmark_fn_context_manager: {self.benchmark_fn_context_manager}"
-
-        if self.benchmark_fn_context_manager == "none":
-            benchmark_fn_context_manager = contextlib.nullcontext
-        elif self.benchmark_fn_context_manager == "no_grad":
-            benchmark_fn_context_manager = torch.no_grad
-        elif self.benchmark_fn_context_manager == "inference_mode":
-            benchmark_fn_context_manager = torch.inference_mode
-
-        return benchmark_fn_context_manager
-
     def _setup_forward_benchmark(self):
         assert (
             self.generation_length == 0
@@ -162,21 +148,20 @@ class VLLMModelBenchmark(ModelBenchmarkInterface):
             with torch.nn.attention.sdpa_kernel(
                 torch.nn.attention.SDPBackend.CUDNN_ATTENTION
             ):
-                with benchmark_fn_context_manager():
-                    outputs = self.model.generate(
-                        # vllm does not work with tensors somehow
-                        prompt_token_ids=self.prefill_tokens.cpu().numpy().tolist(),
-                        sampling_params = SamplingParams(
-                            min_tokens=1,
-                            max_tokens=1,
-                            ignore_eos=True,
-                            detokenize=False,
-                            temperature=0.,
-                        ),
-                        )
-                    assert (
-                        outputs is not None
-                    ), "Forward pass did not return any output."
+                outputs = self.model.generate(
+                    # vllm does not work with tensors somehow
+                    prompt_token_ids=self.prefill_tokens.cpu().numpy().tolist(),
+                    sampling_params = SamplingParams(
+                        min_tokens=1,
+                        max_tokens=1,
+                        ignore_eos=True,
+                        detokenize=False,
+                        temperature=0.,
+                    ),
+                    )
+                assert (
+                    outputs is not None
+                ), "Forward pass did not return any output."
 
         self.benchmark_fn = benchmark_fn
 
