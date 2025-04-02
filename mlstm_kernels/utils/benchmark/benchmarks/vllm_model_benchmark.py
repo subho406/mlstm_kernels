@@ -207,7 +207,7 @@ class VLLMModelBenchmark(ModelBenchmarkInterface):
             ):
                 with benchmark_fn_context_manager():
                     outputs = self.model.generate(
-                        # prompts=[vllm.inputs.TokensPrompt(prompt_token_ids=self.prefill_tokens)],
+                        # vllm does not work with tensors somehow
                         prompt_token_ids=self.prefill_tokens.cpu().numpy().tolist(),
                         sampling_params = SamplingParams(
                             min_tokens=1,
