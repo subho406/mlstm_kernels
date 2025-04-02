@@ -424,7 +424,7 @@ def create_runtime_bar_plot(
     y_label: str | None = None,
     x_label: str = "Sequence Length",
     ax=None,
-    fmt: str | None = lambda x: "{:g}".format(x) if not np.isnan(x) else "NA",
+    fmt: Callable | str | None = lambda x: "{:g}".format(x) if not np.isnan(x) else "NA",
     add_colname: bool = True,
 ) -> Figure:
     """Create a bar plot for runtime results.
