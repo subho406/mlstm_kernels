@@ -216,6 +216,7 @@ def mlstm_siging_chunkwise__xl_chunk(
     f: torch.Tensor,  # (B, NH, S)
     c_initial: torch.Tensor = None,  # (B, NH, DHQK, DHHV)
     n_initial: torch.Tensor = None,  # (B, NH, DHQK)
+    m_initial: torch.Tensor = None,  # (B, NH, 1) # unused: placeholder to match the mLSTMexp interface
     return_last_states: bool = False,
     eps: float = 1e-6,
     normalize: bool = True,

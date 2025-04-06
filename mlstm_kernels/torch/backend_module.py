@@ -29,6 +29,8 @@ ChunkwiseKernelType = Literal[
     "parallel--native_stablef_autograd",
     "parallel--native_stablef_custbw",
     "parallel--triton_limit_headdim",
+    "parallel--native_siging_autograd",
+    "parallel--native_siging_custbw",
 ]
 SequenceKernelType = Literal["native_sequence__native", "native_sequence__triton"]
 StepKernelType = Literal["native", "triton"]
@@ -72,6 +74,11 @@ class mLSTMBackendConfig:
     """Epsilon value for numerical stability in the kernel."""
     inference_state_dtype: DtypeType = "float32"
     """The dtype to use for the state tensors in inference mode."""
+    normalize_siging: bool = True
+    """Whether to normalize the combination matrix C in siging kernels.
+    This is only relevant for chunkwise siging kernels (mLSTM with sigmoid input gate).
+    For other kernels (i.e. mLSTM with exponential input gate) it will be ignored.
+    """
 
     def __post_init__(self):
         if self.return_last_states and "parallel" in self.chunkwise_kernel:
@@ -176,16 +183,22 @@ class mLSTMBackend(nn.Module):
             if self.config.mode == "train_with_padding":
                 assert not return_last_states, "return_last_states=True is not supported with train_with_padding mode."
 
+            train_fn_args = {
+                "q": q,
+                "k": k,
+                "v": v,
+                "i": i,
+                "f": f,
+                "c_initial": c_initial,
+                "n_initial": n_initial,
+                "m_initial": m_initial,
+                "return_last_states": return_last_states,
+            }
+            if "siging" in self.config.chunkwise_kernel:
+                train_fn_args["normalize"] = self.config.normalize_siging
+
             return self._train_fn(
-                q=q,
-                k=k,
-                v=v,
-                i=i,
-                f=f,
-                c_initial=c_initial,
-                n_initial=n_initial,
-                m_initial=m_initial,
-                return_last_states=return_last_states,
+                **train_fn_args,
             )
 
         elif "inference" in mode:

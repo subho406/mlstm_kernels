@@ -5,12 +5,12 @@ import logging
 from collections.abc import Callable
 from pathlib import Path
 
+import numpy as np
+import torch
+
 from mlstm_kernels.torch.utils import dtype2str, to_numpy
 from mlstm_kernels.utils.test.checks import check_correctness
 from mlstm_kernels.utils.time import Stopwatch
-
-import numpy as np
-import torch
 
 from .losses_tests import loss_layernorm_offset_quadratic
 
@@ -33,6 +33,7 @@ def template_test_parallel_interface(
     dtype=torch.float32,
     device=torch.device("cuda:0"),
     EPS: float = 1e-6,
+    pass_EPS_to_kernels: bool = True,
     vmax: float = None,
     atol_fw: float = 1e-3,
     rtol_fw: float = 1e-2,
@@ -81,13 +82,17 @@ def template_test_parallel_interface(
     # same dtype baseline
     sw = Stopwatch()
     sw.start()
+    bl_args = {
+        "q": matQ_baseline,
+        "k": matK_baseline,
+        "v": matV_baseline,
+        "i": vecI_baseline,
+        "f": vecF_baseline,
+    }
+    if pass_EPS_to_kernels:
+        bl_args["eps"] = EPS
     matH_baseline = baseline_fn(
-        q=matQ_baseline,
-        k=matK_baseline,
-        v=matV_baseline,
-        i=vecI_baseline,
-        f=vecF_baseline,
-        eps=EPS,
+        **bl_args,
     )
     fw_seconds = sw.lap()
     if run_backward:
@@ -104,13 +109,17 @@ def template_test_parallel_interface(
     # target
     sw = Stopwatch()
     sw.start()
+    target_args = {
+        "q": matQ_target,
+        "k": matK_target,
+        "v": matV_target,
+        "i": vecI_target,
+        "f": vecF_target,
+    }
+    if pass_EPS_to_kernels:
+        target_args["eps"] = EPS
     matH_target = target_fn(
-        q=matQ_target,
-        k=matK_target,
-        v=matV_target,
-        i=vecI_target,
-        f=vecF_target,
-        eps=EPS,
+        **target_args,
     )
     fw_seconds = sw.lap()
     if run_backward:
@@ -276,13 +285,18 @@ def template_test_parallel_interface(
             vecF.clone().to(dtype=baseline_fp64_dtype).detach().requires_grad_(True)
         )
 
+        bl_args_fp64 = {
+            "q": matQ_baseline_fp64,
+            "k": matK_baseline_fp64,
+            "v": matV_baseline_fp64,
+            "i": vecI_baseline_fp64,
+            "f": vecF_baseline_fp64,
+        }
+        if pass_EPS_to_kernels:
+            bl_args_fp64["eps"] = EPS
+
         matH_baseline_fp64 = baseline_fn(
-            q=matQ_baseline_fp64,
-            k=matK_baseline_fp64,
-            v=matV_baseline_fp64,
-            i=vecI_baseline_fp64,
-            f=vecF_baseline_fp64,
-            eps=EPS,
+            **bl_args_fp64,
         )
         loss_layernorm_offset_quadratic(matH_baseline_fp64).backward()
 
