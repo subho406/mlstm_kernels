@@ -35,7 +35,7 @@ ministral8b_config = {
 }
 
 codestral_mamba_config = {
-    "_name_or_path": "mistralai/Mamba-Codestral-7B-v0.1", # "/raid/pablo/codestral-hf-good/",
+    "_name_or_path": "mistralai/Mamba-Codestral-7B-v0.1",  # "/raid/pablo/codestral-hf-good/",
     "architectures": ["Mamba2ForCausalLM"],
     "bos_token_id": 0,
     "chunk_size": 256,

@@ -28,7 +28,7 @@ class VLLMModelBenchmark(ModelBenchmarkInterface):
     num_blocks: int = 32
     vocab_size: int = 50304
 
-    use_torch_compile_model: bool = False # True
+    use_torch_compile_model: bool = False  # True
     use_torch_compile_generate: bool = False  # unused for now
     use_cuda_graphs_model: bool = False
     use_cuda_graphs_generate: bool = False
@@ -96,8 +96,12 @@ class VLLMModelBenchmark(ModelBenchmarkInterface):
 
         # self.model = AutoModelForCausalLM.from_config(self.hf_model_config)
 
-        self.model = LLM(self.hf_model_config._name_or_path, device=torch.device(self.device), 
-            hf_overrides={"max_seq_len": 32768},  dtype=getattr(torch, self.weight_dtype))
+        self.model = LLM(
+            self.hf_model_config._name_or_path,
+            device=torch.device(self.device),
+            hf_overrides={"max_seq_len": 32768},
+            dtype=getattr(torch, self.weight_dtype),
+        )
 
         LOGGER.info(f"Setting up model: {self.model}")
         LOGGER.info(f"Model config: {self.hf_model_config}")
@@ -151,17 +155,15 @@ class VLLMModelBenchmark(ModelBenchmarkInterface):
                 outputs = self.model.generate(
                     # vllm does not work with tensors somehow
                     prompt_token_ids=self.prefill_tokens.cpu().numpy().tolist(),
-                    sampling_params = SamplingParams(
+                    sampling_params=SamplingParams(
                         min_tokens=1,
                         max_tokens=1,
                         ignore_eos=True,
                         detokenize=False,
-                        temperature=0.,
+                        temperature=0.0,
                     ),
-                    )
-                assert (
-                    outputs is not None
-                ), "Forward pass did not return any output."
+                )
+                assert outputs is not None, "Forward pass did not return any output."
 
         self.benchmark_fn = benchmark_fn
 
@@ -175,7 +177,9 @@ class VLLMModelBenchmark(ModelBenchmarkInterface):
                 low=0,
                 high=self.hf_model_config.vocab_size,
                 size=(self.batch_size, self.prefill_length),
-            ).to(dtype=torch.long) # .to(device=torch.device(self.device), dtype=torch.long)
+            ).to(
+                dtype=torch.long
+            )  # .to(device=torch.device(self.device), dtype=torch.long)
         else:
             self.prefill_tokens = None
 
@@ -202,16 +206,16 @@ class VLLMModelBenchmark(ModelBenchmarkInterface):
                     generate_kwargs = {}
                     _ = self.model.generate(
                         prompt_token_ids=self.prefill_tokens.cpu().numpy().tolist(),
-                        sampling_params = SamplingParams(
+                        sampling_params=SamplingParams(
                             min_tokens=self.generation_length,
                             max_tokens=self.generation_length,
                             ignore_eos=True,
                             detokenize=False,
-                            temperature=0.,
+                            temperature=0.0,
                         ),
                         **generate_kwargs,
                     )
-            
+
         self.benchmark_fn = benchmark_fn
 
     def available_kernels(self) -> list[str]:
@@ -222,21 +226,20 @@ class VLLMModelBenchmark(ModelBenchmarkInterface):
 def create_vllm_model_benchmark(
     model_spec: ModelSpec, param_dict: dict
 ) -> VLLMModelBenchmark:
-    
     vllm_model_benchmark = VLLMModelBenchmark()
-    
+
     model_name = model_spec.model_name
     if model_name in vllm_model_benchmark.available_kernels():
         vllm_model_benchmark.model_name = model_spec.model_name
         vllm_model_benchmark.amp_enabled = model_spec.amp_enabled
         vllm_model_benchmark.amp_dtype = model_spec.amp_dtype
         vllm_model_benchmark.weight_dtype = model_spec.weight_dtype
-        vllm_model_benchmark.use_torch_compile_model = model_spec.use_torch_compile_model
+        vllm_model_benchmark.use_torch_compile_model = (
+            model_spec.use_torch_compile_model
+        )
 
         vllm_model_benchmark.set_params(param_dict)
         return vllm_model_benchmark
-
-    
 
     else:
         raise ValueError(f"Unknown model name: {model_name}")

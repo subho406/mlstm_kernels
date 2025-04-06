@@ -402,7 +402,6 @@ class HFModelBenchmark(ModelBenchmarkInterface):
         self.model.generation_config.pad_token_id = pad_token_id
         self.model.generation_config.bos_token_id = bos_token_id
         self.model.generation_config.eos_token_id = eos_token_id
-        
 
         def benchmark_fn():
             with torch.nn.attention.sdpa_kernel(

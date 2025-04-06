@@ -424,7 +424,7 @@ def create_runtime_bar_plot(
     y_label: str | None = None,
     x_label: str = "Sequence Length",
     ax=None,
-    fmt: Callable | str | None = lambda x: "{:g}".format(x) if not np.isnan(x) else "NA",
+    fmt: Callable | str | None = lambda x: f"{x:g}" if not np.isnan(x) else "NA",
     add_colname: bool = True,
 ) -> Figure:
     """Create a bar plot for runtime results.
@@ -525,7 +525,9 @@ def create_runtime_bar_plot(
             rects = ax.bar(x + offset, bar_length_df[col], width, label=col)
         else:
             rects = ax.bar(x + offset, bar_length_df[col], width, **style_dict[col])
-        ax.bar_label(rects, fmt=fmt, fontsize=bar_label_font_size)  # labels=raw_data_df[col], 
+        ax.bar_label(
+            rects, fmt=fmt, fontsize=bar_label_font_size
+        )  # labels=raw_data_df[col],
         multiplier += 1
 
     if ylim:

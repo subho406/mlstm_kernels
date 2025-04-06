@@ -241,7 +241,6 @@ def read_gen_data2():
     # gen_time_df = raw_data["gen_time_seconds"]
     gen_time_vllm_df = raw_data_vllm["gen_time_seconds"]
 
-
     selected_columns_runtime = {
         "llama3": "R--llama3__tcm__ampdt-bfloat16__wdt-bfloat16__ucgg-False_ucgm-False",
         "llama2": "R--llama2__tcm__ampdt-bfloat16__wdt-bfloat16__ucgg-False_ucgm-False",
@@ -281,7 +280,6 @@ def read_gen_data2():
     return gen_time_plot_df, gen_time_vllm_plot_df  # , gen_mem_plot_df
 
 
-
 def read_tokens_per_second_data():
     with open("notebooks/plots_7B_model_benchmark/ttft_raw_data.p", "rb") as f:
         raw_data = pickle.load(f)
@@ -300,8 +298,6 @@ def read_tokens_per_second_data():
     )
 
     return token_per_sec_plot_df
-
-
 
 
 def read_tokens_per_second_data_vllm():
@@ -335,7 +331,6 @@ def read_tokens_per_second_data_vllm():
     )
 
     return token_per_sec_plot_df, token_per_sec_plot_vllm_df
-
 
 
 def read_forward_throughput_data():
@@ -779,7 +774,7 @@ def create_ttf_plot(figsize_2plots_per_col, legend_args):
         x_axis_vals=x_axis_vals,
         x_label="Prefill Length [Tokens]",
         y_labels=y_labels,
-        y_lims=[[0., 1.], [0., 4.]],
+        y_lims=[[0.0, 1.0], [0.0, 4.0]],
         legend_args=legend_args,
         filename="ttfs",
     )
@@ -812,7 +807,7 @@ def create_ttf_vllm_plot(figsize_2plots_per_col, legend_args):
         x_axis_vals=x_axis_vals,
         x_label="Prefill Length [Tokens]",
         y_labels=y_labels,
-        y_lims=[[0., 1.], [0., 4.]],
+        y_lims=[[0.0, 1.0], [0.0, 4.0]],
         legend_args=legend_args,
         filename="ttfs_vllm",
     )
@@ -848,7 +843,7 @@ def create_generation_time_and_memory_plot(figsize_2plots_per_col, legend_args):
     )
 
 
-def create_generation_time_plot(figsize_2plot_per_col,  legend_args):
+def create_generation_time_plot(figsize_2plot_per_col, legend_args):
     # Read in data
     gen_time_plot_df, gen_time_vllm_plot_df = read_gen_data2()
 
@@ -859,7 +854,7 @@ def create_generation_time_plot(figsize_2plot_per_col,  legend_args):
     # Collect x and y values
     x_axis_vals = []
     y_axis_val_dfs = []
-    for df in [gen_time_plot_df, gen_time_vllm_plot_df]: # , gen_mem_plot_df]:
+    for df in [gen_time_plot_df, gen_time_vllm_plot_df]:  # , gen_mem_plot_df]:
         x_axis_vals.append(df[f"P--{x_axis_param}"])
 
         exclude_regex = "P--.*|Unnamed.*"
@@ -911,7 +906,9 @@ def create_single_throughput_plot(figsize_1plot_per_col, legend_args):
 
 def create_throughput_vllm_plot(figsize_2plot_per_col, legend_args):
     # Read in data
-    token_per_sec_plot_df, token_per_sec_plot_vllm_df = read_tokens_per_second_data_vllm()
+    token_per_sec_plot_df, token_per_sec_plot_vllm_df = (
+        read_tokens_per_second_data_vllm()
+    )
 
     # Specify the x-axis parameter and the y-axis labels
     x_axis_param = "prefill_length"
@@ -938,9 +935,6 @@ def create_throughput_vllm_plot(figsize_2plot_per_col, legend_args):
         legend_args=legend_args,
         filename="tokens_per_sec_vllm",
     )
-
-
-
 
 
 def create_forward_throughput_barplot(
@@ -979,23 +973,28 @@ def create_forward_throughput_vllm_barplot(
 ):
     # Read in data
     forward_throughput_df = read_forward_throughput_vllm_data()
-    forward_throughput_df = forward_throughput_df.rename(columns={
-        "R--llama3__ampdt-bfloat16__wdt-bfloat16__ucgg-False_ucgm-False_vllm": "llama3",
-        "R--codestral_mamba__ampdt-bfloat16__wdt-bfloat16__ucgg-False_ucgm-False_vllm": "codestral_mamba",
-        "R--falcon_mamba__ampdt-bfloat16__wdt-bfloat16__ucgg-False_ucgm-False_vllm": "falcon_mamba",
-        "R--llama2__ampdt-bfloat16__wdt-bfloat16__ucgg-False_ucgm-False_vllm": "llama2",
-        "R--xlstm__tcm__ampdt-bfloat16__wdt-bfloat16__ucgg-True_ucgm-False_isd-bfloat16_ed-4096_nh-8_nb-32_vs-50304_wm-fused_ck-chunkwise--triton_xl_chunk_sk-native_sequence__triton_step_fused_sk-triton_fused_cs-128_akd-bfloat16": "xlstm",
-        "P--batch_size": "BS",
-        "P--prefill_length": "CTX",
-
-    })
+    forward_throughput_df = forward_throughput_df.rename(
+        columns={
+            "R--llama3__ampdt-bfloat16__wdt-bfloat16__ucgg-False_ucgm-False_vllm": "llama3",
+            "R--codestral_mamba__ampdt-bfloat16__wdt-bfloat16__ucgg-False_ucgm-False_vllm": "codestral_mamba",
+            "R--falcon_mamba__ampdt-bfloat16__wdt-bfloat16__ucgg-False_ucgm-False_vllm": "falcon_mamba",
+            "R--llama2__ampdt-bfloat16__wdt-bfloat16__ucgg-False_ucgm-False_vllm": "llama2",
+            "R--xlstm__tcm__ampdt-bfloat16__wdt-bfloat16__ucgg-True_ucgm-False_isd-bfloat16_ed-4096_nh-8_nb-32_vs-50304_wm-fused_ck-chunkwise--triton_xl_chunk_sk-native_sequence__triton_step_fused_sk-triton_fused_cs-128_akd-bfloat16": "xlstm",
+            "P--batch_size": "BS",
+            "P--prefill_length": "CTX",
+        }
+    )
 
     # Switch columns such that the ordering of the models is the same as in the other plots.
     forward_throughput_df = forward_throughput_df[
         ["BS", "CTX", "llama3", "llama2", "falcon_mamba", "codestral_mamba", "xlstm"]
     ]
 
-    forward_throughput_df[["llama3", "llama2", "falcon_mamba", "codestral_mamba", "xlstm"]] = forward_throughput_df[["llama3", "llama2", "falcon_mamba", "codestral_mamba", "xlstm"]].round(0)
+    forward_throughput_df[
+        ["llama3", "llama2", "falcon_mamba", "codestral_mamba", "xlstm"]
+    ] = forward_throughput_df[
+        ["llama3", "llama2", "falcon_mamba", "codestral_mamba", "xlstm"]
+    ].round(0)
 
     f = create_runtime_bar_plot(
         data_df=forward_throughput_df,
@@ -1005,7 +1004,7 @@ def create_forward_throughput_vllm_barplot(
         figsize=figsize_1plot_per_col,
         x_label="Tokens",
         y_label="Tokens per Second",
-        fmt=lambda x: "{:.0f}".format(x) if x > 0 else "NA",
+        fmt=lambda x: f"{x:.0f}" if x > 0 else "NA",
         yticks=[10000, 20000, 30000, 40000, 50000],
         legend_args=legend_args,
     )
@@ -1016,7 +1015,6 @@ def create_forward_throughput_vllm_barplot(
         savefig(fig=f, filename=filename)
     else:
         plt.show()
-
 
 
 def create_ruler_main_plot(figsize_1plot_per_col, legend_args):
@@ -1213,14 +1211,14 @@ def create_bias_ablation_plot(figsize, legend_args):
 
 def plot_paper_figures():
     switches_for_plots = {
-        "ttf": True, # False,
-        "ttf_vllm": True, # False,
-        "gen": True, # False,
+        "ttf": True,  # False,
+        "ttf_vllm": True,  # False,
+        "gen": True,  # False,
         "gentime": True,
-        "tps": True, # False,
-        "tps_all": True, # False,
-        "ft": True, # False,
-        "ft_all": True, # False,
+        "tps": True,  # False,
+        "tps_all": True,  # False,
+        "ft": True,  # False,
+        "ft_all": True,  # False,
         "ruler_main": False,
         "ruler_abl": False,
         "scheduler": False,
@@ -1248,7 +1246,6 @@ def plot_paper_figures():
     if switches_for_plots["ttf_vllm"]:
         create_ttf_vllm_plot(figsize_2plots_per_col, legend_args)
 
-
     # 2. Produce the generation time and generation memory plots
     if switches_for_plots["gen"]:
         create_generation_time_and_memory_plot(figsize_2plots_per_col, legend_args)
@@ -1256,7 +1253,6 @@ def plot_paper_figures():
     if switches_for_plots["gentime"]:
         create_generation_time_plot(figsize_2plots_per_col, legend_args)
 
-    
     # 3. Produce the single throughput plot.
     # This plot is a single plot per column figure,
     # so the aspect ratio is different. Double the height of the 2-plots-per-column figure and subtract 2 to make
@@ -1280,7 +1276,6 @@ def plot_paper_figures():
 
     if switches_for_plots["tps_all"]:
         create_throughput_vllm_plot(figsize_2plots_per_col, legend_args)
-
 
     # 4. Produce the forward throughput barplot.
     # This plot is also a single plot per column figure but the barplot needs more height to look good
